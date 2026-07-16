@@ -2,7 +2,8 @@ import { createRouter, createWebHistory } from "vue-router";
 
 import AppLayout from "@/layouts/AppLayout.vue";
 import PublicLayout from "@/layouts/PublicLayout.vue";
-import { useSessionStore } from "@/shared/stores/session";
+import { resolveIdentityNavigation } from "@/router/identity-guard";
+import { useIdentityStore } from "@/shared/stores/identity";
 
 const BRAND_SUFFIX = "我们的明天";
 
@@ -18,24 +19,22 @@ export const router = createRouter({
       path: "/",
       component: PublicLayout,
       children: [
+        { path: "", redirect: "/login" },
         {
           path: "login",
           name: "login",
-          component: () => import("@/features/auth/LoginPage.vue"),
-          meta: { title: "登录", guestOnly: true },
+          component: () => import("@/features/identity/IdentityPage.vue"),
+          meta: { title: "选择身份", identityOnly: true },
         },
-        {
-          path: "onboarding",
-          name: "onboarding",
-          component: () => import("@/features/onboarding/OnboardingPage.vue"),
-          meta: { title: "建立我们的空间", requiresAuth: true },
-        },
+        { path: "identity", redirect: "/login" },
+        { path: "join", redirect: "/login" },
+        { path: "onboarding", redirect: "/login" },
       ],
     },
     {
       path: "/",
       component: AppLayout,
-      meta: { requiresAuth: true, requiresCouple: true },
+      meta: { requiresIdentity: true },
       children: [
         { path: "", redirect: "/today" },
         {
@@ -92,41 +91,16 @@ export const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
-  const session = useSessionStore();
+  const identity = useIdentityStore();
 
-  // 三态会话守卫：unknown 先向服务端确认，再只处理 anonymous/authenticated。
-  if (session.state === "unknown") {
-    await session.bootstrap();
+  if (identity.state === "unknown") {
+    await identity.bootstrap();
   }
 
-  if (to.meta.requiresAuth && session.state === "anonymous") {
-    return {
-      name: "login",
-      query: to.fullPath === "/today" ? {} : { redirect: to.fullPath },
-    };
-  }
-
-  if (to.meta.guestOnly && session.state === "authenticated") {
-    return { name: session.hasCouple ? "today" : "onboarding" };
-  }
-
-  if (
-    to.meta.requiresCouple &&
-    session.state === "authenticated" &&
-    !session.hasCouple
-  ) {
-    return { name: "onboarding" };
-  }
-
-  if (
-    to.name === "onboarding" &&
-    session.state === "authenticated" &&
-    session.hasCouple
-  ) {
-    return { name: "today" };
-  }
-
-  return true;
+  return resolveIdentityNavigation(to, {
+    state: identity.state,
+    hasIdentity: identity.hasIdentity,
+  });
 });
 
 router.afterEach((to) => {

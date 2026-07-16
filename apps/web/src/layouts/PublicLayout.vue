@@ -24,7 +24,7 @@ import BrandMark from "@/shared/components/BrandMark.vue";
       class="relative mx-auto flex min-h-dvh w-full max-w-7xl flex-col px-5 py-5 sm:px-8 sm:py-7 lg:px-12"
     >
       <header class="flex items-center justify-between">
-        <RouterLink to="/login" aria-label="回到登录页">
+        <RouterLink to="/login" aria-label="回到身份选择页">
           <BrandMark />
         </RouterLink>
         <span

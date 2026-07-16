@@ -1,40 +1,165 @@
 <script setup lang="ts">
+import type { UserSummary } from "@our-tomorrow/contracts";
+import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import {
   CalendarHeart,
-  ChevronRight,
+  Check,
   Heart,
-  Image,
-  MapPinned,
-  Sparkles,
-  Sunrise,
+  Pencil,
+  UserRound,
+  UsersRound,
+  X,
 } from "lucide-vue-next";
-import { computed } from "vue";
+import { computed, reactive, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 
+import { apiFieldErrors, ApiClientError } from "@/shared/api/client";
+import { stageOneApi } from "@/shared/api/stage-one";
 import BaseButton from "@/shared/components/BaseButton.vue";
 import PageHeader from "@/shared/components/PageHeader.vue";
 import SectionHeading from "@/shared/components/SectionHeading.vue";
 import SurfaceCard from "@/shared/components/SurfaceCard.vue";
-import { useSessionStore } from "@/shared/stores/session";
-import { relationshipDay } from "@/shared/utils/relationship-time";
+import { useIdentityStore } from "@/shared/stores/identity";
+import {
+  type FieldErrors,
+  isValidTimezone,
+  validateRequiredText,
+} from "@/shared/utils/profile-validation";
 
-const session = useSessionStore();
-const members = computed(() => session.couple?.members ?? []);
-const memberNames = computed(() =>
-  [0, 1].map(
-    (index) =>
-      members.value[index]?.nicknameInRelationship ??
-      members.value[index]?.displayName ??
-      (index === 0 ? "你" : "另一半"),
+type RelationshipField = "name" | "startDate" | "timezone" | "signature";
+
+const route = useRoute();
+const identity = useIdentityStore();
+const queryClient = useQueryClient();
+const todayQuery = useQuery({
+  queryKey: ["today", identity.role],
+  queryFn: stageOneApi.today,
+});
+
+const editing = ref(route.query.edit === "relationship");
+const saving = ref(false);
+const errors = ref<FieldErrors<RelationshipField>>({});
+const requestError = ref<string | null>(null);
+const savedMessage = ref<string | null>(null);
+const form = reactive({
+  name: "",
+  startDate: "",
+  timezone: "",
+  signature: "",
+});
+
+const relationship = computed(
+  () => todayQuery.data.value?.relationship ?? identity.couple,
+);
+const members = computed(() =>
+  [...(relationship.value?.members ?? [])].sort(
+    (left, right) => (left.slot ?? 99) - (right.slot ?? 99),
   ),
 );
-const daysTogether = computed(() => {
-  const startDate = session.couple?.startDate;
-  if (!startDate) return "—";
-  return String(
-    relationshipDay(startDate, session.couple?.timezone ?? "Asia/Shanghai") ??
-      1,
-  );
-});
+const daysTogether = computed(
+  () => todayQuery.data.value?.relationship.daysTogether ?? null,
+);
+
+function memberName(member: UserSummary | undefined, fallback: string) {
+  return member?.nicknameInRelationship ?? member?.displayName ?? fallback;
+}
+
+const memberNames = computed(() => [
+  memberName(members.value[0], "你"),
+  memberName(members.value[1], "另一半"),
+]);
+
+function resetForm() {
+  const couple = identity.couple;
+  if (!couple) return;
+  form.name = couple.name;
+  form.startDate = couple.startDate;
+  form.timezone = couple.timezone;
+  form.signature = couple.signature ?? "";
+  errors.value = {};
+  requestError.value = null;
+}
+
+function openEditor() {
+  resetForm();
+  editing.value = true;
+  savedMessage.value = null;
+}
+
+function closeEditor() {
+  editing.value = false;
+  resetForm();
+}
+
+function validate() {
+  const nextErrors: FieldErrors<RelationshipField> = {};
+  const nameError = validateRequiredText(form.name, "空间名称", 120);
+  if (nameError) nextErrors.name = nameError;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(form.startDate)) {
+    nextErrors.startDate = "请选择恋爱开始日期。";
+  }
+  if (!form.timezone.trim()) {
+    nextErrors.timezone = "请填写共同空间时区。";
+  } else if (!isValidTimezone(form.timezone.trim())) {
+    nextErrors.timezone = "请输入有效的 IANA 时区。";
+  }
+  if (form.signature.trim().length > 280) {
+    nextErrors.signature = "关系签名不能超过 280 个字符。";
+  }
+  errors.value = nextErrors;
+  return Object.keys(nextErrors).length === 0;
+}
+
+async function saveRelationship() {
+  const couple = identity.couple;
+  if (!couple || saving.value || !validate()) return;
+  saving.value = true;
+  requestError.value = null;
+  savedMessage.value = null;
+
+  try {
+    await identity.updateCouple({
+      version: couple.version,
+      name: form.name.trim(),
+      startDate: form.startDate,
+      timezone: form.timezone.trim(),
+      signature: form.signature.trim() || null,
+    });
+    await queryClient.invalidateQueries({ queryKey: ["today"] });
+    editing.value = false;
+    savedMessage.value = "共同资料已保存。";
+  } catch (error) {
+    if (error instanceof ApiClientError) {
+      errors.value = { ...errors.value, ...apiFieldErrors(error) };
+      requestError.value =
+        error.code === "STATE_CONFLICT"
+          ? "资料刚刚在另一处更新，请刷新页面后再修改。"
+          : error.code === "VALIDATION_FAILED"
+            ? "有些内容需要修改，请查看表单提示。"
+            : error.message;
+    } else {
+      requestError.value = "共同资料没有保存成功，请稍后再试。";
+    }
+  } finally {
+    saving.value = false;
+  }
+}
+
+watch(
+  () => todayQuery.data.value?.relationship,
+  (nextRelationship) => {
+    if (nextRelationship) identity.replaceCouple(nextRelationship);
+  },
+  { immediate: true },
+);
+
+watch(
+  () => identity.couple?.version,
+  () => {
+    if (!editing.value || !form.name) resetForm();
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -42,12 +167,28 @@ const daysTogether = computed(() => {
     <PageHeader
       eyebrow="Us · 两个人共同创作"
       title="我们，是所有时间线的主角。"
-      description="这里用来回望共同走过的长度，而不是比较谁记录得更多、谁付出得更多。"
+      description="这里记录共同关系资料，不比较谁记录得更多、谁付出得更多。"
     >
       <template #actions>
-        <BaseButton variant="secondary" size="sm">编辑我们的资料</BaseButton>
+        <BaseButton
+          v-if="!editing"
+          variant="secondary"
+          size="sm"
+          @click="openEditor"
+        >
+          <Pencil class="size-4" />
+          编辑共同资料
+        </BaseButton>
       </template>
     </PageHeader>
+
+    <p
+      v-if="savedMessage"
+      class="mb-5 rounded-2xl border border-present-200 bg-present-50 px-4 py-3 text-sm text-present-700 dark:border-present-900/60 dark:bg-present-950/30 dark:text-present-200"
+      role="status"
+    >
+      {{ savedMessage }}
+    </p>
 
     <SurfaceCard class="relative overflow-hidden" :padded="false">
       <div
@@ -55,6 +196,7 @@ const daysTogether = computed(() => {
       />
       <div
         class="absolute -left-16 -top-20 size-72 rounded-full border-[54px] border-white/35 dark:border-white/[0.035]"
+        aria-hidden="true"
       />
       <div
         class="relative grid min-h-80 items-center gap-8 p-6 sm:p-9 lg:grid-cols-[1fr_auto]"
@@ -63,16 +205,14 @@ const daysTogether = computed(() => {
           <div class="flex -space-x-4">
             <span
               class="grid size-16 place-items-center rounded-[1.35rem] border-[3px] border-white bg-memory-400 font-display text-2xl font-semibold text-white shadow-md dark:border-ink-900"
+              >{{ memberNames[0]?.slice(0, 1) }}</span
             >
-              {{ memberNames[0]?.slice(0, 1) }}
-            </span>
             <span
               class="grid size-16 place-items-center rounded-[1.35rem] border-[3px] border-white bg-present-500 font-display text-2xl font-semibold text-white shadow-md dark:border-ink-900"
+              >{{ memberNames[1]?.slice(0, 1) }}</span
             >
-              {{ memberNames[1]?.slice(0, 1) }}
-            </span>
           </div>
-          <p class="eyebrow mt-7">{{ session.couple?.name ?? "我们的明天" }}</p>
+          <p class="eyebrow mt-7">{{ relationship?.name }}</p>
           <h1
             class="mt-2 font-display text-4xl font-semibold tracking-[-0.05em] text-ink-950 dark:text-white sm:text-5xl"
           >
@@ -82,8 +222,8 @@ const daysTogether = computed(() => {
             class="mt-4 max-w-2xl text-sm leading-7 text-ink-600 dark:text-ink-300 sm:text-base"
           >
             {{
-              session.couple?.signature ??
-              "共同封面与关系签名，会把这一页变成只属于你们的首页。"
+              relationship?.signature ||
+              "记录每个昨天，共度每个今天，奔赴所有明天。"
             }}
           </p>
         </div>
@@ -95,112 +235,224 @@ const daysTogether = computed(() => {
           <p
             class="mt-3 font-display text-5xl font-semibold tracking-[-0.06em] text-ink-950 dark:text-white"
           >
-            {{ daysTogether }}
+            {{ daysTogether ?? "—" }}
           </p>
           <p
             class="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400 dark:text-ink-500"
           >
-            一起走过的天数
+            服务器计算的共同天数
           </p>
         </div>
       </div>
     </SurfaceCard>
 
-    <section class="mt-5 grid grid-cols-2 gap-4 lg:grid-cols-4">
-      <SurfaceCard
-        v-for="item in [
-          {
-            label: '共同回忆',
-            value: '0',
-            unit: '段',
-            icon: Image,
-            tone: 'text-memory-600 dark:text-memory-300',
-          },
-          {
-            label: '完成愿望',
-            value: '0',
-            unit: '件',
-            icon: Sunrise,
-            tone: 'text-future-600 dark:text-future-300',
-          },
-          {
-            label: '去过地方',
-            value: '0',
-            unit: '处',
-            icon: MapPinned,
-            tone: 'text-present-600 dark:text-present-300',
-          },
-          {
-            label: '重要日子',
-            value: '0',
-            unit: '个',
-            icon: CalendarHeart,
-            tone: 'text-memory-600 dark:text-memory-300',
-          },
-        ]"
-        :key="item.label"
-      >
-        <component :is="item.icon" class="size-4" :class="item.tone" />
-        <p class="mt-5 text-xs font-semibold text-ink-400 dark:text-ink-500">
-          {{ item.label }}
-        </p>
-        <p
-          class="mt-1 font-display text-3xl font-semibold text-ink-950 dark:text-white"
+    <section
+      v-if="editing"
+      class="mt-5"
+      aria-labelledby="relationship-editor-title"
+    >
+      <SurfaceCard>
+        <div class="flex items-start justify-between gap-4">
+          <SectionHeading
+            id="relationship-editor-title"
+            title="编辑共同资料"
+            description="日期与时区会影响服务器计算的共同天数。"
+          />
+          <button
+            type="button"
+            class="grid size-10 shrink-0 place-items-center rounded-xl text-ink-400 transition hover:bg-ink-100 hover:text-ink-800 dark:hover:bg-white/[0.06] dark:hover:text-white"
+            aria-label="关闭编辑"
+            @click="closeEditor"
+          >
+            <X class="size-5" />
+          </button>
+        </div>
+
+        <form
+          class="mt-6 space-y-5"
+          novalidate
+          @submit.prevent="saveRelationship"
         >
-          {{ item.value }}
-          <span class="text-sm font-sans font-medium text-ink-400">{{
-            item.unit
-          }}</span>
-        </p>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label class="field-label" for="us-space-name">空间名称</label>
+              <input
+                id="us-space-name"
+                v-model="form.name"
+                class="field-input"
+                maxlength="120"
+                :aria-invalid="Boolean(errors.name)"
+                :aria-describedby="
+                  errors.name ? 'us-space-name-error' : undefined
+                "
+              />
+              <p
+                v-if="errors.name"
+                id="us-space-name-error"
+                class="mt-2 text-sm text-red-600 dark:text-red-300"
+              >
+                {{ errors.name }}
+              </p>
+            </div>
+            <div>
+              <label class="field-label" for="us-start-date"
+                >恋爱开始日期</label
+              >
+              <input
+                id="us-start-date"
+                v-model="form.startDate"
+                class="field-input"
+                type="date"
+                :aria-invalid="Boolean(errors.startDate)"
+                :aria-describedby="
+                  errors.startDate ? 'us-start-date-error' : undefined
+                "
+              />
+              <p
+                v-if="errors.startDate"
+                id="us-start-date-error"
+                class="mt-2 text-sm text-red-600 dark:text-red-300"
+              >
+                {{ errors.startDate }}
+              </p>
+            </div>
+          </div>
+          <div>
+            <label class="field-label" for="us-timezone">共同空间时区</label>
+            <input
+              id="us-timezone"
+              v-model="form.timezone"
+              class="field-input"
+              list="us-common-timezones"
+              autocomplete="off"
+              :aria-invalid="Boolean(errors.timezone)"
+              :aria-describedby="
+                errors.timezone ? 'us-timezone-error' : undefined
+              "
+            />
+            <datalist id="us-common-timezones">
+              <option value="Asia/Shanghai" />
+              <option value="Asia/Hong_Kong" />
+              <option value="Asia/Taipei" />
+              <option value="Asia/Tokyo" />
+              <option value="Europe/London" />
+              <option value="America/Los_Angeles" />
+            </datalist>
+            <p
+              v-if="errors.timezone"
+              id="us-timezone-error"
+              class="mt-2 text-sm text-red-600 dark:text-red-300"
+            >
+              {{ errors.timezone }}
+            </p>
+          </div>
+          <div>
+            <label class="field-label" for="us-signature"
+              >关系签名
+              <span class="font-normal text-ink-400">（可留空）</span></label
+            >
+            <textarea
+              id="us-signature"
+              v-model="form.signature"
+              class="field-input min-h-28 resize-y"
+              maxlength="280"
+              :aria-invalid="Boolean(errors.signature)"
+              :aria-describedby="
+                errors.signature ? 'us-signature-error' : undefined
+              "
+            />
+            <p
+              v-if="errors.signature"
+              id="us-signature-error"
+              class="mt-2 text-sm text-red-600 dark:text-red-300"
+            >
+              {{ errors.signature }}
+            </p>
+          </div>
+          <div
+            v-if="requestError"
+            class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-200"
+            role="alert"
+          >
+            {{ requestError }}
+          </div>
+          <div class="flex flex-wrap justify-end gap-3">
+            <BaseButton variant="ghost" :disabled="saving" @click="closeEditor"
+              >取消</BaseButton
+            >
+            <BaseButton type="submit" :loading="saving"
+              ><Check class="size-4" />保存共同资料</BaseButton
+            >
+          </div>
+        </form>
       </SurfaceCard>
     </section>
 
-    <section class="mt-8 grid gap-5 xl:grid-cols-[1fr_0.72fr]">
+    <section class="mt-8 grid gap-5 lg:grid-cols-[1fr_0.8fr]">
       <SurfaceCard>
         <SectionHeading
-          title="重要日期"
-          description="只展示共同记忆的坐标，不制造提醒压力。"
-        >
-          <BaseButton variant="ghost" size="sm">管理日期</BaseButton>
-        </SectionHeading>
-        <div
-          class="mt-5 rounded-2xl border border-dashed border-ink-200 bg-ink-50/55 p-7 text-center dark:border-white/10 dark:bg-white/[0.025]"
-        >
-          <CalendarHeart
-            class="mx-auto size-5 text-ink-300 dark:text-ink-600"
-          />
-          <p class="mt-3 text-sm font-semibold text-ink-700 dark:text-ink-200">
-            还没有添加重要日期
-          </p>
-          <p class="mt-1 text-xs leading-5 text-ink-400 dark:text-ink-500">
-            初见、纪念日、生日，或任何只属于你们的日子。
-          </p>
+          title="空间成员"
+          description="男生与女生两个固定身份共同使用这个空间。"
+        />
+        <div class="mt-5 grid gap-3 sm:grid-cols-2">
+          <article
+            v-for="(member, index) in members"
+            :key="member.id"
+            class="rounded-2xl border border-ink-200/80 bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]"
+          >
+            <div class="flex items-center gap-3">
+              <span
+                class="grid size-11 place-items-center rounded-2xl text-sm font-semibold text-white"
+                :class="index === 0 ? 'bg-memory-400' : 'bg-present-500'"
+                >{{ memberName(member, "我").slice(0, 1) }}</span
+              >
+              <div class="min-w-0">
+                <p class="truncate font-semibold text-ink-950 dark:text-white">
+                  {{ memberName(member, "成员") }}
+                </p>
+                <p class="mt-1 truncate text-xs text-ink-400 dark:text-ink-500">
+                  {{ member.role === "boy" ? "男生" : "女生" }} ·
+                  {{ member.displayName }}
+                </p>
+              </div>
+            </div>
+          </article>
         </div>
       </SurfaceCard>
 
-      <SurfaceCard tone="memory" interactive class="group">
-        <div class="flex items-start justify-between">
+      <SurfaceCard tone="memory">
+        <div class="flex items-start gap-4">
           <span
-            class="grid size-11 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-900/45 dark:text-memory-200"
-          >
-            <Sparkles class="size-5" />
-          </span>
-          <ChevronRight
-            class="size-5 text-ink-300 transition group-hover:translate-x-1 dark:text-ink-600"
-          />
+            class="grid size-11 shrink-0 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-900/45 dark:text-memory-200"
+            ><CalendarHeart class="size-5"
+          /></span>
+          <div>
+            <p class="eyebrow text-memory-700 dark:text-memory-300">关系坐标</p>
+            <p class="mt-2 text-lg font-semibold text-ink-950 dark:text-white">
+              {{ relationship?.startDate }}
+            </p>
+            <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
+              以 {{ relationship?.timezone }} 为共同空间时区。
+            </p>
+          </div>
         </div>
-        <p class="eyebrow mt-6 text-memory-700 dark:text-memory-300">
-          年度回忆书
-        </p>
-        <h2
-          class="mt-2 font-display text-2xl font-semibold text-ink-950 dark:text-white"
+        <div class="quiet-divider my-5" />
+        <div
+          class="flex items-start gap-3 text-sm leading-6 text-ink-500 dark:text-ink-400"
         >
-          这一年，我们一起留下了什么？
-        </h2>
-        <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
-          年度照片、完成的愿望、去过的地方，以及写给下一年的一封信。
-        </p>
+          <UsersRound class="mt-0.5 size-4 shrink-0" />
+          <p>回忆数量、愿望与地点统计会在对应内容模块接入后由真实数据汇总。</p>
+        </div>
       </SurfaceCard>
     </section>
+
+    <p
+      v-if="todayQuery.isError.value"
+      class="mt-4 flex items-start gap-2 text-xs leading-5 text-ink-400 dark:text-ink-500"
+      role="status"
+    >
+      <UserRound class="mt-0.5 size-3.5 shrink-0" />
+      共同资料仍可使用；服务器共同天数暂时无法刷新。
+    </p>
   </main>
 </template>

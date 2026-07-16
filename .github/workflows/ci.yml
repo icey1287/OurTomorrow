@@ -78,8 +78,6 @@ jobs:
       DATABASE_URL: postgresql://our_tomorrow:test-only-password@127.0.0.1:5432/our_tomorrow_test?schema=public
       PUBLIC_APP_URL: http://localhost:5173
       WEB_ORIGIN: http://localhost:5173
-      BOOTSTRAP_TOKEN: ci-bootstrap-token-that-is-not-used-in-production
-      SESSION_COOKIE_SECURE: "false"
       MEDIA_STORAGE_PATH: /tmp/our-tomorrow-ci-media
     steps:
       - name: Check out repository
@@ -106,8 +104,11 @@ jobs:
       - name: Apply migrations to a clean database
         run: pnpm --filter @our-tomorrow/api exec prisma migrate deploy --schema prisma/schema.prisma
 
-      - name: Run API tests
-        run: pnpm --filter @our-tomorrow/api test
+      - name: Run API unit tests
+        run: pnpm --filter @our-tomorrow/api test:unit
+
+      - name: Run API integration tests
+        run: pnpm --filter @our-tomorrow/api test:integration
 
   containers:
     name: Compose and container images

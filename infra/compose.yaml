@@ -13,11 +13,6 @@ x-api-environment: &api-environment
   DATABASE_URL: ${DATABASE_URL:-postgresql://our_tomorrow:our_tomorrow@postgres:5432/our_tomorrow?schema=public}
   PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
   WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost}
-  SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-our_tomorrow_session}
-  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
-  SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
-  CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-our_tomorrow_csrf}
-  BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-development-only-change-me-at-once-0000}
   MEDIA_STORAGE_PATH: /data/media
   MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-15728640}
   TRUST_PROXY: "1"

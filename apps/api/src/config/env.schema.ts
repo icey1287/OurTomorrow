@@ -44,11 +44,6 @@ export const environmentSchema = z
       ),
     WEB_ORIGIN: z.string().url(),
     PUBLIC_APP_URL: z.string().url(),
-    SESSION_COOKIE_NAME: z.string().min(1).default("our_tomorrow_session"),
-    SESSION_COOKIE_SECURE: booleanFromEnv,
-    SESSION_TTL_DAYS: z.coerce.number().int().min(1).max(365).default(30),
-    CSRF_COOKIE_NAME: z.string().min(1).default("our_tomorrow_csrf"),
-    BOOTSTRAP_TOKEN: z.string().min(32),
     MEDIA_STORAGE_PATH: z.string().min(1).default("./storage"),
     MEDIA_MAX_BYTES: z.coerce
       .number()
@@ -84,23 +79,6 @@ export const environmentSchema = z
             message: `${key} must use HTTPS in production`,
           });
         }
-      }
-      if (/replace|development-only|change-me/i.test(value.BOOTSTRAP_TOKEN)) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["BOOTSTRAP_TOKEN"],
-          message: "BOOTSTRAP_TOKEN must not be a placeholder in production",
-        });
-      }
-      if (
-        new URL(value.PUBLIC_APP_URL).protocol === "https:" &&
-        !value.SESSION_COOKIE_SECURE
-      ) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["SESSION_COOKIE_SECURE"],
-          message: "SESSION_COOKIE_SECURE must be true for production HTTPS",
-        });
       }
     }
   });

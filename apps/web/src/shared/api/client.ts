@@ -1,11 +1,21 @@
-import type { ApiError } from "@our-tomorrow/contracts";
+import type { ApiError, IdentityRole } from "@our-tomorrow/contracts";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "/api/v1").replace(
   /\/$/,
   "",
 );
 
-let csrfToken: string | null = null;
+const IDENTITY_HEADER = "X-Our-Tomorrow-Role";
+let identityRole: IdentityRole | null = null;
+
+const ERROR_MESSAGES: Record<string, string> = {
+  IDENTITY_REQUIRED: "请先选择你的身份。",
+  ACTION_FORBIDDEN: "当前身份不能执行这个操作。",
+  RESOURCE_NOT_FOUND: "请求的内容不存在或已不可用。",
+  STATE_CONFLICT: "内容已在另一处更新，请刷新后重试。",
+  DEPENDENCY_UNAVAILABLE: "服务依赖暂时不可用，请稍后再试。",
+  INTERNAL_ERROR: "服务暂时没有回应，请稍后再试。",
+};
 
 export class ApiClientError extends Error {
   readonly status: number;
@@ -30,13 +40,22 @@ export class ApiClientError extends Error {
     this.details = options.details ?? null;
   }
 
-  get isUnauthorized() {
-    return this.status === 401 || this.status === 403;
+  get isForbidden() {
+    return this.status === 403;
   }
 }
 
-export function setApiCsrfToken(token: string | null) {
-  csrfToken = token;
+export function setApiIdentityRole(role: IdentityRole | null) {
+  identityRole = role;
+}
+
+export function apiFieldErrors(error: ApiClientError) {
+  return Object.fromEntries(
+    Object.entries(error.details ?? {}).flatMap(([field, messages]) => {
+      const message = messages.filter(Boolean).join("；");
+      return message ? [[field, message]] : [];
+    }),
+  );
 }
 
 async function parseError(response: Response): Promise<ApiClientError> {
@@ -47,39 +66,47 @@ async function parseError(response: Response): Promise<ApiClientError> {
 
   try {
     const payload = (await response.json()) as Partial<ApiError>;
+    const code = payload.code ?? "REQUEST_FAILED";
 
-    return new ApiClientError(payload.message ?? fallbackMessage, {
-      status: response.status,
-      ...(payload.code ? { code: payload.code } : {}),
-      ...(payload.requestId ? { requestId: payload.requestId } : {}),
-      ...(payload.details ? { details: payload.details } : {}),
-    });
+    return new ApiClientError(
+      ERROR_MESSAGES[code] ?? payload.message ?? fallbackMessage,
+      {
+        status: response.status,
+        code,
+        ...(payload.requestId ? { requestId: payload.requestId } : {}),
+        ...(payload.details ? { details: payload.details } : {}),
+      },
+    );
   } catch {
     return new ApiClientError(fallbackMessage, { status: response.status });
   }
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const headers = new Headers(init.headers);
-  const method = (init.method ?? "GET").toUpperCase();
+export interface ApiRequestInit extends RequestInit {
+  includeIdentity?: boolean;
+}
+
+async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
+  const { includeIdentity = true, ...fetchInit } = init;
+  const headers = new Headers(fetchInit.headers);
 
   headers.set("Accept", "application/json");
 
-  if (init.body && !(init.body instanceof FormData)) {
+  if (fetchInit.body && !(fetchInit.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
 
-  if (csrfToken && !["GET", "HEAD", "OPTIONS"].includes(method)) {
-    headers.set("X-CSRF-Token", csrfToken);
+  if (includeIdentity && identityRole) {
+    headers.set(IDENTITY_HEADER, identityRole);
   }
 
   let response: Response;
 
   try {
     response = await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
+      ...fetchInit,
       headers,
-      credentials: "include",
+      credentials: "omit",
     });
   } catch {
     throw new ApiClientError("暂时无法连接明天，请检查网络后再试。", {
@@ -104,31 +131,31 @@ function jsonBody(payload: unknown): string {
 }
 
 export const apiClient = {
-  get<T>(path: string, init?: RequestInit) {
+  get<T>(path: string, init?: ApiRequestInit) {
     return request<T>(path, { ...init, method: "GET" });
   },
-  post<T>(path: string, payload?: unknown, init?: RequestInit) {
+  post<T>(path: string, payload?: unknown, init?: ApiRequestInit) {
     return request<T>(path, {
       ...init,
       method: "POST",
       ...(payload === undefined ? {} : { body: jsonBody(payload) }),
     });
   },
-  put<T>(path: string, payload?: unknown, init?: RequestInit) {
+  put<T>(path: string, payload?: unknown, init?: ApiRequestInit) {
     return request<T>(path, {
       ...init,
       method: "PUT",
       ...(payload === undefined ? {} : { body: jsonBody(payload) }),
     });
   },
-  patch<T>(path: string, payload?: unknown, init?: RequestInit) {
+  patch<T>(path: string, payload?: unknown, init?: ApiRequestInit) {
     return request<T>(path, {
       ...init,
       method: "PATCH",
       ...(payload === undefined ? {} : { body: jsonBody(payload) }),
     });
   },
-  delete<T>(path: string, init?: RequestInit) {
+  delete<T>(path: string, init?: ApiRequestInit) {
     return request<T>(path, { ...init, method: "DELETE" });
   },
 };

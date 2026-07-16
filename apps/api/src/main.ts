@@ -3,7 +3,6 @@ import { Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
-import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
 import { HttpExceptionFilter } from "./common/http/http-exception.filter";
@@ -21,10 +20,8 @@ async function bootstrap(): Promise<void> {
     app.getHttpAdapter().getInstance().set("trust proxy", 1);
   }
   app.use(helmet());
-  app.use(cookieParser());
   app.enableCors({
     origin: config.get("WEB_ORIGIN", { infer: true }),
-    credentials: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
   app.useGlobalPipes(createValidationPipe());
@@ -35,10 +32,15 @@ async function bootstrap(): Promise<void> {
     .setTitle("OurTomorrow API")
     .setDescription("Private API for the OurTomorrow shared space.")
     .setVersion(config.get("APP_VERSION", { infer: true }))
-    .addCookieAuth(config.get("SESSION_COOKIE_NAME", { infer: true }), {
-      type: "apiKey",
-      in: "cookie",
-    })
+    .addApiKey(
+      {
+        type: "apiKey",
+        in: "header",
+        name: "X-Our-Tomorrow-Role",
+        description: "Local two-person identity choice: boy or girl",
+      },
+      "local-role",
+    )
     .build();
   SwaggerModule.setup(
     "api/v1/docs",

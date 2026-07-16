@@ -11,13 +11,13 @@
 3. **秘密按状态释放**，未揭晓日记、未展示便利贴和未解锁胶囊不会被 API 提前序列化。
 4. **时间规则一致**，日历日期使用情侣空间时区，解锁与调度使用服务端时钟。
 5. **保持模块化单体**，领域边界清楚，但不引入微服务的部署和一致性成本。
-6. **移动端优先且同域部署**，降低 Cookie、CORS、缓存和 WebSocket 认证复杂度。
+6. **移动端优先且同域部署**，降低 CORS、缓存、媒体和 WebSocket 的配置复杂度。
 
 ## 2. 系统上下文与运行拓扑
 
 ```text
 浏览器 / PWA
-       │ HTTPS；HttpOnly Session Cookie；CSRF header
+       │ HTTPS；显式 X-Our-Tomorrow-Role
        ▼
      Caddy
        ├── /              → web (Vue 静态应用，Nginx)
@@ -27,7 +27,7 @@
               ┌───────────────┼────────────────┐
               ▼               ▼                ▼
          PostgreSQL      私有媒体卷/S3       worker
-          业务+Session    图片与缩略图        持久计划任务
+          业务与角色映射   图片与缩略图        持久计划任务
               │               │                │
               └───────────────┴────────────────┘
                               │
@@ -59,7 +59,7 @@ docs/                     产品、品牌、API、安全、开发和恢复基线
 
 ```text
 Controller / Gateway
-        ↓ DTO + authentication context
+        ↓ DTO + fixed-role actor context
 Application service / use case
         ↓ domain policy + transaction boundary
 Repository (Prisma implementation)
@@ -70,7 +70,7 @@ PostgreSQL / media adapter / outbox
 约束：
 
 - Controller 只处理协议映射，不直接拼装跨表权限查询。
-- 应用服务接收可信的 `ActorContext { userId, coupleId, requestId }`；`coupleId` 来自 Session 解析结果。
+- 应用服务接收可信的 `ActorContext { role, userId, coupleId, requestId }`；`role` 来自显式 header，服务端把它映射到固定 `userId/coupleId`，请求体不能覆盖。
 - 领域状态迁移集中在策略或应用服务中，不允许多个 Controller 各自复制条件。
 - Prisma 是基础设施实现，不把 Prisma 类型暴露给 Web 或公共契约。
 - 一个模块可以读取自己拥有的表；跨模块写入通过对方应用服务或已定义事件进行。
@@ -81,8 +81,8 @@ PostgreSQL / media adapter / outbox
 
 | 边界                    | 所有模型/职责                                                                                  | 可依赖                                 | 首次交付阶段     |
 | ----------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------- |
-| Identity & Auth         | `User`、`Session`、密码校验、登录/退出、会话轮换、CSRF                                         | Audit                                  | 1                |
-| Couple Space            | `Couple`、`CoupleMember`、`InviteCode`、昵称、时区、空间容量                                   | Identity、Media（头像/封面引用）       | 1                |
+| Fixed Identity          | `User`、`boy/girl` 映射、确定性初始化、角色 header 解析                                        | Audit                                  | 1                |
+| Couple Space            | `Couple`、`CoupleMember`、昵称、时区、固定 slot 1/2                                            | Identity、Media（头像/封面引用）       | 1                |
 | Remember                | `Memory`、`MemoryPerspective`、`Tag`、`MemoryTag`、`Place`、`Comment`、`Reaction`              | Couple、Media、Revision                | 2                |
 | Daily                   | `CurrentStatus`、`Note`、`DailyPrompt`、`DailyEntry`、`MoodEntry`、`TouchEvent`、`DailyRitual` | Couple、Scheduler、Notification        | 3/6              |
 | Tomorrow                | `Wish`、`WishUpdate`、`Plan`、`Anniversary`、`Capsule`、`CapsuleMessage`、`CapsuleOpenRecord`  | Couple、Media、Scheduler、Notification | 4                |
@@ -120,8 +120,8 @@ where: { id: resourceId, coupleId: actor.coupleId }
 
 数据库和应用共同维护以下不变量：
 
-- 一个情侣空间最多两名有效成员；同一用户最多一个有效成员关系。
-- 邀请码只存摘要，只能成功消费一次；接受邀请与成员数检查在同一事务。
+- 默认情侣空间恰有两名有效成员：`boy/slot 1` 与 `girl/slot 2`；同一用户最多一个有效成员关系。
+- 身份初始化使用确定性 ID 和幂等事务；并发、重复和服务重启不能创建第三人或第二个默认空间。
 - 每位成员在情侣空间本地日期内最多一条 `DailyEntry` 和一条 `MoodEntry`。
 - 每条 `MemoryPerspective` 的作者必须是该回忆所属空间成员，且 `(memoryId, authorId)` 唯一。
 - 内容关联的媒体、标签、地点、评论和回应必须属于同一情侣空间。
@@ -182,18 +182,17 @@ PENDING / RETRYING → RUNNING → COMPLETED
 ## 10. API 请求生命周期
 
 ```text
-Caddy TLS / 安全响应头
+Caddy TLS / 外部私有访问边界 / 安全响应头
   → Nest request-id middleware
-  → Session authentication
-  → CSRF（所有基于 Cookie 的写请求）
+  → X-Our-Tomorrow-Role 解析与固定 actor 映射
   → DTO validation（白名单 + 禁止未知字段）
-  → Couple/author authorization
+  → Couple scope / author / secret-state policy
   → Application use case + transaction
   → response DTO（按状态裁剪秘密字段）
   → audit/outbox（需要时）
 ```
 
-异常统一携带 `requestId`。日志只记录操作元数据，不记录密码、Cookie、CSRF 值、日记正文、便利贴正文、胶囊正文和签名媒体 URL。详细协议见 `api.md`，威胁与控制见 `security.md`。
+异常统一携带 `requestId`。日志只记录操作元数据，不记录正文、媒体字节、部署/存储秘密或签名媒体 URL。详细协议见 `api.md`，威胁与控制见 `security.md`。
 
 ## 11. 媒体架构
 
@@ -216,14 +215,14 @@ V1 可由 API 接收上传或签发一次性上传凭证；读取始终先鉴权
 
 Web 采用 Vue 3、Vue Router、Pinia、TanStack Vue Query 和 Tailwind CSS：
 
-- `app/`：应用启动、QueryClient、错误边界、主题和会话恢复；
-- `router/`：路由元信息与 `guest / unbound / member` 三态守卫；
+- `app/`：应用启动、QueryClient、错误边界、主题和本地角色恢复；
+- `router/`：未选择角色/已选择角色守卫；`/identity`、停用的 `/join`/`/onboarding` 重定向到 `/login`；
 - `features/<domain>/`：页面、领域组件、请求 hooks 和表单 schema；
-- `shared/api/`：OpenAPI 生成客户端、CSRF/请求 ID 处理；
+- `shared/api/`：OpenAPI 生成客户端、角色 header、请求 ID 处理；
 - `shared/components/`：实现 `brand.md` 的基础组件；
 - `shared/utils/`：纯函数，不包含业务状态机。
 
-Pinia 保存会话级/UI 状态，不复制服务器实体缓存；服务器数据由 Vue Query 管理。查询键必须包含当前空间语义，退出或切换绑定状态时清空私密缓存。响应中的秘密字段缺失被视为协议设计，而不是由 CSS 隐藏。
+Pinia 保存短期 UI 状态，不复制服务器实体缓存；服务器数据由 Vue Query 管理。`localStorage` 只保存 `our-tomorrow-role=boy|girl`。查询键必须包含当前角色/空间语义，切换或清除角色时清空私密缓存和 object URL。响应中的秘密字段缺失被视为协议设计，而不是由 CSS 隐藏。
 
 页面按路由懒加载；图片使用尺寸占位和懒加载。实时消息只触发精确查询失效或更新通知计数，不把 WebSocket 当作永久数据仓库。
 
@@ -246,30 +245,30 @@ Pinia 保存会话级/UI 状态，不复制服务器实体缓存；服务器数�
 3. 执行 `migrate` 一次性服务；
 4. 启动/替换 API 与 worker，等待 readiness；
 5. 启动 Web，再由 Caddy 接流量；
-6. 运行双账户冒烟测试；
+6. 分别选择 boy/girl 运行双角色冒烟，并确认进入同一空间；
 7. 记录镜像标签、迁移版本和备份快照 ID。
 
 数据库迁移采用 expand/contract：先增加向后兼容结构，再部署读写新结构，最后在后续发布删除旧结构。不能依赖把数据库回滚到旧 schema 来撤销已经写入的新数据。恢复流程见 `restore-runbook.md`。
 
 ## 15. 阶段演进与架构门槛
 
-| 阶段 | 架构增量                                                                   | 不允许留下的临时方案                                  |
-| ---- | -------------------------------------------------------------------------- | ----------------------------------------------------- |
-| 0    | monorepo、设计系统、Prisma 基线、OpenAPI 骨架、Compose、worker/backup 骨架 | 内存数据库、内存计时器、公开媒体目录                  |
-| 1    | Session/CSRF、情侣空间上下文、邀请事务、路由守卫                           | 客户端传 `coupleId` 决定权限、长期令牌在 localStorage |
-| 2    | Remember/Media、游标分页、并发版本、内容修订                               | 仅扩展名文件校验、按资源 ID 裸查询                    |
-| 3    | Daily、ScheduledEvent 处理器、Outbox、通知/实时                            | 前端定时解锁、提交后返回对方日记正文                  |
-| 4    | Tomorrow、纪念日时区规则、幂等转换                                         | 任意 PATCH 状态、浏览器时间决定胶囊状态               |
-| 5    | 回收站、导出、生产安全、恢复证据、迁移演练                                 | 只验证“备份命令成功”、不可读的专有导出                |
-| 6    | 地图/盲盒/回顾/PWA 等增强                                                  | 持续定位、关系评分、第三方默认追踪                    |
+| 阶段 | 架构增量                                                                   | 不允许留下的临时方案                             |
+| ---- | -------------------------------------------------------------------------- | ------------------------------------------------ |
+| 0    | monorepo、设计系统、Prisma 基线、OpenAPI 骨架、Compose、worker/backup 骨架 | 内存数据库、内存计时器、公开媒体目录             |
+| 1    | 固定 boy/girl、幂等共同空间初始化、显式角色上下文、路由守卫                | 把 role 伪装成认证、在 localStorage 保存私人实体 |
+| 2    | Remember/Media、游标分页、并发版本、内容修订                               | 仅扩展名文件校验、按资源 ID 裸查询               |
+| 3    | Daily、ScheduledEvent 处理器、Outbox、通知/实时                            | 前端定时解锁、提交后返回对方日记正文             |
+| 4    | Tomorrow、纪念日时区规则、幂等转换                                         | 任意 PATCH 状态、浏览器时间决定胶囊状态          |
+| 5    | 回收站、导出、生产安全、恢复证据、迁移演练                                 | 只验证“备份命令成功”、不可读的专有导出           |
+| 6    | 地图/盲盒/回顾/PWA 等增强                                                  | 持续定位、关系评分、第三方默认追踪               |
 
 ## 16. 架构决策摘要
 
 1. **模块化单体而非微服务**：规模小，强事务和低运维成本更重要。
 2. **REST + OpenAPI 为事实契约**：WebSocket 只做提示；共享手写类型不能取代生成契约。
-3. **服务器 Session Cookie**：便于撤销、空闲过期和同域保护，不在浏览器持久化长期令牌。
-4. **PostgreSQL 同时保存业务、Session、计划任务和 Outbox**：重启后状态完整，事务边界清晰。
-5. **私有媒体适配器**：先本地卷，保持可迁移到 S3；任何实现都必须鉴权和备份。
+3. **固定本地身份而非成员认证系统**：Web 只记住 boy/girl，API 显式映射确定性成员；私有部署入口由外部网络/设备边界保护。
+4. **PostgreSQL 保存业务、固定角色映射、计划任务和 Outbox**：重启后状态完整，事务边界清晰。
+5. **私有媒体适配器**：先本地卷，保持可迁移到 S3；任何实现都必须执行角色、空间和业务可见性检查并纳入备份。
 6. **服务端 Clock + 情侣空间时区**：保证日记、纪念日、胶囊和定时便利贴一致。
 7. **软删除 + 延迟物理清理**：给回收站、撤销和备份恢复留窗口。
-8. **同域部署**：缩小 Cookie/CORS 配置面；开发跨端口仅用于本地环境。
+8. **同域部署**：缩小 CORS、媒体与实时连接配置面；开发跨端口仅用于本地环境。

@@ -2,6 +2,7 @@ export const API_PREFIX = "/api/v1" as const;
 
 export type ThemePreference = "system" | "light" | "dark";
 export type TimeDimension = "remember" | "daily" | "tomorrow";
+export type IdentityRole = "boy" | "girl";
 
 export interface ApiError {
   statusCode: number;
@@ -16,10 +17,11 @@ export interface ApiError {
 export interface UserSummary {
   id: string;
   version: number;
-  username: string;
   displayName: string;
-  nicknameInRelationship?: string | null;
-  avatarUrl?: string | null;
+  role: IdentityRole;
+  slot: 1 | 2;
+  nicknameInRelationship: string | null;
+  avatarUrl: string | null;
 }
 
 export interface CoupleSummary {
@@ -33,10 +35,46 @@ export interface CoupleSummary {
   members: UserSummary[];
 }
 
-export interface AuthSession {
+export interface IdentitySession {
+  role: IdentityRole;
   user: UserSummary;
-  couple: CoupleSummary | null;
-  csrfToken: string;
+  couple: CoupleSummary;
+}
+
+export interface SelectIdentityRequest {
+  role: IdentityRole;
+}
+
+export interface UpdateCoupleRequest {
+  version: number;
+  name?: string;
+  startDate?: string;
+  timezone?: string;
+  signature?: string | null;
+  theme?: ThemePreference;
+}
+
+export interface UpdateProfileRequest {
+  version: number;
+  displayName?: string;
+  nicknameInRelationship?: string | null;
+}
+
+export interface TodayRelationship extends CoupleSummary {
+  daysTogether: number;
+}
+
+export interface TodayResponse {
+  serverNow: string;
+  localDate: string;
+  greeting: string;
+  relationship: TodayRelationship;
+  partnerStatus: null;
+  latestNote: null;
+  dailyEntryStatus: null;
+  nextAnniversary: null;
+  randomMemory: null;
+  activeWish: null;
 }
 
 export interface PageMeta {

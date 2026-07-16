@@ -1,4 +1,4 @@
-import { BadRequestException, ValidationPipe } from "@nestjs/common";
+import { BadRequestException, ValidationPipe, type Type } from "@nestjs/common";
 import type { ValidationError } from "class-validator";
 
 function flattenErrors(
@@ -13,12 +13,15 @@ function flattenErrors(
   }, {});
 }
 
-export function createValidationPipe(): ValidationPipe {
+export function createValidationPipe(
+  expectedType?: Type<unknown>,
+): ValidationPipe {
   return new ValidationPipe({
     transform: true,
     whitelist: true,
     forbidNonWhitelisted: true,
     stopAtFirstError: false,
+    ...(expectedType === undefined ? {} : { expectedType }),
     exceptionFactory: (errors) =>
       new BadRequestException({
         code: "VALIDATION_FAILED",

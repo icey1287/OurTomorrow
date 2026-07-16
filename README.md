@@ -29,7 +29,7 @@ pnpm dev
 - API：<http://localhost:3000/api/v1>
 - OpenAPI：<http://localhost:3000/api/v1/docs>
 
-应用不提供公共注册入口。首次用户由受控 CLI 创建；开发双账户 seed 也要求显式确认和临时密码。准确命令见 [`docs/development.md`](docs/development.md#2-首次本地启动)。
+应用固定服务男生和女生两种本地身份。首次打开在 `/login` 选择“我是男生”或“我是女生”；“甲/乙”只是默认称呼。浏览器只把 `boy` 或 `girl` 保存到 `localStorage`，API 通过 `X-Our-Tomorrow-Role` 显式映射到同一个双人空间。角色选择不是认证或安全边界；部署入口必须只对两个人的设备、私有网络或外部访问代理开放。准确说明见 [`docs/development.md`](docs/development.md#2-首次本地启动) 与 [`docs/security.md`](docs/security.md#3-固定双人身份模型)。
 
 ## 常用命令
 

@@ -37,15 +37,16 @@ pnpm db:migrate
 pnpm dev
 ```
 
-需要虚构的双账户开发数据时，seed 要求显式确认和临时密码环境变量：
+阶段 1 起无需创建账号、设置密码、运行邀请流程或建立 Session。首次在 Web 选择“我是男生”或“我是女生”，或直接调用身份选择端点，即会幂等建立固定两名成员和共同空间；“甲/乙”是默认称呼，不是按钮上的身份名称：
 
 ```bash
-read -rs "SEED_PASSWORD?Development seed password: "
-echo
-export SEED_PASSWORD
-pnpm --filter @our-tomorrow/api exec prisma db seed -- --confirm-development-seed
-unset SEED_PASSWORD
+curl -sS \
+  -H 'content-type: application/json' \
+  -d '{"role":"boy"}' \
+  http://localhost:3000/api/v1/identity/select
 ```
+
+后续 API 请求显式发送 `X-Our-Tomorrow-Role: boy` 或 `girl`。该值只是本地界面选择，不是登录凭据。
 
 默认地址：
 
@@ -60,22 +61,7 @@ unset SEED_PASSWORD
 pnpm --filter @our-tomorrow/api dev:worker
 ```
 
-阶段 1 前首次用户通过受控 CLI 创建，不存在公共注册：
-
-```bash
-read -rs "BOOTSTRAP_INPUT?Bootstrap token: "
-echo
-read -rs "INITIAL_PASSWORD?Initial account password: "
-echo
-printf '%s' "$INITIAL_PASSWORD" | pnpm --filter @our-tomorrow/api bootstrap -- \
-  --token "$BOOTSTRAP_INPUT" \
-  --username ming \
-  --display-name '甲' \
-  --password-stdin
-unset BOOTSTRAP_INPUT INITIAL_PASSWORD
-```
-
-bootstrap 拒绝命令行 `--password`，只接受 `--password-stdin` 或命名的大写 `--password-env`，并验证 `apps/api/.env` 中的 `BOOTSTRAP_TOKEN`。令牌和密码均不应以字面量进入 shell history；示例令牌不可用于生产。数据库已有首个账户后 bootstrap 会永久拒绝再次创建。
+固定身份映射为 `boy/甲/slot 1` 与 `girl/乙/slot 2`，两者始终属于同一个确定性 Couple。初始化不依赖成员凭据或配对流程。能访问站点的人可以切换两个角色，因此对公网部署前必须在应用之外配置只允许两个人访问的网络边界。
 
 ### 2.1 分别启动应用
 
@@ -109,12 +95,7 @@ Compose 会先运行 `migrate`，再启动 `api`/`worker`，Web 由 Nginx 提供
 | `API_PORT`                | Nest 端口                   | `3000`                  | 容器内 3000                       |
 | `DATABASE_URL`            | Prisma PostgreSQL URL       | localhost Compose DB    | URL encode 密码；不公开数据库端口 |
 | `WEB_ORIGIN`              | 唯一允许的 Web Origin       | `http://localhost:5173` | 与实际 HTTPS 同源一致             |
-| `PUBLIC_APP_URL`          | 邀请等绝对 URL 基址         | Web 地址                | HTTPS 正式域名                    |
-| `SESSION_COOKIE_NAME`     | Session Cookie 名           | 默认值即可              | host-only；变更需会话迁移计划     |
-| `SESSION_COOKIE_SECURE`   | 是否只经 HTTPS 发送         | 本地 `false`            | 必须 `true`                       |
-| `SESSION_TTL_DAYS`        | Session 绝对期限            | 默认 30                 | 按安全策略配置                    |
-| `CSRF_COOKIE_NAME`        | CSRF 相关名称               | 默认值                  | 与实现一致；令牌不得日志化        |
-| `BOOTSTRAP_TOKEN`         | 首位用户引导秘密            | 至少 32 字符随机值      | 使用后移除/轮换                   |
+| `PUBLIC_APP_URL`          | Web/API 绝对 URL 基址       | Web 地址                | HTTPS 正式域名                    |
 | `MEDIA_STORAGE_PATH`      | 私有媒体根目录              | `./storage`             | 独立持久卷，不能由 Web 静态暴露   |
 | `MEDIA_MAX_BYTES`         | 单文件上限                  | 默认 15 MiB             | 同时限制像素/解码资源             |
 | `WORKER_POLL_INTERVAL_MS` | Worker 轮询间隔             | 默认 2000               | 结合任务延迟监控                  |
@@ -128,21 +109,21 @@ Compose 额外需要 PostgreSQL、Restic/S3、端口和镜像 tag 变量，见 `
 
 ## 4. 常用命令
 
-| 命令                | 作用                                                                 |
-| ------------------- | -------------------------------------------------------------------- |
-| `pnpm dev`          | 并行启动 Web 与 API 开发进程                                         |
-| `pnpm build`        | 构建所有 workspace                                                   |
-| `pnpm test`         | 运行各 workspace 测试                                                |
-| `pnpm test:unit`    | 单元测试基线                                                         |
-| `pnpm test:e2e`     | Playwright 双账户端到端测试                                          |
-| `pnpm lint`         | 当前以严格 TypeScript/Vue 检查为基础                                 |
-| `pnpm typecheck`    | 全 workspace 类型检查                                                |
-| `pnpm format`       | Prettier 写入格式                                                    |
-| `pnpm format:check` | CI 格式验证                                                          |
-| `pnpm db:generate`  | 生成 Prisma Client                                                   |
-| `pnpm db:migrate`   | 本地创建/应用 Prisma migration                                       |
-| `pnpm db:seed`      | 调用 Prisma seed；仍需传入确认参数和 `SEED_PASSWORD`，见首次启动示例 |
-| `pnpm db:studio`    | 本地数据库检查；禁止直接改生产                                       |
+| 命令                | 作用                                                       |
+| ------------------- | ---------------------------------------------------------- |
+| `pnpm dev`          | 并行启动 Web 与 API 开发进程                               |
+| `pnpm build`        | 构建所有 workspace                                         |
+| `pnpm test`         | 运行各 workspace 测试                                      |
+| `pnpm test:unit`    | 单元测试基线                                               |
+| `pnpm test:e2e`     | Playwright 双角色端到端测试                                |
+| `pnpm lint`         | 当前以严格 TypeScript/Vue 检查为基础                       |
+| `pnpm typecheck`    | 全 workspace 类型检查                                      |
+| `pnpm format`       | Prettier 写入格式                                          |
+| `pnpm format:check` | CI 格式验证                                                |
+| `pnpm db:generate`  | 生成 Prisma Client                                         |
+| `pnpm db:migrate`   | 本地创建/应用 Prisma migration                             |
+| `pnpm db:seed`      | 可选开发夹具；固定身份本身由 `/identity/select` 幂等初始化 |
+| `pnpm db:studio`    | 本地数据库检查；禁止直接改生产                             |
 
 提交前最小门槛：
 
@@ -215,7 +196,7 @@ feat(stage-6): add private romantic enhancements
 2. 先更新 Prisma/OpenAPI/领域状态机与测试，明确迁移影响；
 3. 实现一个贯穿 UI→API→DB 的最小纵向切片；
 4. 扩充同领域能力，保持每个提交通过已有测试；
-5. 运行双账户、越权、重启/重试和视觉状态验证；
+5. 运行双角色、内容策略、重启/重试和视觉状态验证；
 6. 更新文档、示例环境和恢复/部署说明；
 7. 在 `main` 提交阶段收口，并记录验证命令与结果。
 
@@ -240,13 +221,13 @@ docker compose -f infra/compose.yaml config --quiet
 docker compose -f infra/compose.yaml build api web backup
 ```
 
-另以 `NODE_ENV=development`、临时 `SEED_PASSWORD` 和 `--confirm-development-seed` 单独验证 seed 可重复执行；CI/生产不得隐式运行开发 seed。
+另验证 `/identity/select` 在空库、重复调用、并发调用和 API 重启后都只保留固定两名用户、一个 Couple 和两条成员关系。CI/生产不得隐式写入虚构内容 seed。
 
 还需人工检查 320 px、桌面、深色和减少动效的基础页面。
 
-### 阶段 1：认证与双人空间
+### 阶段 1：固定双人身份与共同空间
 
-测试至少覆盖：登录/退出/Session 轮换与撤销、CSRF、空间创建、邀请码摘要/过期/重放/并发、第三人拒绝、三态路由守卫、所有资源空间隔离。
+测试至少覆盖：`boy`/`girl` 选择、缺失/非法角色 header、并发幂等初始化、确定性两名成员与单一 Couple、显式角色切换、个人资料与 Couple 乐观版本冲突，以及 Today 的服务端时区。
 
 ### 阶段 2：记录
 
@@ -262,7 +243,7 @@ docker compose -f infra/compose.yaml build api web backup
 
 ### 阶段 5：安全与上线
 
-完成权限矩阵、回收站、导出、生产 Cookie/CSP/TLS、日志脱敏、备份监控和完整恢复演练。把 `restore-runbook.md` 的实际证据（不含秘密/正文）存入受控运维记录。
+完成内容权限矩阵、回收站、导出、生产访问边界/CSP/TLS、日志脱敏、备份监控和完整恢复演练。把 `restore-runbook.md` 的实际证据（不含秘密/正文）存入受控运维记录。
 
 ### 阶段 6：浪漫增强
 
@@ -296,7 +277,7 @@ pnpm --filter @our-tomorrow/api prisma migrate dev --name <short_description>
 
 ### 8.3 Seed
 
-Seed 必须可重复运行且只生成虚构内容。不要把真实两人姓名、照片、日记、密码或生产 ID 放入仓库。测试账户凭据只用于本地/CI，并在 production 环境拒绝执行 seed。
+Seed 必须可重复运行且只生成虚构业务内容。固定身份由 `/identity/select` 初始化，不依赖 seed。不要把真实照片、日记、私人地点或生产 ID 放入仓库；production 环境拒绝执行开发内容 seed。
 
 ## 9. API 契约工作流
 
@@ -312,7 +293,7 @@ Seed 必须可重复运行且只生成虚构内容。不要把真实两人姓名
 接口设计原则：
 
 - 状态迁移使用 `/submit`、`/seal`、`/complete`、`/convert-to-memory` 等命令端点；
-- 写请求验证 CSRF；跨时间转换/上传完成/导出支持幂等键；
+- 每个角色相关请求显式验证 `X-Our-Tomorrow-Role`；跨时间转换、上传完成和导出支持幂等键；
 - 共享编辑使用 version/ETag；
 - 列表使用游标分页；
 - 保密字段不可见时省略，不返回占位正文；
@@ -354,14 +335,14 @@ Controller 不读取请求体 `coupleId`，不直接调用其他模块 Prisma �
 ### 11.1 数据所有权
 
 - Vue Query 管服务器实体、分页、刷新和 mutation；
-- Pinia 管 Session、主题和短期 UI 状态；
+- Pinia 管主题和短期 UI 状态；`localStorage` 只允许保存 `boy`/`girl` 角色选择；
 - 不把完整 API 数据复制到 Pinia；
-- 退出/Session 失效时清空所有私密 Query cache 和 object URL；
+- 切换角色、清除身份选择或页面锁定时清空所有私密 Query cache 和 object URL；
 - WebSocket 事件使精确查询失效，再通过 REST 读取事实。
 
 ### 11.2 路由
 
-路由使用 `guestOnly`、`requiresAuth`、`requiresCouple` 元信息实现三态守卫：anonymous、authenticated-unbound、authenticated-bound。守卫只改善体验，API 授权仍是安全边界。
+路由只区分“尚未选择本地角色”和“已选择 `boy`/`girl`”。角色守卫用于体验与缓存隔离，不是认证或安全边界；固定空间由 API 根据显式 header 映射。
 
 新增页面：
 
@@ -394,7 +375,7 @@ Controller 不读取请求体 `coupleId`，不直接调用其他模块 Prisma �
 - 超大小/像素、损坏解码；
 - EXIF GPS 移除；
 - 缩略图生成；
-- 跨空间和未登录读取；
+- 跨空间、缺失角色和非法角色读取；
 - 未解锁胶囊附件；
 - 删除、回收站恢复和延迟清理。
 
@@ -408,15 +389,15 @@ Controller 不读取请求体 `coupleId`，不直接调用其他模块 Prisma �
 
 ### 14.2 集成测试
 
-使用 PostgreSQL 16 和真实 Prisma migration，验证唯一约束、事务、并发、跨空间查询、Session、ScheduledEvent/Outbox、媒体适配器和导出。每个安全测试至少建立空间 A/B，避免仅测试单空间“看起来正确”。
+使用 PostgreSQL 16 和真实 Prisma migration，验证唯一约束、事务、固定身份并发初始化、跨空间查询、ScheduledEvent/Outbox、媒体适配器和导出。空间隔离测试可直接建立额外数据库夹具；产品 UI 仍只暴露固定共同空间。
 
 ### 14.3 E2E
 
-Playwright 使用两个测试账户：
+Playwright 使用两个独立浏览器 context，分别选择“我是男生”和“我是女生”：
 
 ```text
-A 创建空间 → B 接受邀请
-→ A 创建回忆/上传图片 → B 补视角
+甲选择 boy → 乙选择 girl → 确认看到同一空间
+→ 甲创建回忆/上传图片 → 乙补视角
 → 双方提交交换日记并同时揭晓
 → 创建未到期胶囊，确认 API/UI 不泄露
 → 愿望完成并转回忆
@@ -427,7 +408,7 @@ E2E 同时覆盖 320 px 移动视口、桌面、深色、键盘关键路径和�
 
 ### 14.4 恢复测试
 
-备份和恢复是产品测试，不是可选运维。按 `restore-runbook.md` 恢复数据库/媒体、登录并抽查内容，记录实际 RPO/RTO。
+备份和恢复是产品测试，不是可选运维。按 `restore-runbook.md` 恢复数据库/媒体，分别选择 boy 和 girl 并确认进入同一空间后抽查内容，记录实际 RPO/RTO。
 
 ## 15. CI
 
@@ -438,7 +419,7 @@ E2E 同时覆盖 320 px 移动视口、桌面、深色、键盘关键路径和�
 3. PostgreSQL 16 上生成 Prisma Client、应用 migrations 和 API 测试；
 4. Compose model、Caddy 配置和 API/Web/backup 镜像构建。
 
-后续阶段加入：OpenAPI drift、授权集成、双账户 Playwright、媒体恶意样本、依赖/镜像扫描和恢复演练状态检查。CI 日志不得输出 `.env`、数据库 URL 密码、Cookie、测试日记正文或导出包。
+后续阶段加入：OpenAPI drift、角色/内容策略集成、双角色 Playwright、媒体恶意样本、依赖/镜像扫描和恢复演练状态检查。CI 日志不得输出 `.env`、数据库 URL 密码、测试日记正文、媒体或导出包。
 
 ## 16. Code review 清单
 
@@ -456,7 +437,7 @@ E2E 同时覆盖 320 px 移动视口、桌面、深色、键盘关键路径和�
 - [ ] 作者、共同编辑、封存/揭晓/解锁规则在服务端。
 - [ ] DTO 拒绝未知字段并限制长度、数组、时间和文件。
 - [ ] 日志、事件、错误、通知和缓存不含秘密正文/令牌。
-- [ ] 写请求 CSRF；高风险命令近期认证；可重试命令幂等。
+- [ ] 角色 header 只用于选择成员且不可被请求体覆盖；可重试命令幂等。
 - [ ] 删除可恢复或明确二次确认；媒体引用/备份影响已考虑。
 
 ### 数据库/Worker
@@ -492,11 +473,11 @@ pnpm typecheck
 
 若 migration 缺失，不使用 `db push` 掩盖；生成并提交 migration。
 
-### Web 请求 401/CSRF 错误
+### Web 请求 `IDENTITY_REQUIRED`
 
-确认 API/Web Origin 与端口、Cookie Secure（本地 HTTP 应 false）、`credentials`、Session 是否过期，以及写请求是否携带当前 Session 的 CSRF token。不要通过关闭 CSRF 解决。
+确认本地已选择 boy 或 girl，并且请求发送完全匹配的 `X-Our-Tomorrow-Role`。不要伪造 `coupleId` 或把显示昵称当作角色值。切换角色后应清空 Vue Query 私密缓存并重新请求 `/identity/me`。
 
-### CORS 或 Cookie 在 Compose 不工作
+### CORS 在 Compose 不工作
 
 生产优先通过 Caddy 同域访问，不直接暴露 API 端口。核对 `WEB_ORIGIN`、`PUBLIC_APP_URL`、`APP_SITE_ADDRESS` 和可信代理设置。
 

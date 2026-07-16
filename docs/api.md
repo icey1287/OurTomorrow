@@ -15,43 +15,40 @@
 - 空值：字段适用但无值时返回 `null`；出于保密规则不可见的字段应**省略**，不能返回可推测长度的占位值。
 - 金额、连续定位等当前产品没有的字段不得提前加入通用模型。
 
-生产环境 Web 与 API 同域；开发环境允许 `WEB_ORIGIN` 指定的单一来源并携带 Cookie。除健康检查和登录所需端点外，响应包含 `Cache-Control: private, no-store`。
+生产环境 Web 与 API 同域；开发环境只允许 `WEB_ORIGIN` 指定的单一来源。除健康检查和身份选择所需端点外，响应包含 `Cache-Control: private, no-store`。
 
 ### 1.2 请求 ID
 
 客户端可以发送合法的 `X-Request-Id`（8–128 位字母、数字、`.`、`_`、`:`、`-`）；否则服务端生成 UUID。响应头和错误体均返回该 ID。
 
-### 1.3 认证与 CSRF
+### 1.3 固定身份选择
 
-登录成功后服务端设置服务器 Session Cookie：
-
-```http
-Set-Cookie: our_tomorrow_session=<opaque>; HttpOnly; Secure; SameSite=Lax; Path=/
-```
-
-本地 HTTP 开发可关闭 `Secure`，生产必须开启。客户端不得把 Session 或长期令牌复制到 `localStorage`。
-
-所有会改变状态的 Cookie 认证请求（`POST`、`PUT`、`PATCH`、`DELETE`）必须同时发送：
+OurTomorrow 是只供固定两个人使用的自部署应用，不提供账号、密码、注册、邀请、Cookie Session 或 CSRF token。浏览器在欢迎页选择“我是男生”或“我是女生”，内部对应 `boy`/`girl`，随后在每个角色相关请求中显式发送：
 
 ```http
-X-CSRF-Token: <token returned by login or /auth/me>
+X-Our-Tomorrow-Role: boy
 ```
 
-CSRF 令牌与 Session 绑定，Session 轮换后旧令牌失效。跨来源、缺失、错误或过期令牌返回 `403 CSRF_INVALID`。
+允许值只有 `boy` 和 `girl`。缺失或非法值返回 `400 IDENTITY_REQUIRED`。`POST /identity/select` 的请求体直接携带角色，因此该端点本身不要求 header。
+
+Web 可以在 `localStorage` 的 `our-tomorrow-role` 中保存字符串 `boy` 或 `girl` 以记住界面选择；不得在其中保存正文、情侣空间数据或未来新增的秘密。角色值不是凭据，header 也不是安全边界：任何能访问应用的人都能切换两个身份。部署者必须通过网络入口、设备访问控制或 VPN 保证应用只对这两个人可达。
+
+因为请求不使用浏览器自动附带的认证 Cookie，当前 API 不采用 CSRF token。生产仍保持同域部署、配置的单一 CORS Origin、安全响应头和无公开内容入口；这些控制不能把角色选择包装成真正认证。
 
 ### 1.4 Actor 与空间上下文
 
-客户端请求体和查询参数不接受授权用途的 `coupleId`。服务端从 Session 得到：
+客户端请求体和查询参数不接受作用域用途的 `coupleId`。服务端根据固定角色映射得到：
 
 ```ts
 type ActorContext = {
+  role: "boy" | "girl";
   userId: string;
-  coupleId: string | null;
+  coupleId: string;
   requestId: string;
 };
 ```
 
-需要绑定的端点在 `coupleId=null` 时返回 `409 COUPLE_REQUIRED`。资源不存在和资源属于其他空间统一返回 `404 RESOURCE_NOT_FOUND`，不泄露跨空间存在性。
+两个角色始终映射到同一个确定性情侣空间。资源不存在和资源属于其他空间统一返回 `404 RESOURCE_NOT_FOUND`，不泄露跨空间存在性。角色选择只决定“以哪一位成员操作”，不能让请求体覆盖 `userId`、`role` 或 `coupleId`。
 
 ## 2. 响应、错误与并发
 
@@ -92,26 +89,21 @@ type ActorContext = {
 
 稳定错误码至少包括：
 
-| HTTP | code                       | 含义                                       |
-| ---- | -------------------------- | ------------------------------------------ |
-| 400  | `VALIDATION_FAILED`        | DTO 格式错误、未知字段或无效游标           |
-| 401  | `AUTH_REQUIRED`            | 未登录、Session 无效或已撤销               |
-| 401  | `LOGIN_FAILED`             | 用户名或密码错误；不区分账号是否存在       |
-| 403  | `CSRF_INVALID`             | 写请求 CSRF 校验失败                       |
-| 403  | `ACTION_FORBIDDEN`         | 已确认资源同空间但作者/状态规则禁止动作    |
-| 404  | `RESOURCE_NOT_FOUND`       | 资源不存在或不属于当前空间                 |
-| 409  | `COUPLE_REQUIRED`          | 当前账户尚未绑定空间                       |
-| 409  | `COUPLE_FULL`              | 邀请接受时空间已有两名成员                 |
-| 409  | `INVITATION_INVALID`       | 邀请过期、已用、错误或不可接受；不细分原因 |
-| 409  | `STATE_CONFLICT`           | 并发版本冲突或条件更新失败                 |
-| 409  | `IDEMPOTENCY_CONFLICT`     | 同一幂等键被不同请求载荷复用               |
-| 422  | `STATE_TRANSITION_INVALID` | 业务状态不允许该动作                       |
-| 423  | `CONTENT_LOCKED`           | 日记已揭晓或胶囊已封存，正文不可编辑       |
-| 429  | `RATE_LIMITED`             | 登录、邀请、触摸信号或上传超限             |
-| 500  | `INTERNAL_ERROR`           | 未预期错误；不返回堆栈或内部 SQL           |
-| 503  | `DEPENDENCY_UNAVAILABLE`   | 数据库或存储暂不可用                       |
+| HTTP | code                       | 含义                                    |
+| ---- | -------------------------- | --------------------------------------- |
+| 400  | `VALIDATION_FAILED`        | DTO 格式错误、未知字段或无效游标        |
+| 400  | `IDENTITY_REQUIRED`        | 角色 header 缺失或不是 `boy`/`girl`     |
+| 403  | `ACTION_FORBIDDEN`         | 已确认资源同空间但作者/状态规则禁止动作 |
+| 404  | `RESOURCE_NOT_FOUND`       | 资源不存在或不属于当前空间              |
+| 409  | `STATE_CONFLICT`           | 并发版本冲突或条件更新失败              |
+| 409  | `IDEMPOTENCY_CONFLICT`     | 同一幂等键被不同请求载荷复用            |
+| 422  | `STATE_TRANSITION_INVALID` | 业务状态不允许该动作                    |
+| 423  | `CONTENT_LOCKED`           | 日记已揭晓或胶囊已封存，正文不可编辑    |
+| 429  | `RATE_LIMITED`             | 触摸信号、上传或其他高频操作超限        |
+| 500  | `INTERNAL_ERROR`           | 未预期错误；不返回堆栈或内部 SQL        |
+| 503  | `DEPENDENCY_UNAVAILABLE`   | 数据库或存储暂不可用                    |
 
-`details` 只包含安全的结构化提示。秘密内容、资源所有者、邀请码状态或其他空间标识不得出现在错误详情中。
+`details` 只包含安全的结构化提示。秘密内容、资源所有者或其他空间标识不得出现在错误详情中。
 
 ### 2.3 乐观并发
 
@@ -129,14 +121,16 @@ ETag: "memory:m_123:7"
 
 ## 3. 公共模型
 
-### 3.1 AuthSession
+### 3.1 IdentitySession
 
 ```json
 {
+  "role": "boy",
   "user": {
     "id": "usr_...",
-    "username": "ming",
     "displayName": "甲",
+    "role": "boy",
+    "slot": 1,
     "nicknameInRelationship": "甲",
     "avatarUrl": null
   },
@@ -148,12 +142,11 @@ ETag: "memory:m_123:7"
     "signature": "今天也一起认真生活。",
     "theme": "system",
     "members": []
-  },
-  "csrfToken": "<session-bound token>"
+  }
 }
 ```
 
-未绑定时 `couple` 为 `null`。`avatarUrl`、封面和媒体 URL 都是短时授权地址或同域鉴权端点。
+`couple` 始终存在，且两个成员分别为 `boy/slot 1` 与 `girl/slot 2`。`avatarUrl`、封面和媒体 URL 都是同域、按当前显式角色与业务状态检查的端点或短时地址。
 
 ### 3.2 内容来源
 
@@ -172,7 +165,7 @@ type SourceReference = {
 
 ### 3.3 审计元数据
 
-普通资源可返回 `createdAt`、`updatedAt`、`createdBy`、`version`。不得向客户端返回密码摘要、Session ID/摘要、邀请码摘要、内部存储键、worker 负载、Outbox 内容或内部审计 IP 原值。
+普通资源可返回 `createdAt`、`updatedAt`、`createdBy`、`version`。不得向客户端返回内部存储键、worker 负载、Outbox 内容、备份秘密或内部审计 IP 原值。
 
 ### 3.4 核心状态枚举
 
@@ -210,55 +203,48 @@ type ReadyHealth = {
 };
 ```
 
-首位用户通过受控 CLI/部署流程使用 `BOOTSTRAP_TOKEN` 创建，不提供公网 `/register` 或 bootstrap HTTP 端点。
+固定情侣空间和两名成员由身份初始化流程幂等建立，不依赖成员凭据或配对端点。
 
-## 5. 阶段 1：认证、绑定与资料
+## 5. 阶段 1：固定双人身份与资料
 
-### 5.1 认证
+### 5.1 身份选择
 
-| 方法   | 路径                 | 请求                     | 响应                               |
-| ------ | -------------------- | ------------------------ | ---------------------------------- |
-| POST   | `/auth/login`        | `{ username, password }` | `200 AuthSession` + Session Cookie |
-| POST   | `/auth/logout`       | 无                       | `204` + 清除 Cookie                |
-| GET    | `/auth/me`           | 无                       | `200 AuthSession`                  |
-| DELETE | `/auth/sessions/:id` | 无                       | `204`；撤销自己的其他会话          |
-| GET    | `/auth/sessions`     | 无                       | 当前用户会话摘要列表，不返回令牌   |
+| 方法 | 路径               | 请求/header                                              | 响应                  |
+| ---- | ------------------ | -------------------------------------------------------- | --------------------- |
+| POST | `/identity/select` | `{ "role": "boy" }` 或 `{ "role": "girl" }`；无需 header | `200 IdentitySession` |
+| GET  | `/identity/me`     | `X-Our-Tomorrow-Role`                                    | `200 IdentitySession` |
 
-登录成功必须轮换 Session；失败响应和耗时尽量不区分用户名不存在与密码错误。连续失败受 IP 与规范化账号双重限流。
+`POST /identity/select` 幂等创建或修复以下固定记录：
 
-### 5.2 情侣空间和邀请
+| 角色   | 内部键 | 默认显示名/关系称呼 | slot |
+| ------ | ------ | ------------------- | ---- |
+| `boy`  | `boy`  | 甲                  | 1    |
+| `girl` | `girl` | 乙 | 2    |
 
-| 方法   | 路径                          | 请求/查询                                                     | 响应                   |
-| ------ | ----------------------------- | ------------------------------------------------------------- | ---------------------- |
-| POST   | `/couples`                    | `{ name, startDate, timezone, myNickname, partnerNickname? }` | `201 CoupleSummary`    |
-| GET    | `/couples/current`            | 无                                                            | `200 CoupleSummary`    |
-| PATCH  | `/couples/current`            | `If-Match`; 名称、日期、时区、签名、主题等                    | `200 CoupleSummary`    |
-| POST   | `/couples/invitations`        | `{ expiresInMinutes? }`                                       | `201 InvitationSecret` |
-| POST   | `/couples/invitations/accept` | `{ code }`                                                    | `200 CoupleSummary`    |
-| DELETE | `/couples/invitations/:id`    | 无                                                            | `204`；撤销未使用邀请  |
+内部键不进入 API 响应；Web 身份按钮显示“我是男生/我是女生”。
 
-`InvitationSecret` 的明文 `code` 和 `inviteUrl` 只在创建响应返回一次：
+两个用户拥有确定性 ID，同属一个确定性情侣空间。默认空间为“我们的明天”，开始日期 `2024-01-01`，时区 `Asia/Shanghai`，签名“今天也一起认真生活。”。并发选择任一角色最多生成这两个用户、一个空间和两条成员关系；重复或重启后返回相同记录。
 
-```json
-{
-  "id": "inv_...",
-  "code": "....",
-  "inviteUrl": "https://example.com/onboarding?invite=...",
-  "expiresAt": "2026-07-16T09:00:00.000Z"
-}
-```
+选择结果不设置 Cookie，也不建立服务器 Session。即使刚调用过 `select`，后续角色相关请求仍必须显式发送 header。
 
-邀请码消费在事务内检查空间容量并标记 `usedAt`。失败统一返回 `INVITATION_INVALID` 或已明确登录到目标空间时的 `COUPLE_FULL`，不返回创建者资料。
+### 5.2 情侣空间
+
+| 方法  | 路径               | 请求/header                                                | 响应                |
+| ----- | ------------------ | ---------------------------------------------------------- | ------------------- |
+| GET   | `/couples/current` | `X-Our-Tomorrow-Role`                                      | `200 CoupleSummary` |
+| PATCH | `/couples/current` | header + `version`；名称、日期、时区、签名、主题等共享字段 | `200 CoupleSummary` |
+
+两个角色读取和修改同一空间。共享字段使用乐观版本；相同旧版本并发更新最多一个成功，另一请求返回 `409 STATE_CONFLICT`。
 
 ### 5.3 个人设置
 
-| 方法  | 路径                    | 说明                                       |
-| ----- | ----------------------- | ------------------------------------------ |
-| PATCH | `/users/me`             | 修改 `displayName`、关系昵称、头像引用     |
-| PATCH | `/settings/preferences` | 主题、减少动态效果、隐私通知、自动锁定偏好 |
-| GET   | `/settings/preferences` | 获取当前成员偏好与空间级设置               |
+| 方法  | 路径                    | 说明                                                        |
+| ----- | ----------------------- | ----------------------------------------------------------- |
+| PATCH | `/users/me`             | header 选择当前角色；修改 `displayName`、关系昵称、头像引用 |
+| PATCH | `/settings/preferences` | 主题、减少动态效果、隐私通知、自动锁定偏好                  |
+| GET   | `/settings/preferences` | 获取当前成员偏好与空间级设置                                |
 
-空间级时区、关系日期由 `/couples/current` 修改；个人减少动效等不应覆盖对方偏好。
+个人资料使用 `User.version`；更新后情侣空间成员摘要的 `Couple.version` 同步递增。空间级时区、关系日期由 `/couples/current` 修改；个人减少动效等不应覆盖对方偏好。
 
 ## 6. 今日聚合
 
@@ -519,7 +505,7 @@ type ReadyHealth = {
 | POST   | `/exports/:id/download` | 生成一次性/短时下载授权                        |
 | DELETE | `/exports/:id`          | 提前删除导出包                                 |
 
-状态为 `QUEUED → RUNNING → READY/FAILED → EXPIRED`。导出包含版本化 `manifest.json`、可读 JSON 和媒体，不包含密码摘要、Session、邀请码摘要、CSRF、内部存储键或原始审计敏感信息。
+状态为 `QUEUED → RUNNING → READY/FAILED → EXPIRED`。导出包含版本化 `manifest.json`、可读 JSON 和媒体，不包含内部存储键、部署/备份秘密或原始审计敏感信息。固定角色值不是秘密，但无需作为独立认证数据导出。
 
 ### 11.3 运维状态
 
@@ -544,7 +530,7 @@ type ReadyHealth = {
 
 ## 13. WebSocket 契约
 
-阶段 3 开始在同域 `/socket` 建立连接，使用已有 Session Cookie 和 Origin 校验。连接后服务端再次解析当前成员空间，不接受客户端声明 `coupleId`。
+阶段 3 开始在同域 `/socket` 建立连接并校验 Origin。WebSocket 必须显式携带 `boy` 或 `girl` 角色（具体握手载体随阶段 3 契约固定），服务端再映射到固定成员和共同空间，不接受客户端声明 `coupleId`。该角色值仍不是认证秘密。
 
 事件载荷保持最小：
 
@@ -571,19 +557,19 @@ type RealtimeEvent = {
 - 枚举值使用稳定英文常量；中文只用于 UI 映射。
 - Web 客户端从 `/api/v1/openapi.json` 生成到约定目录，生成文件不手改。
 - `packages/contracts` 只保存跨运行时的基础类型、枚举和生成入口；不能同时维护另一套不同字段的手写完整 DTO。
-- CI 必须验证 OpenAPI 生成后工作树无漂移，并运行两个账户的契约/端到端测试。
+- CI 必须验证 OpenAPI 生成后工作树无漂移，并运行 boy/girl 双角色契约/端到端测试。
 
 破坏性变更包括删除字段、收紧枚举、改变保密字段出现条件、改变状态迁移或修改错误语义。V1 内优先新增可选字段；确需破坏时创建 `/api/v2` 或提供完整迁移窗口。
 
 ## 15. 必测契约场景
 
-1. 未登录访问任一私人端点返回 401，媒体也不例外。
-2. 用其他空间资源 ID 请求详情、子资源或媒体统一返回 404。
-3. 请求体伪造 `coupleId` 被 DTO 白名单拒绝或完全不被接受。
-4. 被撤销 Session 即刻失效；旧 CSRF 令牌不能复用。
-5. 邀请码并发接受最多成功一次，第三位成员不能加入。
+1. 缺失或非法 `X-Our-Tomorrow-Role` 时，角色相关端点返回 `400 IDENTITY_REQUIRED`。
+2. `POST /identity/select` 并发和重启后仍只有固定两个用户、一个空间、两条成员关系。
+3. 切换 `boy`/`girl` header 会切换当前成员，但两者始终看到同一个情侣空间。
+4. 用其他空间资源 ID 请求详情、子资源或媒体统一返回 404。
+5. 请求体伪造 `role`、`userId` 或 `coupleId` 被 DTO 白名单拒绝或完全不被接受。
 6. A 提交日记后，B 提交前的所有响应和事件不含 A 答案。
 7. 胶囊到期前直接请求详情/媒体不返回正文或可推测附件信息。
 8. 修改浏览器时间不改变 `/today`、胶囊或计划便利贴状态。
 9. 相同幂等键重试愿望转换只得到同一回忆。
-10. 导出包不含认证秘密、内部摘要或不属于当前空间的数据。
+10. 导出包不含部署秘密、内部摘要或不属于当前空间的数据。

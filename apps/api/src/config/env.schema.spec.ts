@@ -6,7 +6,6 @@ const validEnvironment = {
   DATABASE_URL: "postgresql://our_tomorrow:secret@localhost:5432/our_tomorrow",
   WEB_ORIGIN: "http://localhost:5173",
   PUBLIC_APP_URL: "http://localhost:5173",
-  BOOTSTRAP_TOKEN: "a".repeat(32),
 };
 
 describe("validateEnvironment", () => {
@@ -14,16 +13,11 @@ describe("validateEnvironment", () => {
     const environment = validateEnvironment({
       ...validEnvironment,
       API_PORT: "3100",
-      SESSION_TTL_DAYS: "14",
-      SESSION_COOKIE_SECURE: "true",
       TRUST_PROXY: "1",
     });
 
     expect(environment).toMatchObject({
       API_PORT: 3100,
-      SESSION_TTL_DAYS: 14,
-      SESSION_COOKIE_NAME: "our_tomorrow_session",
-      SESSION_COOKIE_SECURE: true,
       TRUST_PROXY: true,
       TZ: "Asia/Shanghai",
       WORKER_POLL_INTERVAL_MS: 2_000,
@@ -45,18 +39,15 @@ describe("validateEnvironment", () => {
     ).toThrow("TZ must be a valid IANA time zone");
   });
 
-  it("requires HTTPS origins and a non-placeholder bootstrap secret in production", () => {
+  it("requires HTTPS origins in production", () => {
     expect(() =>
       validateEnvironment({
         ...validEnvironment,
         NODE_ENV: "production",
         WEB_ORIGIN: "http://ourtomorrow.example.com",
         PUBLIC_APP_URL: "http://ourtomorrow.example.com",
-        BOOTSTRAP_TOKEN: "replace-with-a-long-random-secret",
       }),
-    ).toThrow(
-      /must use HTTPS in production.*must not be a placeholder in production/,
-    );
+    ).toThrow("must use HTTPS in production");
   });
 
   it("accepts a hardened production configuration", () => {
@@ -65,24 +56,9 @@ describe("validateEnvironment", () => {
       NODE_ENV: "production",
       WEB_ORIGIN: "https://ourtomorrow.example.com",
       PUBLIC_APP_URL: "https://ourtomorrow.example.com",
-      BOOTSTRAP_TOKEN: "b".repeat(48),
-      SESSION_COOKIE_SECURE: "true",
       TZ: "Asia/Shanghai",
     });
 
     expect(environment.NODE_ENV).toBe("production");
-  });
-
-  it("requires secure cookies for production HTTPS", () => {
-    expect(() =>
-      validateEnvironment({
-        ...validEnvironment,
-        NODE_ENV: "production",
-        WEB_ORIGIN: "https://ourtomorrow.example.com",
-        PUBLIC_APP_URL: "https://ourtomorrow.example.com",
-        BOOTSTRAP_TOKEN: "b".repeat(48),
-        SESSION_COOKIE_SECURE: "false",
-      }),
-    ).toThrow("SESSION_COOKIE_SECURE must be true for production HTTPS");
   });
 });

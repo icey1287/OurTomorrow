@@ -11,14 +11,15 @@ import {
   StickyNote,
   Sunrise,
 } from "lucide-vue-next";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import { RouterLink, RouterView, useRouter } from "vue-router";
 
 import BrandMark from "@/shared/components/BrandMark.vue";
 import CreatePanel, {
   type CreateSelection,
 } from "@/shared/components/CreatePanel.vue";
-import { useSessionStore } from "@/shared/stores/session";
+import { useIdentityStore } from "@/shared/stores/identity";
+import { useThemeStore } from "@/shared/stores/theme";
 
 interface NavItem {
   label: string;
@@ -27,7 +28,8 @@ interface NavItem {
 }
 
 const router = useRouter();
-const session = useSessionStore();
+const identity = useIdentityStore();
+const theme = useThemeStore();
 const createOpen = ref(false);
 
 const primaryNavigation: NavItem[] = [
@@ -47,12 +49,22 @@ const mobileNavigation: NavItem[] = [
 
 const userName = computed(
   () =>
-    session.user?.nicknameInRelationship ??
-    session.user?.displayName ??
+    identity.user?.nicknameInRelationship ??
+    identity.user?.displayName ??
     "我们的空间",
 );
-const coupleName = computed(() => session.couple?.name ?? "我们的明天");
+const coupleName = computed(() => identity.couple?.name ?? "我们的明天");
 const initials = computed(() => userName.value.trim().slice(0, 1) || "甲");
+
+watch(
+  () => identity.couple?.theme,
+  (preference) => {
+    if (preference && preference !== theme.preference) {
+      theme.setPreference(preference);
+    }
+  },
+  { immediate: true },
+);
 
 async function handleCreate(selection: CreateSelection) {
   await router.push({

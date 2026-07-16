@@ -5,9 +5,8 @@ export {};
 declare module "vue-router" {
   interface RouteMeta {
     title?: string;
-    guestOnly?: boolean;
-    requiresAuth?: boolean;
-    requiresCouple?: boolean;
+    identityOnly?: boolean;
+    requiresIdentity?: boolean;
     transitionKey?: string;
   }
 }

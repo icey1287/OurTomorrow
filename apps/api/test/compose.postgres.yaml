@@ -1,0 +1,21 @@
+name: our-tomorrow-stage1-test
+
+services:
+  postgres:
+    image: ${POSTGRES_TEST_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_DB: our_tomorrow_stage1_test
+      POSTGRES_USER: our_tomorrow
+      POSTGRES_PASSWORD: stage1-test-password
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U our_tomorrow -d our_tomorrow_stage1_test"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    security_opt:
+      - no-new-privileges:true

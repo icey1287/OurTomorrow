@@ -97,7 +97,7 @@ docker compose --env-file infra/.env -f infra/compose.yaml exec -T backup /usr/l
 
 1. 从运维记录确定目标 snapshot 对应的 Git commit/镜像 tag。
 2. 在独立目录 checkout 该版本；不要切换正在运行的生产工作树。
-3. 复制 `infra/.env.example` 为 `infra/.env.restore`，填写**演练专用**数据库密码、bootstrap 值和端口：
+3. 复制 `infra/.env.example` 为 `infra/.env.restore`，填写**演练专用**数据库密码、备份凭据和端口：
 
 ```dotenv
 APP_SITE_ADDRESS=http://localhost:18080
@@ -105,7 +105,6 @@ PUBLIC_APP_URL=http://localhost:18080
 WEB_ORIGIN=http://localhost:18080
 HTTP_PORT=18080
 HTTPS_PORT=18443
-SESSION_COOKIE_SECURE=false
 
 POSTGRES_DB=our_tomorrow
 POSTGRES_USER=our_tomorrow
@@ -290,7 +289,7 @@ curl --fail --silent --show-error http://127.0.0.1:18080/healthz
 
 用浏览器在受控环境完成必须验证：
 
-1. 使用两个恢复账户分别登录；
+1. 分别选择“我是男生”和“我是女生”，确认两个角色进入同一个 Couple；“甲/乙”仅为恢复后的默认称呼；
 2. 首页双方昵称、在一起天数和时区正确；
 3. 打开至少三条不同年份回忆和其缩略图/原图；
 4. 检查一条双方视角、便利贴和已揭晓日记；
@@ -319,7 +318,7 @@ docker compose \
 - snapshot ID、备份开始时间、metadata 版本；
 - dump checksum、核心表数量、媒体总数和抽样结果；
 - 恢复开始/结束时间（实际 RTO）；
-- 登录和隐私状态验证结果；
+- 双角色、共同空间和隐私状态验证结果；
 - 失败、修复和后续负责人。
 
 再次核对 project 名包含 `drill`，再销毁演练容器和卷：
@@ -346,7 +345,7 @@ docker compose \
 1. 宣布维护，停止 Caddy 接收写入；若只读模式未经过测试，直接停止 API/worker。
 2. 记录故障时间、最后已知成功请求、部署版本和现象。
 3. 不删除旧卷。若磁盘仍可读，对 PostgreSQL 数据目录、媒体卷和日志做只读快照或块级副本。
-4. 若怀疑入侵，隔离主机并轮换 Session、数据库、S3、Restic 和部署凭据；恢复不能替代事件处置。
+4. 若怀疑入侵，隔离主机并轮换外部访问代理、数据库、S3、Restic 和部署凭据；恢复不能替代事件处置。
 5. 确认两位成员可接受的恢复点，说明可能丢失的时间窗口。
 
 停止应用但保留数据库/备份（在确认 Compose project 后执行）：
@@ -378,7 +377,7 @@ docker compose --env-file infra/.env -f infra/compose.yaml run --rm --no-deps ba
   → pg_restore
   → 同 snapshot 媒体
   → 匹配版本 API/Web（worker 关闭）
-  → 数据/隐私/登录验证
+  → 数据/隐私/双角色共同空间验证
   → 逐版本 migrate deploy
   → 再次验证
   → 切换流量
@@ -392,11 +391,11 @@ docker compose --env-file infra/.env -f infra/compose.yaml run --rm --no-deps ba
 满足以下条件后才能切流量：
 
 - `/health/live`、`/health/ready`、Web `/healthz` 通过；
-- 两个账户登录和核心内容抽查通过；
+- boy/girl 两种角色选择和核心内容抽查通过，且 Couple ID 相同；
 - 未揭晓日记/未解锁胶囊仍保密；
 - 数据库核心计数和媒体抽样通过；
 - 新生产秘密已设置，示例值不存在；
-- Caddy TLS、Cookie Secure、CSP 和开放端口复核通过；
+- Caddy TLS、外部私有访问边界、CSP 和开放端口复核通过；
 - 通知适配器指向正确生产配置。
 
 切流量后先观察只读请求，再允许写入。最后启动 worker，监控 scheduled/outbox backlog；大量过期提醒应分批处理并遵守幂等/限流。确认第一份新备份成功后，才关闭恢复事件。
@@ -433,17 +432,17 @@ docker compose --env-file infra/.env -f infra/compose.yaml run --rm --no-deps ba
 - [ ] PostgreSQL 16 成功 `pg_restore --exit-on-error`。
 - [ ] 核心表数量记录并与备份前证据/产品预期对比。
 - [ ] 至少 10 个 READY 媒体原图和缩略图存在且可解码。
-- [ ] 两个账户均可登录，只看到同一情侣空间。
+- [ ] boy/girl 均可选择，返回不同固定成员且 Couple ID 相同。
 - [ ] 回忆、视角、日记、愿望、纪念日、胶囊和转换关系抽查通过。
 - [ ] 未揭晓/未解锁内容仍不由 API 返回。
-- [ ] 健康检查、CSP、Cookie、TLS 和网络端口符合生产要求。
+- [ ] 健康检查、CSP、TLS、外部访问边界和网络端口符合生产要求。
 - [ ] worker 在通知受控条件下处理持久任务且无重复副作用。
 - [ ] 新环境完成一份加密备份并可列出 snapshot。
 - [ ] 恢复记录含 RPO、RTO、问题、责任人和下次演练日期。
 
 ## 9. 演练频率
 
-- 每季度至少一次完整数据库 + 媒体 + 应用登录恢复；
+- 每季度至少一次完整数据库 + 媒体 + 双角色应用验证恢复；
 - 每次破坏性/高风险数据库迁移前做手动快照，迁移后做关键抽查；
 - 更换 Restic 仓库、密码、PostgreSQL 大版本或媒体后端后立即演练；
 - 每月至少执行一次 `restic check`，每日监控 backup health；

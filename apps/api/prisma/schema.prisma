@@ -23,13 +23,6 @@ enum CoupleMemberStatus {
   LEFT
 }
 
-enum InviteCodeStatus {
-  ACTIVE
-  USED
-  REVOKED
-  EXPIRED
-}
-
 enum MediaKind {
   IMAGE
   AUDIO
@@ -243,12 +236,6 @@ enum CapsuleStatus {
   CONVERTED_TO_MEMORY
 }
 
-enum SessionStatus {
-  ACTIVE
-  REVOKED
-  EXPIRED
-}
-
 enum NotificationStatus {
   UNREAD
   READ
@@ -301,7 +288,6 @@ model User {
   username             String                     @unique @db.VarChar(64)
   displayName          String                     @map("display_name") @db.VarChar(100)
   avatarMediaId        String?                    @map("avatar_media_id") @db.Uuid
-  passwordHash         String                     @map("password_hash") @db.VarChar(255)
   status               UserStatus                 @default(ACTIVE)
   version              Int                        @default(1)
   lastLoginAt          DateTime?                  @map("last_login_at") @db.Timestamptz(3)
@@ -310,9 +296,6 @@ model User {
   deletedAt            DateTime?                  @map("deleted_at") @db.Timestamptz(3)
   avatarMedia          MediaAsset?                @relation("UserAvatar", fields: [avatarMediaId], references: [id], onDelete: SetNull)
   coupleMembers        CoupleMember[]
-  createdInvites       InviteCode[]               @relation("InviteCreatedBy")
-  acceptedInvites      InviteCode[]               @relation("InviteAcceptedBy")
-  sessions             Session[]
   notifications        Notification[]
   auditLogs            AuditLog[]
   revisions            ContentRevision[]
@@ -364,8 +347,6 @@ model Couple {
   deletedAt          DateTime?           @map("deleted_at") @db.Timestamptz(3)
   coverMedia         MediaAsset?         @relation("CoupleCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
   members            CoupleMember[]
-  inviteCodes        InviteCode[]
-  sessions           Session[]
   notifications      Notification[]
   scheduledEvents    ScheduledEvent[]
   outboxEvents       OutboxEvent[]
@@ -414,46 +395,6 @@ model CoupleMember {
   @@index([coupleId, status])
   @@index([userId, status])
   @@map("couple_members")
-}
-
-model InviteCode {
-  id           String           @id @default(uuid()) @db.Uuid
-  coupleId     String           @map("couple_id") @db.Uuid
-  codeHash     String           @unique @map("code_hash") @db.VarChar(255)
-  status       InviteCodeStatus @default(ACTIVE)
-  expiresAt    DateTime         @map("expires_at") @db.Timestamptz(3)
-  usedAt       DateTime?        @map("used_at") @db.Timestamptz(3)
-  revokedAt    DateTime?        @map("revoked_at") @db.Timestamptz(3)
-  createdById  String           @map("created_by") @db.Uuid
-  acceptedById String?          @map("accepted_by") @db.Uuid
-  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
-  couple       Couple           @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  createdBy    User             @relation("InviteCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  acceptedBy   User?            @relation("InviteAcceptedBy", fields: [acceptedById], references: [id], onDelete: SetNull)
-
-  @@index([coupleId, status, expiresAt])
-  @@map("invite_codes")
-}
-
-model Session {
-  id         String        @id @default(uuid()) @db.Uuid
-  userId     String        @map("user_id") @db.Uuid
-  coupleId   String?       @map("couple_id") @db.Uuid
-  tokenHash  String        @unique @map("token_hash") @db.VarChar(255)
-  csrfHash   String        @map("csrf_hash") @db.VarChar(255)
-  status     SessionStatus @default(ACTIVE)
-  expiresAt  DateTime      @map("expires_at") @db.Timestamptz(3)
-  lastSeenAt DateTime      @default(now()) @map("last_seen_at") @db.Timestamptz(3)
-  revokedAt  DateTime?     @map("revoked_at") @db.Timestamptz(3)
-  ipAddress  String?       @map("ip_address") @db.Inet
-  userAgent  String?       @map("user_agent") @db.VarChar(512)
-  createdAt  DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
-  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  couple     Couple?       @relation(fields: [coupleId], references: [id], onDelete: SetNull)
-
-  @@index([userId, status, expiresAt])
-  @@index([expiresAt])
-  @@map("sessions")
 }
 
 model Notification {
