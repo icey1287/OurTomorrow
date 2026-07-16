@@ -1,0 +1,243 @@
+name: our-tomorrow
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-api-environment: &api-environment
+  NODE_ENV: ${NODE_ENV:-development}
+  PORT: 3000
+  API_PORT: 3000
+  DATABASE_URL: ${DATABASE_URL:-postgresql://our_tomorrow:our_tomorrow@postgres:5432/our_tomorrow?schema=public}
+  PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
+  WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost}
+  SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-our_tomorrow_session}
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+  SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+  CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-our_tomorrow_csrf}
+  BOOTSTRAP_TOKEN: ${BOOTSTRAP_TOKEN:-development-only-change-me-at-once-0000}
+  MEDIA_STORAGE_PATH: /data/media
+  MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-15728640}
+  TRUST_PROXY: "1"
+  TZ: UTC
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-our_tomorrow}
+      POSTGRES_USER: ${POSTGRES_USER:-our_tomorrow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-our_tomorrow}
+      POSTGRES_INITDB_ARGS: --data-checksums
+      TZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    image: our-tomorrow-api:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    command:
+      [
+        "pnpm",
+        "exec",
+        "prisma",
+        "migrate",
+        "deploy",
+        "--schema",
+        "prisma/schema.prisma",
+      ]
+    environment:
+      <<: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - data
+    restart: "no"
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    image: our-tomorrow-api:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *api-environment
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - app
+      - data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -q -O /dev/null http://127.0.0.1:3000/api/v1/health/ready",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
+  worker:
+    image: our-tomorrow-api:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: infra/docker/api.Dockerfile
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    environment:
+      <<: *api-environment
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-5000}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-20}
+    volumes:
+      - media_data:/data/media
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - app
+      - data
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    image: our-tomorrow-web:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+    restart: unless-stopped
+    networks:
+      - app
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      APP_SITE_ADDRESS: ${APP_SITE_ADDRESS:-http://localhost}
+    ports:
+      - ${HTTP_PORT:-80}:80
+      - ${HTTPS_PORT:-443}:443
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks:
+      - app
+    tmpfs:
+      - /tmp
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
+  backup:
+    build:
+      context: ..
+      dockerfile: infra/backup/Dockerfile
+    restart: unless-stopped
+    environment:
+      BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL:-postgresql://our_tomorrow:our_tomorrow@postgres:5432/our_tomorrow}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/backups/restic}
+      RESTIC_PASSWORD: ${BACKUP_ENCRYPTION_KEY:-development-only-change-me}
+      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-14}
+      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-8}
+      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}
+      BACKUP_MAX_AGE_SECONDS: ${BACKUP_MAX_AGE_SECONDS:-129600}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - backup_data:/backups
+      - backup_state:/var/lib/backup
+      - media_data:/media:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app
+      - data
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/backup-healthcheck.sh"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 10m
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  app:
+  data:
+    internal: true
+
+volumes:
+  postgres_data:
+  media_data:
+  backup_data:
+  backup_state:
+  caddy_data:
+  caddy_config:

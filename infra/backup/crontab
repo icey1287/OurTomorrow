@@ -1,0 +1,5 @@
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+# Every day at 03:00 in the backup container's TZ.
+0 3 * * * /usr/local/bin/backup.sh 2>&1
