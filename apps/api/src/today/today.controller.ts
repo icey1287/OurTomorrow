@@ -8,8 +8,16 @@ import type { IdentityRole } from "../identity/identity.constants";
 import type { MemoryCardSummary } from "../memories/memory.presentation";
 import { createValidationPipe } from "../common/http/validation";
 import { RandomMemoryQueryDto } from "./dto/random-memory-query.dto";
-import { TodayResponseDto } from "./dto/today-response.dto";
-import { TodayService, type TodayResponse } from "./today.service";
+import {
+  TodayResponseDto,
+  TodayUpcomingResponseDto,
+} from "./dto/today-response.dto";
+import { UpcomingQueryDto } from "./dto/upcoming-query.dto";
+import {
+  TodayService,
+  type TodayResponse,
+  type TodayUpcomingResponse,
+} from "./today.service";
 
 @ApiTags("today")
 @Controller("today")
@@ -40,5 +48,19 @@ export class TodayController {
     query: RandomMemoryQueryDto,
   ): Promise<MemoryCardSummary | null> {
     return this.today.randomMemory(role, query.excludeId);
+  }
+
+  @Get("upcoming")
+  @ApiHeader({
+    name: IDENTITY_ROLE_HEADER,
+    enum: ["boy", "girl"],
+    required: true,
+  })
+  @ApiOkResponse({ type: TodayUpcomingResponseDto })
+  upcoming(
+    @CurrentIdentityRole() role: IdentityRole,
+    @Query(createValidationPipe(UpcomingQueryDto)) query: UpcomingQueryDto,
+  ): Promise<TodayUpcomingResponse> {
+    return this.today.upcoming(role, query.days);
   }
 }

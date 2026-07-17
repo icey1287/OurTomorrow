@@ -530,9 +530,9 @@ export interface TodayResponse {
   partnerStatus: CurrentStatusSummary | null;
   latestNote: NoteView | null;
   dailyEntryStatus: DailyEntryTodayResponse;
-  nextAnniversary: null;
+  nextAnniversary: AnniversarySummary | null;
   randomMemory: MemoryCardSummary | null;
-  activeWish: null;
+  activeWish: WishSummary | null;
 }
 
 export interface PageMeta {
@@ -545,8 +545,46 @@ export interface Paginated<T> {
   meta: PageMeta;
 }
 
+export type WishCategory =
+  | "TRAVEL"
+  | "FOOD"
+  | "LIFE"
+  | "LEARNING"
+  | "COMMEMORATION"
+  | "FAMILY"
+  | "PHOTOGRAPHY"
+  | "ADVENTURE"
+  | "CUSTOM";
+
 export type WishStatus =
   "IDEA" | "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CONVERTED_TO_MEMORY";
+
+export type PlanStatus =
+  "DRAFT" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+
+export type AnniversaryType =
+  | "RELATIONSHIP"
+  | "FIRST_MEETING"
+  | "BIRTHDAY"
+  | "MARRIAGE"
+  | "MOVING"
+  | "PET_BIRTHDAY"
+  | "CUSTOM";
+
+export type AnniversaryRepeat = "NONE" | "YEARLY";
+export type AnniversaryLeapDayRule = "FEBRUARY_28" | "MARCH_1";
+
+export type CapsuleType =
+  | "TO_PARTNER"
+  | "TO_SELF"
+  | "TO_BOTH"
+  | "JOINT"
+  | "ANNIVERSARY"
+  | "EVENT"
+  | "FUTURE_LETTER";
+
+export type CapsuleUnlockRule =
+  "AT_TIME" | "ANNIVERSARY" | "WISH_COMPLETION" | "MANUAL_CONDITION";
 
 export type CapsuleStatus =
   | "DRAFT"
@@ -556,6 +594,302 @@ export type CapsuleStatus =
   | "UNLOCKED"
   | "OPENED"
   | "CONVERTED_TO_MEMORY";
+
+export interface PlanSummary {
+  id: string;
+  version: number;
+  title: string;
+  itinerary: string | null;
+  preparations: string[];
+  participants: string[];
+  expectation: string | null;
+  startsAt: string | null;
+  endsAt: string | null;
+  reminderAt: string | null;
+  anniversaryOccurrenceDate: string | null;
+  status: PlanStatus;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  wishId: string | null;
+  anniversaryId: string | null;
+  place: PlaceSummary | null;
+  createdBy: UserSummary;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WishUpdateView {
+  id: string;
+  author: UserSummary;
+  fromStatus: WishStatus | null;
+  toStatus: WishStatus | null;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface WishSummary {
+  id: string;
+  version: number;
+  title: string;
+  description: string | null;
+  expectation: string | null;
+  category: WishCategory;
+  status: WishStatus;
+  place: PlaceSummary | null;
+  plannedFor: string | null;
+  completedAt: string | null;
+  completionNote: string | null;
+  createdBy: UserSummary;
+  completedBy: UserSummary | null;
+  media: MediaAssetSummary[];
+  plan: PlanSummary | null;
+  convertedMemoryId: string | null;
+  sourceNoteId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WishDetail extends WishSummary {
+  updates: WishUpdateView[];
+}
+
+export interface CreateWishRequest {
+  title: string;
+  description?: string | null;
+  expectation?: string | null;
+  category?: WishCategory;
+  placeId?: string | null;
+}
+
+export interface UpdateWishRequest extends Partial<CreateWishRequest> {
+  version: number;
+}
+
+export interface WishPlanRequest {
+  version: number;
+  title?: string;
+  itinerary?: string | null;
+  preparations?: string[];
+  participants?: string[];
+  expectation?: string | null;
+  placeId?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  reminderAt?: string | null;
+}
+
+export interface WishActionRequest {
+  version: number;
+}
+
+export interface CompleteWishRequest extends WishActionRequest {
+  completedAt?: string;
+  completionNote?: string | null;
+  mediaIds?: string[];
+}
+
+export interface ReopenWishRequest extends WishActionRequest {
+  note?: string | null;
+}
+
+export interface CreateWishUpdateRequest {
+  note: string;
+}
+
+export interface ConvertWishToMemoryRequest extends WishActionRequest {
+  title?: string;
+  content?: string | null;
+  happenedAt?: string;
+  placeId?: string | null;
+  mediaIds?: string[];
+}
+
+export interface CreatePlanRequest {
+  title: string;
+  wishId?: string | null;
+  anniversaryId?: string | null;
+  anniversaryOccurrenceDate?: string | null;
+  itinerary?: string | null;
+  preparations?: string[];
+  participants?: string[];
+  expectation?: string | null;
+  placeId?: string | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  reminderAt?: string | null;
+}
+
+export interface UpdatePlanRequest extends Partial<CreatePlanRequest> {
+  version: number;
+}
+
+export interface AnniversaryReminderView {
+  id: string;
+  daysBefore: number;
+  minuteOfDay: number;
+  enabled: boolean;
+  nextRunAt: string | null;
+}
+
+export interface AnniversarySummary {
+  id: string;
+  version: number;
+  title: string;
+  type: AnniversaryType;
+  date: string;
+  repeat: AnniversaryRepeat;
+  leapDayRule: AnniversaryLeapDayRule;
+  nextOccurrenceLocalDate: string | null;
+  nextOccurrenceAt: string | null;
+  daysUntil: number | null;
+  backgroundMedia: MediaAssetSummary | null;
+  reminders: AnniversaryReminderView[];
+  sourceNoteId: string | null;
+  createdBy: UserSummary;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AnniversaryDetail extends AnniversarySummary {
+  plans: PlanSummary[];
+  memories: MemoryCardSummary[];
+}
+
+export interface CreateAnniversaryRequest {
+  title: string;
+  type?: AnniversaryType;
+  date: string;
+  repeat?: AnniversaryRepeat;
+  leapDayRule?: AnniversaryLeapDayRule;
+  backgroundMediaId?: string | null;
+}
+
+export interface UpdateAnniversaryRequest extends Partial<CreateAnniversaryRequest> {
+  version: number;
+}
+
+export interface CreateAnniversaryReminderRequest {
+  daysBefore: number;
+  minuteOfDay?: number;
+  enabled?: boolean;
+}
+
+export interface AnniversaryOccurrence {
+  localDate: string;
+  occursAt: string;
+  daysUntil: number;
+  memories: MemoryCardSummary[];
+  plan: PlanSummary | null;
+}
+
+export interface CapsuleMessageView {
+  author: UserSummary;
+  version: number;
+  content: string;
+  updatedAt: string;
+}
+
+export interface CapsuleSummary {
+  id: string;
+  version: number;
+  title: string;
+  type: CapsuleType;
+  unlockRule: CapsuleUnlockRule;
+  status: CapsuleStatus;
+  unlockAt: string | null;
+  dueAt: string | null;
+  anniversaryId: string | null;
+  wishId: string | null;
+  requiresBothConfirmation: boolean;
+  confirmedMemberIds: string[];
+  openedMemberIds: string[];
+  createdBy: UserSummary;
+  sealedAt: string | null;
+  unlockedAt: string | null;
+  openedAt: string | null;
+  convertedMemoryId: string | null;
+  bodyAvailable: boolean;
+  canEdit: boolean;
+  canSeal: boolean;
+  canConfirm: boolean;
+  canOpen: boolean;
+  canConvert: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CapsuleDetail extends CapsuleSummary {
+  unlockCondition?: string | null;
+  messages?: CapsuleMessageView[];
+  media?: MediaAssetSummary[];
+}
+
+export interface CreateCapsuleRequest {
+  title: string;
+  type: CapsuleType;
+  unlockRule: CapsuleUnlockRule;
+  unlockAt?: string | null;
+  anniversaryId?: string | null;
+  wishId?: string | null;
+  unlockCondition?: string | null;
+  requiresBothConfirmation?: boolean;
+  message: string;
+  mediaIds?: string[];
+}
+
+export interface UpdateCapsuleRequest extends Partial<CreateCapsuleRequest> {
+  version: number;
+}
+
+export interface CapsuleActionRequest {
+  version: number;
+}
+
+export interface ConvertCapsuleToMemoryRequest extends CapsuleActionRequest {
+  title?: string;
+  content?: string | null;
+  happenedAt?: string;
+  placeId?: string | null;
+  mediaIds?: string[];
+}
+
+export type NoteConversionRequest =
+  | {
+      targetType: "WISH";
+      title?: string;
+      category?: WishCategory;
+      placeId?: string | null;
+    }
+  | {
+      targetType: "ANNIVERSARY";
+      title?: string;
+      date: string;
+      anniversaryType?: AnniversaryType;
+      repeat?: AnniversaryRepeat;
+      leapDayRule?: AnniversaryLeapDayRule;
+    }
+  | {
+      targetType: "MEMORY";
+      title?: string;
+      happenedAt?: string;
+      placeId?: string | null;
+    };
+
+export interface ConversionResult {
+  sourceType: "NOTE" | "WISH" | "CAPSULE" | "ANNIVERSARY";
+  sourceId: string;
+  targetType: "MEMORY" | "WISH" | "ANNIVERSARY";
+  targetId: string;
+  convertedAt: string;
+}
+
+export interface TodayUpcomingResponse {
+  serverNow: string;
+  days: number;
+  anniversaries: AnniversarySummary[];
+  plans: PlanSummary[];
+  capsules: CapsuleSummary[];
+}
 
 export interface LiveHealthResponse {
   status: "ok";

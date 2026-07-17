@@ -1,13 +1,20 @@
 import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it, vi } from "vitest";
+import type { AnniversariesService } from "../anniversaries/anniversaries.service";
+import type { CapsulesService } from "../capsules/capsules.service";
 import type { Clock } from "../common/clock/clock";
 import type { Environment } from "../config/env.schema";
 import type { PrismaService } from "../database/prisma.service";
+import type { PlansService } from "../plans/plans.service";
 import { SchedulerWorkerService } from "./scheduler-worker.service";
 
 const EVENT_ID = "90000000-0000-4000-8000-000000000001";
 const NOTE_ID = "70000000-0000-4000-8000-000000000001";
 const OUTBOX_ID = "71000000-0000-4000-8000-000000000001";
+const PLAN_ID = "72000000-0000-4000-8000-000000000001";
+const ANNIVERSARY_ID = "73000000-0000-4000-8000-000000000001";
+const REMINDER_ID = "74000000-0000-4000-8000-000000000001";
+const CAPSULE_ID = "75000000-0000-4000-8000-000000000001";
 const COUPLE_ID = "00000000-0000-4000-8000-000000000001";
 const BOY_ID = "00000000-0000-4000-8000-000000000101";
 const GIRL_ID = "00000000-0000-4000-8000-000000000102";
@@ -30,7 +37,14 @@ function clock(): Clock {
 
 function event(
   overrides: Partial<{
-    type: "NOTE_SHOW" | "NOTE_EXPIRE" | "STATUS_EXPIRE" | "OUTBOX_RETRY";
+    type:
+      | "NOTE_SHOW"
+      | "NOTE_EXPIRE"
+      | "STATUS_EXPIRE"
+      | "PLAN_REMINDER"
+      | "ANNIVERSARY_REMINDER"
+      | "CAPSULE_DUE"
+      | "OUTBOX_RETRY";
     payload: Record<string, unknown>;
     status: "PENDING" | "RUNNING" | "RETRYING";
     attempts: number;
@@ -48,6 +62,34 @@ function event(
     maxAttempts: 5,
     lockedUntil: null,
     ...overrides,
+  };
+}
+
+function stageFourServices() {
+  return {
+    plans: {
+      deliverReminder: vi.fn().mockResolvedValue(undefined),
+    } as unknown as PlansService,
+    anniversaries: {
+      deliverReminder: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AnniversariesService,
+    capsules: {
+      markDue: vi.fn().mockResolvedValue(undefined),
+    } as unknown as CapsulesService,
+  };
+}
+
+function worker(prisma: PrismaService, services = stageFourServices()) {
+  return {
+    worker: new SchedulerWorkerService(
+      config(),
+      prisma,
+      clock(),
+      services.plans,
+      services.anniversaries,
+      services.capsules,
+    ),
+    ...services,
   };
 }
 
@@ -94,9 +136,9 @@ describe("SchedulerWorkerService", () => {
       },
       $transaction: vi.fn(async (operation) => operation(transaction)),
     } as unknown as PrismaService;
-    const worker = new SchedulerWorkerService(config(), prisma, clock());
+    const { worker: scheduler } = worker(prisma);
 
-    await worker.poll();
+    await scheduler.poll();
 
     expect(scheduledUpdateMany).toHaveBeenNthCalledWith(
       1,
@@ -178,9 +220,9 @@ describe("SchedulerWorkerService", () => {
         updateMany,
       },
     } as unknown as PrismaService;
-    const worker = new SchedulerWorkerService(config(), prisma, clock());
+    const { worker: scheduler } = worker(prisma);
 
-    await worker.poll();
+    await scheduler.poll();
 
     expect(updateMany).toHaveBeenNthCalledWith(
       2,
@@ -237,9 +279,9 @@ describe("SchedulerWorkerService", () => {
         updateMany: outboxUpdateMany,
       },
     } as unknown as PrismaService;
-    const worker = new SchedulerWorkerService(config(), prisma, clock());
+    const { worker: scheduler } = worker(prisma);
 
-    await worker.poll();
+    await scheduler.poll();
 
     expect(outboxUpdateMany).toHaveBeenNthCalledWith(
       1,
@@ -263,18 +305,140 @@ describe("SchedulerWorkerService", () => {
     );
   });
 
+  it("recovers an expired lease and dispatches a plan reminder once", async () => {
+    const expiredLease = new Date(NOW.getTime() - 1);
+    const candidate = event({
+      type: "PLAN_REMINDER",
+      payload: { planId: PLAN_ID, expectedVersion: 4 },
+      status: "RUNNING",
+      attempts: 1,
+      lockedUntil: expiredLease,
+    });
+    const claimed = event({
+      type: "PLAN_REMINDER",
+      payload: { planId: PLAN_ID, expectedVersion: 4 },
+      status: "RUNNING",
+      attempts: 2,
+      lockedUntil: new Date(NOW.getTime() + 30_000),
+    });
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const prisma = {
+      scheduledEvent: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(candidate)
+          .mockResolvedValueOnce(claimed)
+          .mockResolvedValue(null),
+        updateMany,
+      },
+    } as unknown as PrismaService;
+    const services = stageFourServices();
+    const { worker: scheduler } = worker(prisma, services);
+
+    await scheduler.poll();
+    await scheduler.poll();
+
+    expect(updateMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: EVENT_ID,
+          status: "RUNNING",
+          attempts: 1,
+          lockedUntil: { lte: NOW },
+        }),
+      }),
+    );
+    expect(services.plans.deliverReminder).toHaveBeenCalledOnce();
+    expect(services.plans.deliverReminder).toHaveBeenCalledWith(
+      COUPLE_ID,
+      PLAN_ID,
+      4,
+    );
+  });
+
+  it("validates relationship ownership before dispatching anniversary and capsule jobs", async () => {
+    const anniversaryCandidate = event({
+      type: "ANNIVERSARY_REMINDER",
+      payload: {
+        anniversaryId: ANNIVERSARY_ID,
+        reminderId: REMINDER_ID,
+        occurrenceLocalDate: "2026-01-01",
+      },
+    });
+    const anniversaryClaimed = event({
+      type: "ANNIVERSARY_REMINDER",
+      payload: anniversaryCandidate.payload,
+      status: "RUNNING",
+      attempts: 1,
+      lockedUntil: new Date(NOW.getTime() + 30_000),
+    });
+    const capsuleCandidate = event({
+      type: "CAPSULE_DUE",
+      payload: { capsuleId: CAPSULE_ID },
+    });
+    const capsuleClaimed = event({
+      type: "CAPSULE_DUE",
+      payload: { capsuleId: CAPSULE_ID },
+      status: "RUNNING",
+      attempts: 1,
+      lockedUntil: new Date(NOW.getTime() + 30_000),
+    });
+    const prisma = {
+      scheduledEvent: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(anniversaryCandidate)
+          .mockResolvedValueOnce(anniversaryClaimed)
+          .mockResolvedValueOnce(capsuleCandidate)
+          .mockResolvedValueOnce(capsuleClaimed)
+          .mockResolvedValueOnce(null),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      anniversaryReminder: {
+        findFirst: vi.fn().mockResolvedValue({ id: REMINDER_ID }),
+      },
+      capsule: {
+        findFirst: vi.fn().mockResolvedValue({ id: CAPSULE_ID }),
+      },
+    } as unknown as PrismaService;
+    const services = stageFourServices();
+    const { worker: scheduler } = worker(prisma, services);
+
+    await scheduler.poll();
+
+    expect(prisma.anniversaryReminder.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: REMINDER_ID,
+        coupleId: COUPLE_ID,
+        anniversaryId: ANNIVERSARY_ID,
+        anniversary: { coupleId: COUPLE_ID, deletedAt: null },
+      },
+      select: { id: true },
+    });
+    expect(services.anniversaries.deliverReminder).toHaveBeenCalledWith(
+      REMINDER_ID,
+      "2026-01-01",
+    );
+    expect(prisma.capsule.findFirst).toHaveBeenCalledWith({
+      where: { id: CAPSULE_ID, coupleId: COUPLE_ID, deletedAt: null },
+      select: { id: true },
+    });
+    expect(services.capsules.markDue).toHaveBeenCalledWith(CAPSULE_ID);
+  });
+
   it("keeps its polling timer referenced so the worker process stays alive", () => {
     vi.useFakeTimers();
     const prisma = {
       scheduledEvent: { findFirst: vi.fn().mockResolvedValue(null) },
     } as unknown as PrismaService;
-    const worker = new SchedulerWorkerService(config(), prisma, clock());
+    const { worker: scheduler } = worker(prisma);
 
-    worker.start();
-    const timer = (worker as unknown as { timer?: NodeJS.Timeout }).timer;
+    scheduler.start();
+    const timer = (scheduler as unknown as { timer?: NodeJS.Timeout }).timer;
 
     expect(timer?.hasRef()).toBe(true);
-    worker.onApplicationShutdown();
+    scheduler.onApplicationShutdown();
     vi.useRealTimers();
   });
 });

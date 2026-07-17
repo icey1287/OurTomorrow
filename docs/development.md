@@ -242,7 +242,9 @@ docker compose -f infra/compose.yaml build api web backup
 
 ### 阶段 4：明天
 
-状态迁移使用动作端点而非任意 PATCH。愿望和胶囊转回忆以 Idempotency-Key/唯一约束保证一次。测试情侣空间时区、闰日、浏览器时间篡改、共同胶囊确认和 overdue worker。
+状态迁移使用动作端点而非任意 PATCH。愿望、计划、纪念日、时间胶囊和便利贴跨时间转换必须形成完整闭环；愿望和胶囊转回忆以 `Idempotency-Key`、Serializable transaction 与数据库唯一约束保证一次。
+
+阶段 4 至少测试：情侣空间时区重排、两种闰日策略、DST、计划提醒重复 poll、浏览器时间篡改、封存后不可写、共同胶囊并发确认、每成员独立 open、`TO_SELF` 404、原图/缩略图及“媒体重新绑定洗白”均被拒、愿望或关联计划完成后持久排程胶囊、并发转换只生成一条 Memory、`/today/upcoming` 不含正文或附件元数据。Web 的所有阶段 4 query key 必须包含当前 `boy`/`girl`，`capsule.hidden` 实时事件要立即移除列表和详情缓存。
 
 ### 阶段 5：安全与上线
 

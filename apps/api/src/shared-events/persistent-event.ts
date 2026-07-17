@@ -37,6 +37,7 @@ export type OutboxEventInput = {
   eventType: string;
   actorId?: string | null;
   recipientId?: string | null;
+  recipientIds?: string[];
   version?: number | null;
   occurredAt: Date;
 };
@@ -131,6 +132,9 @@ export async function enqueueOutboxEvent(
     ...(input.recipientId === undefined || input.recipientId === null
       ? {}
       : { recipientId: input.recipientId }),
+    ...(input.recipientIds === undefined || input.recipientIds.length === 0
+      ? {}
+      : { recipientIds: [...new Set(input.recipientIds)] }),
     ...(input.version === undefined || input.version === null
       ? {}
       : { version: input.version }),

@@ -1,14 +1,6 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import {
-  CoupleMemberStatus,
-  CoupleStatus,
-  MediaKind,
-  MediaStatus,
-  MemoryStatus,
-  Prisma,
-  UserStatus,
-} from "@prisma/client";
+import { MediaKind, MediaStatus, Prisma } from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
 import { constants, promises as fileSystem } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
@@ -32,6 +24,7 @@ import type {
   UploadIntentDto,
 } from "./dto/upload.dto";
 import { UPLOAD_COMPLETE_ROUTE } from "./idempotency-key";
+import { readableMediaAssetWhere } from "./media-access";
 import {
   InvalidImageError,
   InvalidStorageKeyError,
@@ -360,60 +353,7 @@ export class MediaService {
     const media = await this.prisma.mediaAsset.findFirst({
       where: {
         id: mediaId,
-        coupleId: identity.couple.id,
-        kind: MediaKind.IMAGE,
-        status: MediaStatus.READY,
-        deletedAt: null,
-        OR: [
-          { createdById: identity.user.id },
-          {
-            memoryMedia: {
-              some: {
-                memory: {
-                  coupleId: identity.couple.id,
-                  status: {
-                    in: [MemoryStatus.PUBLISHED, MemoryStatus.ARCHIVED],
-                  },
-                  deletedAt: null,
-                },
-              },
-            },
-          },
-          {
-            usedAsMemoryCover: {
-              some: {
-                coupleId: identity.couple.id,
-                status: {
-                  in: [MemoryStatus.PUBLISHED, MemoryStatus.ARCHIVED],
-                },
-                deletedAt: null,
-              },
-            },
-          },
-          {
-            usedAsCoupleCover: {
-              some: {
-                id: identity.couple.id,
-                status: CoupleStatus.ACTIVE,
-                deletedAt: null,
-              },
-            },
-          },
-          {
-            usedAsUserAvatar: {
-              some: {
-                status: UserStatus.ACTIVE,
-                deletedAt: null,
-                coupleMembers: {
-                  some: {
-                    coupleId: identity.couple.id,
-                    status: CoupleMemberStatus.ACTIVE,
-                  },
-                },
-              },
-            },
-          },
-        ],
+        ...readableMediaAssetWhere(identity.couple.id, identity.user.id),
       },
       select: {
         id: true,
@@ -478,6 +418,7 @@ export class MediaService {
               usedAsMemoryCover: true,
               usedAsAnniversaryCover: true,
               memoryMedia: true,
+              wishMedia: true,
               capsuleMedia: true,
               reviewContributions: true,
             },
@@ -524,9 +465,20 @@ export class MediaService {
           keyHash,
         },
       },
-      select: { requestHash: true, responseBody: true },
+      select: { requestHash: true, responseBody: true, expiresAt: true },
     });
     if (!record) return undefined;
+    if (record.expiresAt <= this.clock.now()) {
+      await this.prisma.idempotencyRecord.deleteMany({
+        where: {
+          userId,
+          route: UPLOAD_COMPLETE_ROUTE,
+          keyHash,
+          expiresAt: { lte: this.clock.now() },
+        },
+      });
+      return undefined;
+    }
     if (record.requestHash !== requestHash) throw idempotencyConflict();
     return this.parseStoredSummary(record.responseBody, uploadId);
   }

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { AnniversariesService } from "../anniversaries/anniversaries.service";
 import { Clock } from "../common/clock/clock";
 import { PrismaService } from "../database/prisma.service";
 import { IdentityService } from "../identity/identity.service";
@@ -87,7 +88,15 @@ describe("CouplesService", () => {
     const identities = {
       current: vi.fn().mockResolvedValue(identity),
     } as unknown as IdentityService;
-    const service = new CouplesService(prisma, identities, new FixedClock());
+    const anniversaries = {
+      rescheduleForCoupleInTransaction: vi.fn(),
+    } as unknown as AnniversariesService;
+    const service = new CouplesService(
+      prisma,
+      identities,
+      new FixedClock(),
+      anniversaries,
+    );
 
     const result = await service.update("girl", {
       version: 1,
@@ -107,8 +116,52 @@ describe("CouplesService", () => {
     );
     expect(result).toMatchObject({ version: 2, signature: "新的关系签名" });
     expect(
+      anniversaries.rescheduleForCoupleInTransaction,
+    ).not.toHaveBeenCalled();
+    expect(
       transaction.couple.findUnique.mock.calls[0]![0].select.members.select.user
         .select,
     ).toEqual({ id: true, version: true, displayName: true });
+  });
+
+  it("reschedules active anniversary reminders in the same timezone update transaction", async () => {
+    const transaction = {
+      couple: {
+        findFirst: vi.fn().mockResolvedValue({
+          timezone: "Asia/Shanghai",
+          startDate: new Date("2024-01-01T00:00:00.000Z"),
+        }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn().mockResolvedValue({
+          ...updatedCouple(),
+          timezone: "America/New_York",
+        }),
+      },
+    };
+    const anniversaries = {
+      rescheduleForCoupleInTransaction: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AnniversariesService;
+    const service = new CouplesService(
+      {
+        $transaction: vi.fn(async (operation) => operation(transaction)),
+      } as unknown as PrismaService,
+      {
+        current: vi.fn().mockResolvedValue(identity),
+      } as unknown as IdentityService,
+      new FixedClock(),
+      anniversaries,
+    );
+
+    await service.update("girl", {
+      version: 1,
+      timezone: "America/New_York",
+    });
+
+    expect(anniversaries.rescheduleForCoupleInTransaction).toHaveBeenCalledWith(
+      transaction,
+      identity.couple.id,
+      "America/New_York",
+      new Date("2026-07-16T08:30:00.000Z"),
+    );
   });
 });

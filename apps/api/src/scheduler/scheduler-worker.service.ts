@@ -4,6 +4,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  Optional,
   type OnApplicationShutdown,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
@@ -15,9 +16,12 @@ import {
   ScheduledEventStatus,
   type ScheduledEventType,
 } from "@prisma/client";
+import { AnniversariesService } from "../anniversaries/anniversaries.service";
+import { CapsulesService } from "../capsules/capsules.service";
 import { Clock } from "../common/clock/clock";
 import type { Environment } from "../config/env.schema";
 import { PrismaService } from "../database/prisma.service";
+import { PlansService } from "../plans/plans.service";
 import {
   createPrivateNotification,
   enqueueOutboxEvent,
@@ -29,6 +33,9 @@ const SUPPORTED_TYPES = [
   "NOTE_SHOW",
   "NOTE_EXPIRE",
   "STATUS_EXPIRE",
+  "PLAN_REMINDER",
+  "ANNIVERSARY_REMINDER",
+  "CAPSULE_DUE",
   "OUTBOX_RETRY",
 ] satisfies ScheduledEventType[];
 
@@ -73,6 +80,21 @@ function optionalInteger(
     : undefined;
 }
 
+function requiredInteger(payload: Prisma.JsonObject, key: string): number {
+  const value = optionalInteger(payload, key);
+  if (value === undefined || value < 1) {
+    throw new Error(`Scheduled event payload is missing ${key}`);
+  }
+  return value;
+}
+
+function requiredCoupleId(event: ClaimedEvent): string {
+  if (event.coupleId === null) {
+    throw new Error(`${event.type} scheduled event is missing coupleId`);
+  }
+  return event.coupleId;
+}
+
 function retryDelay(attempts: number): number {
   return Math.min(60_000, 1_000 * 2 ** Math.max(0, attempts - 1));
 }
@@ -96,6 +118,15 @@ export class SchedulerWorkerService implements OnApplicationShutdown {
     private readonly prisma: PrismaService,
     @Inject(Clock)
     private readonly clock: Clock,
+    @Optional()
+    @Inject(PlansService)
+    private readonly plans?: PlansService,
+    @Optional()
+    @Inject(AnniversariesService)
+    private readonly anniversaries?: AnniversariesService,
+    @Optional()
+    @Inject(CapsulesService)
+    private readonly capsules?: CapsulesService,
   ) {}
 
   start(): void {
@@ -235,12 +266,67 @@ export class SchedulerWorkerService implements OnApplicationShutdown {
           now,
         );
         return;
+      case "PLAN_REMINDER":
+        if (!this.plans) throw new Error("PlansService is unavailable");
+        await this.plans.deliverReminder(
+          requiredCoupleId(event),
+          requiredString(payload, "planId"),
+          requiredInteger(payload, "expectedVersion"),
+        );
+        return;
+      case "ANNIVERSARY_REMINDER":
+        await this.deliverAnniversaryReminder(event, payload);
+        return;
+      case "CAPSULE_DUE":
+        await this.markCapsuleDue(event, payload);
+        return;
       case "OUTBOX_RETRY":
         await this.publishOutbox(requiredString(payload, "outboxEventId"), now);
         return;
       default:
         throw new Error(`Unsupported scheduled event type: ${event.type}`);
     }
+  }
+
+  private async deliverAnniversaryReminder(
+    event: ClaimedEvent,
+    payload: Prisma.JsonObject,
+  ): Promise<void> {
+    const coupleId = requiredCoupleId(event);
+    const anniversaryId = requiredString(payload, "anniversaryId");
+    const reminderId = requiredString(payload, "reminderId");
+    const ownedReminder = await this.prisma.anniversaryReminder.findFirst({
+      where: {
+        id: reminderId,
+        coupleId,
+        anniversaryId,
+        anniversary: { coupleId, deletedAt: null },
+      },
+      select: { id: true },
+    });
+    if (!ownedReminder) return;
+    if (!this.anniversaries) {
+      throw new Error("AnniversariesService is unavailable");
+    }
+    await this.anniversaries.deliverReminder(
+      reminderId,
+      requiredString(payload, "occurrenceLocalDate"),
+    );
+  }
+
+  private async markCapsuleDue(
+    event: ClaimedEvent,
+    payload: Prisma.JsonObject,
+  ): Promise<void> {
+    const coupleId = requiredCoupleId(event);
+    const capsuleId = requiredString(payload, "capsuleId");
+    const ownedCapsule = await this.prisma.capsule.findFirst({
+      where: { id: capsuleId, coupleId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!ownedCapsule) return;
+    if (!this.capsules) throw new Error("CapsulesService is unavailable");
+    await this.capsules.markDue(capsuleId);
   }
 
   private async showNote(noteId: string, now: Date): Promise<void> {

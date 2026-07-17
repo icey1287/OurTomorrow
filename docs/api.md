@@ -384,7 +384,7 @@ type ReadyHealth = {
 | DELETE | `/notes/:id/reaction`    | 移除当前角色的指定回应                                                               |
 | PUT    | `/notes/order`           | 用各条 `version` 原子更新排列与置顶                                                  |
 
-`POST /notes/:id/convert` 是阶段 4 的跨时间转换目标，阶段 3 尚未暴露该端点；Web 不得提前把它显示为可用功能。
+`POST /notes/:id/convert` 在阶段 4 已启用，要求 `Idempotency-Key`，且只有作者能把仍有效的便利贴转为愿望、纪念日或回忆。同一便利贴由数据库唯一约束保证只能选择一个转换目标；成功后原便利贴归档。
 
 计划显示前，接收方列表项最多返回 `{ id, status: "SCHEDULED", showAt }`；不能返回正文、长度、类型、图标或附件数量。
 
@@ -448,6 +448,22 @@ type ReadyHealth = {
 | POST  | `/wishes/:id/convert-to-memory` | 幂等创建回忆并置为 `CONVERTED_TO_MEMORY`          |
 | POST  | `/wishes/:id/updates`           | 追加进度，不覆盖历史                              |
 
+独立计划端点：
+
+| 方法   | 路径                  | 说明                                    |
+| ------ | --------------------- | --------------------------------------- |
+| GET    | `/plans`              | 按状态、愿望或纪念日筛选                |
+| POST   | `/plans`              | 创建轻量草稿计划                        |
+| GET    | `/plans/:id`          | 获取当前空间计划                        |
+| PATCH  | `/plans/:id`          | 按版本更新仍可编辑字段                  |
+| DELETE | `/plans/:id`          | 软删除并取消未完成提醒                  |
+| POST   | `/plans/:id/schedule` | `DRAFT → SCHEDULED`                     |
+| POST   | `/plans/:id/start`    | `SCHEDULED → IN_PROGRESS`               |
+| POST   | `/plans/:id/complete` | `IN_PROGRESS → COMPLETED`，同步关联愿望 |
+| POST   | `/plans/:id/cancel`   | 取消计划并安全释放尚未完成的关联愿望    |
+
+完成愿望或完成其关联计划时，服务端在同一事务内为 `WISH_COMPLETION` 胶囊写入 `dueAt` 并 upsert 持久 `CAPSULE_DUE`，不能只依赖下一次读取时的懒判定。
+
 转换请求可包含对预填回忆的修改，但不能改变来源愿望：
 
 ```json
@@ -464,28 +480,30 @@ type ReadyHealth = {
 
 ### 10.2 纪念日
 
-| 方法             | 路径                             | 说明                   |
-| ---------------- | -------------------------------- | ---------------------- |
-| GET/POST         | `/anniversaries`                 | 获取/创建重要日子      |
-| GET/PATCH/DELETE | `/anniversaries/:id`             | 详情、并发更新、软删除 |
-| POST             | `/anniversaries/:id/reminders`   | 添加提前提醒规则       |
-| GET              | `/anniversaries/:id/occurrences` | 往年回忆和未来发生时间 |
+| 方法             | 路径                                       | 说明                   |
+| ---------------- | ------------------------------------------ | ---------------------- |
+| GET/POST         | `/anniversaries`                           | 获取/创建重要日子      |
+| GET/PATCH/DELETE | `/anniversaries/:id`                       | 详情、并发更新、软删除 |
+| POST             | `/anniversaries/:id/reminders`             | 添加提前提醒规则       |
+| DELETE           | `/anniversaries/:id/reminders/:reminderId` | 删除提醒规则           |
+| GET              | `/anniversaries/:id/occurrences`           | 往年回忆和未来发生时间 |
 
 请求使用本地日期和 IANA 时区规则；API 返回 `nextOccurrenceAt` UTC 值用于倒计时，同时保留原 `date`/recurrence，避免夏令时和闰日漂移。
 
 ### 10.3 时间胶囊
 
-| 方法   | 路径                              | 说明                                       |
-| ------ | --------------------------------- | ------------------------------------------ |
-| GET    | `/capsules`                       | 返回安全摘要；未解锁不含正文               |
-| POST   | `/capsules`                       | 创建草稿；指定类型、解锁条件和共同确认规则 |
-| GET    | `/capsules/:id`                   | 按当前状态返回元数据或完整内容             |
-| PATCH  | `/capsules/:id`                   | 仅草稿且有作者权限；更新正文/附件/解锁规则 |
-| DELETE | `/capsules/:id`                   | 仅允许草稿软删除；封存后按专门确认策略处理 |
-| POST   | `/capsules/:id/seal`              | 校验后封存；正文不可再改                   |
-| POST   | `/capsules/:id/confirm-open`      | 共同胶囊当前成员确认                       |
-| POST   | `/capsules/:id/open`              | 服务端验证到期/确认条件并记录打开          |
-| POST   | `/capsules/:id/convert-to-memory` | 已打开后幂等转换                           |
+| 方法   | 路径                               | 说明                                       |
+| ------ | ---------------------------------- | ------------------------------------------ |
+| GET    | `/capsules`                        | 返回安全摘要；未解锁不含正文               |
+| POST   | `/capsules`                        | 创建草稿；指定类型、解锁条件和共同确认规则 |
+| GET    | `/capsules/:id`                    | 按当前状态返回元数据或完整内容             |
+| PATCH  | `/capsules/:id`                    | 仅草稿且有作者权限；更新正文/附件/解锁规则 |
+| DELETE | `/capsules/:id`                    | 仅允许草稿软删除；封存后按专门确认策略处理 |
+| POST   | `/capsules/:id/seal`               | 校验后封存；正文不可再改                   |
+| POST   | `/capsules/:id/mark-condition-met` | 服务端确认手动条件已满足                   |
+| POST   | `/capsules/:id/confirm-open`       | 共同胶囊当前成员确认                       |
+| POST   | `/capsules/:id/open`               | 服务端验证到期/确认条件并记录打开          |
+| POST   | `/capsules/:id/convert-to-memory`  | 已打开后幂等转换                           |
 
 到期前详情示例：
 
@@ -501,7 +519,9 @@ type ReadyHealth = {
 }
 ```
 
-正文、正文长度、附件名称和缩略图均省略。服务端可以在读取时同步判定已到期，但持久状态和通知最终由 worker 幂等推进。
+正文、正文长度、附件名称、数量、媒体 ID 和缩略图均省略。原图与缩略图使用同一授权查询；未显式打开的成员也不能把已知媒体 UUID 重新绑定到愿望、纪念日或回忆来绕过锁定。
+
+到期、双方确认与显式打开是三个不同门槛：`UNLOCKED` 仍不返回正文，每个有资格打开的成员都必须分别调用 `/open`。共享胶囊只有所有有资格打开的成员都已打开后才能转为共同回忆；`TO_SELF` 不允许转为共享 Memory。封存后正文和附件不可修改。服务端可以在读取时同步判定已到期，但持久状态、通知与重复执行去重最终由 worker 推进。
 
 ## 11. 阶段 5：回收站、导出与运维状态
 

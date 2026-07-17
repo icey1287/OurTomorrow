@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/vue-query";
+import { QueryClient, QueryObserver } from "@tanstack/vue-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const { ioMock } = vi.hoisted(() => ({ ioMock: vi.fn() }));
@@ -58,6 +58,59 @@ describe("queryKeysForRealtimeEvent", () => {
     ],
     ["mood_entry.updated", ["moods", "today", "notifications"]],
     ["notification.created", ["notifications"]],
+    [
+      "wish.completed",
+      [
+        "wishes",
+        "wish",
+        "wish-options",
+        "plans",
+        "capsules",
+        "upcoming",
+        "today",
+        "notifications",
+      ],
+    ],
+    [
+      "plan.completed",
+      [
+        "plans",
+        "plan",
+        "wishes",
+        "wish",
+        "wish-options",
+        "anniversaries",
+        "anniversary",
+        "capsules",
+        "upcoming",
+        "today",
+        "notifications",
+      ],
+    ],
+    [
+      "capsule.hidden",
+      ["capsules", "capsule", "upcoming", "today", "notifications"],
+    ],
+    [
+      "conversion.completed",
+      [
+        "wishes",
+        "wish",
+        "wish-options",
+        "notes",
+        "anniversaries",
+        "anniversary",
+        "anniversary-occurrences",
+        "capsules",
+        "capsule",
+        "memories",
+        "memory",
+        "random-memory",
+        "upcoming",
+        "today",
+        "notifications",
+      ],
+    ],
   ])("maps %s to precise query invalidations", (type, keys) => {
     expect(queryKeysForRealtimeEvent(event(type))).toEqual(keys);
   });
@@ -88,5 +141,59 @@ describe("queryKeysForRealtimeEvent", () => {
 
     girlSocket.receive("domain.event", event("mood_entry.updated"));
     expect(invalidateQueries).toHaveBeenCalledWith({ queryKey: ["moods"] });
+  });
+
+  it("resets active capsule detail and filters lists when a draft becomes TO_SELF", () => {
+    const socket = fakeSocket();
+    ioMock.mockReturnValue(socket);
+    const invalidateQueries = vi.fn(async () => undefined);
+    const resetQueries = vi.fn(async () => undefined);
+    const setQueriesData = vi.fn();
+    const queryClient = {
+      invalidateQueries,
+      resetQueries,
+      setQueriesData,
+    } as unknown as QueryClient;
+
+    syncRealtimeIdentity("girl", queryClient);
+    socket.receive("domain.event", event("capsule.hidden"));
+
+    expect(resetQueries).toHaveBeenCalledWith({ queryKey: ["capsule"] });
+    expect(setQueriesData).toHaveBeenCalledWith(
+      { queryKey: ["capsules"] },
+      expect.any(Function),
+    );
+    const updater = setQueriesData.mock.calls[0]?.[1] as (
+      current: unknown,
+    ) => unknown;
+    expect(updater([{ id: "resource-1" }, { id: "keep" }])).toEqual([
+      { id: "keep" },
+    ]);
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ["capsules"],
+    });
+  });
+
+  it("clears secret data held by an active capsule query observer", () => {
+    const socket = fakeSocket();
+    ioMock.mockReturnValue(socket);
+    const queryClient = new QueryClient();
+    const detailKey = ["capsule", "girl", "resource-1"] as const;
+    queryClient.setQueryData(detailKey, {
+      messages: [{ content: "不应继续留在活跃 observer 的正文" }],
+    });
+    const observer = new QueryObserver(queryClient, {
+      queryKey: detailKey,
+      enabled: false,
+    });
+    const unsubscribe = observer.subscribe(() => undefined);
+    expect(observer.getCurrentResult().data).toBeDefined();
+
+    syncRealtimeIdentity("girl", queryClient);
+    socket.receive("domain.event", event("capsule.hidden"));
+
+    expect(observer.getCurrentResult().data).toBeUndefined();
+    unsubscribe();
+    queryClient.clear();
   });
 });

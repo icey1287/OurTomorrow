@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { HttpStatus, Inject, Injectable } from "@nestjs/common";
 import {
-  MediaStatus,
   MemoryMediaRole,
   MemoryStatus,
   Prisma,
@@ -20,6 +19,7 @@ import {
   IdentityService,
   type IdentityResponse,
 } from "../identity/identity.service";
+import { readableMediaAssetWhere } from "../media/media-access";
 import type {
   BindMemoryMediaDto,
   CreateMemoryCommentDto,
@@ -543,7 +543,12 @@ export class MemoriesService {
     const memoryId = await this.serializable(async (transaction) => {
       await this.assertPlace(transaction, actor.couple.id, dto.placeId);
       await this.assertTags(transaction, actor.couple.id, tagIds);
-      await this.assertMedia(transaction, actor.couple.id, mediaIds);
+      await this.assertMedia(
+        transaction,
+        actor.couple.id,
+        actor.user.id,
+        mediaIds,
+      );
       const coverMediaId =
         dto.coverMediaId === undefined
           ? (mediaIds[0] ?? null)
@@ -1011,7 +1016,12 @@ export class MemoriesService {
         select: revisionSnapshotSelect,
       });
       if (!before) throw resourceNotFound();
-      await this.assertMedia(transaction, actor.couple.id, dto.mediaIds);
+      await this.assertMedia(
+        transaction,
+        actor.couple.id,
+        actor.user.id,
+        dto.mediaIds,
+      );
       const nextCoverId =
         dto.coverMediaId === undefined
           ? before.coverMediaId !== null &&
@@ -1304,15 +1314,14 @@ export class MemoriesService {
   private async assertMedia(
     transaction: Prisma.TransactionClient,
     coupleId: string,
+    userId: string,
     mediaIds: string[],
   ): Promise<void> {
     if (mediaIds.length === 0) return;
     const count = await transaction.mediaAsset.count({
       where: {
         id: { in: mediaIds },
-        coupleId,
-        status: MediaStatus.READY,
-        deletedAt: null,
+        ...readableMediaAssetWhere(coupleId, userId),
       },
     });
     if (count !== mediaIds.length) throw resourceNotFound();

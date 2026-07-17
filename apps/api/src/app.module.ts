@@ -1,12 +1,16 @@
 import { MiddlewareConsumer, Module, type NestModule } from "@nestjs/common";
 import { ClockModule } from "./common/clock/clock.module";
+import { IdempotencyModule } from "./common/idempotency/idempotency.module";
 import { AuditModule } from "./common/audit/audit.module";
+import { AnniversariesModule } from "./anniversaries/anniversaries.module";
+import { CapsulesModule } from "./capsules/capsules.module";
 import { RequestIdMiddleware } from "./common/http/request-id.middleware";
 import { NoStoreMiddleware } from "./common/http/no-store.middleware";
 import { AppConfigModule } from "./config/config.module";
 import { PrismaModule } from "./database/prisma.module";
 import { HealthModule } from "./health/health.module";
 import { CouplesModule } from "./couples/couples.module";
+import { ConversionsModule } from "./conversions/conversions.module";
 import { DailyEntriesModule } from "./daily-entries/daily-entries.module";
 import { IdentityModule } from "./identity/identity.module";
 import { MediaModule } from "./media/media.module";
@@ -15,21 +19,29 @@ import { MoodsModule } from "./moods/moods.module";
 import { NotesModule } from "./notes/notes.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { PlacesModule } from "./places/places.module";
+import { PlansModule } from "./plans/plans.module";
 import { RealtimeModule } from "./realtime/realtime.module";
 import { StatusesModule } from "./statuses/statuses.module";
 import { TagsModule } from "./tags/tags.module";
 import { TodayModule } from "./today/today.module";
 import { UsersModule } from "./users/users.module";
+import { WishesModule } from "./wishes/wishes.module";
 
 @Module({
   imports: [
     AppConfigModule,
     ClockModule,
+    IdempotencyModule,
     PrismaModule,
     AuditModule,
     IdentityModule,
     CouplesModule,
+    ConversionsModule,
     UsersModule,
+    WishesModule,
+    PlansModule,
+    AnniversariesModule,
+    CapsulesModule,
     StatusesModule,
     MoodsModule,
     DailyEntriesModule,

@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import { CoupleMemberStatus, CoupleStatus, Prisma } from "@prisma/client";
+import { AnniversariesService } from "../anniversaries/anniversaries.service";
 import { Clock } from "../common/clock/clock";
 import {
   resourceNotFound,
@@ -47,6 +48,8 @@ export class CouplesService {
     private readonly identities: IdentityService,
     @Inject(Clock)
     private readonly clock: Clock,
+    @Inject(AnniversariesService)
+    private readonly anniversaries: AnniversariesService,
   ) {}
 
   async current(role: IdentityRole): Promise<CoupleSummary> {
@@ -120,6 +123,15 @@ export class CouplesService {
         },
       });
       if (result.count !== 1) throw stateConflict();
+
+      if (nextTimeZone !== existing.timezone) {
+        await this.anniversaries.rescheduleForCoupleInTransaction(
+          transaction,
+          identity.couple.id,
+          nextTimeZone,
+          this.clock.now(),
+        );
+      }
 
       const updated = await transaction.couple.findUnique({
         where: { id: identity.couple.id },

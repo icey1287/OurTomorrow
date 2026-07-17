@@ -29,11 +29,31 @@ export class TodayResponseDto {
   dailyEntryStatus!: object;
 
   @ApiProperty({ nullable: true, type: Object })
-  nextAnniversary!: null;
+  nextAnniversary!: object | null;
 
   @ApiProperty({ nullable: true, type: Object })
-  randomMemory!: null;
+  randomMemory!: object | null;
 
   @ApiProperty({ nullable: true, type: Object })
-  activeWish!: null;
+  activeWish!: object | null;
+}
+
+export class TodayUpcomingResponseDto {
+  @ApiProperty({ format: "date-time" })
+  serverNow!: string;
+
+  @ApiProperty({ minimum: 1, maximum: 365 })
+  days!: number;
+
+  @ApiProperty({ type: [Object] })
+  anniversaries!: object[];
+
+  @ApiProperty({ type: [Object] })
+  plans!: object[];
+
+  @ApiProperty({
+    type: [Object],
+    description: "Metadata only; never includes capsule body or media details",
+  })
+  capsules!: object[];
 }

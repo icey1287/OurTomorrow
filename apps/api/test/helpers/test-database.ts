@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-const SAFE_DATABASE_NAME = /(test|integration|stage1)/i;
+const SAFE_DATABASE_NAME = /(test|integration|stage\d+)/i;
 
 export function integrationDatabaseUrl(): string {
   const value = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;

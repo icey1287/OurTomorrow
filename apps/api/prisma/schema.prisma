@@ -209,6 +209,11 @@ enum AnniversaryRepeat {
   YEARLY
 }
 
+enum AnniversaryLeapDayRule {
+  FEBRUARY_28
+  MARCH_1
+}
+
 enum CapsuleType {
   TO_PARTNER
   TO_SELF
@@ -236,6 +241,19 @@ enum CapsuleStatus {
   CONVERTED_TO_MEMORY
 }
 
+enum ConversionSourceType {
+  NOTE
+  WISH
+  CAPSULE
+  ANNIVERSARY
+}
+
+enum ConversionTargetType {
+  MEMORY
+  WISH
+  ANNIVERSARY
+}
+
 enum NotificationStatus {
   UNREAD
   READ
@@ -248,6 +266,7 @@ enum ScheduledEventType {
   STATUS_EXPIRE
   CAPSULE_DUE
   ANNIVERSARY_REMINDER
+  PLAN_REMINDER
   DAILY_PROMPT
   MEMORY_RESURFACE
   ANNUAL_REVIEW
@@ -323,58 +342,62 @@ model User {
   authoredLetters      CalmLetter[]               @relation("CalmLetterAuthor")
   receivedLetters      CalmLetter[]               @relation("CalmLetterRecipient")
   createdWishes        Wish[]
+  completedWishes      Wish[]                     @relation("WishCompletedBy")
   wishUpdates          WishUpdate[]
   createdPlans         Plan[]
   createdAnniversaries Anniversary[]
   createdCapsules      Capsule[]
   capsuleMessages      CapsuleMessage[]
   capsuleOpenRecords   CapsuleOpenRecord[]
+  contentConversions   ContentConversion[]
 
   @@index([status, deletedAt])
   @@map("users")
 }
 
 model Couple {
-  id                 String              @id @default(uuid()) @db.Uuid
-  name               String              @db.VarChar(120)
-  startDate          DateTime            @map("start_date") @db.Date
-  timezone           String              @default("Asia/Shanghai") @db.VarChar(64)
-  signature          String?             @db.VarChar(280)
-  coverMediaId       String?             @map("cover_media_id") @db.Uuid
-  theme              String              @default("system") @db.VarChar(64)
-  status             CoupleStatus        @default(ACTIVE)
-  version            Int                 @default(1)
-  createdAt          DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime            @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt          DateTime?           @map("deleted_at") @db.Timestamptz(3)
-  coverMedia         MediaAsset?         @relation("CoupleCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
-  members            CoupleMember[]
-  notifications      Notification[]
-  scheduledEvents    ScheduledEvent[]
-  outboxEvents       OutboxEvent[]
-  auditLogs          AuditLog[]
-  revisions          ContentRevision[]
-  exportJobs         ExportJob[]
-  idempotencyRecords IdempotencyRecord[]
-  mediaAssets        MediaAsset[]
-  memories           Memory[]
-  tags               Tag[]
-  places             Place[]
-  reactions          Reaction[]
-  resurfaces         MemoryResurface[]
-  annualReviews      AnnualReview[]
-  currentStatuses    CurrentStatus[]
-  notes              Note[]
-  dailyPrompts       DailyPrompt[]
-  dailyEntries       DailyEntry[]
-  moodEntries        MoodEntry[]
-  touchEvents        TouchEvent[]
-  dailyRituals       DailyRitual[]
-  calmLetters        CalmLetter[]
-  wishes             Wish[]
-  plans              Plan[]
-  anniversaries      Anniversary[]
-  capsules           Capsule[]
+  id                   String                @id @default(uuid()) @db.Uuid
+  name                 String                @db.VarChar(120)
+  startDate            DateTime              @map("start_date") @db.Date
+  timezone             String                @default("Asia/Shanghai") @db.VarChar(64)
+  signature            String?               @db.VarChar(280)
+  coverMediaId         String?               @map("cover_media_id") @db.Uuid
+  theme                String                @default("system") @db.VarChar(64)
+  status               CoupleStatus          @default(ACTIVE)
+  version              Int                   @default(1)
+  createdAt            DateTime              @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime              @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt            DateTime?             @map("deleted_at") @db.Timestamptz(3)
+  coverMedia           MediaAsset?           @relation("CoupleCover", fields: [coverMediaId], references: [id], onDelete: SetNull)
+  members              CoupleMember[]
+  notifications        Notification[]
+  scheduledEvents      ScheduledEvent[]
+  outboxEvents         OutboxEvent[]
+  auditLogs            AuditLog[]
+  revisions            ContentRevision[]
+  exportJobs           ExportJob[]
+  idempotencyRecords   IdempotencyRecord[]
+  mediaAssets          MediaAsset[]
+  memories             Memory[]
+  tags                 Tag[]
+  places               Place[]
+  reactions            Reaction[]
+  resurfaces           MemoryResurface[]
+  annualReviews        AnnualReview[]
+  currentStatuses      CurrentStatus[]
+  notes                Note[]
+  dailyPrompts         DailyPrompt[]
+  dailyEntries         DailyEntry[]
+  moodEntries          MoodEntry[]
+  touchEvents          TouchEvent[]
+  dailyRituals         DailyRitual[]
+  calmLetters          CalmLetter[]
+  wishes               Wish[]
+  plans                Plan[]
+  anniversaries        Anniversary[]
+  anniversaryReminders AnniversaryReminder[]
+  capsules             Capsule[]
+  contentConversions   ContentConversion[]
 
   @@index([status, deletedAt])
   @@map("couples")
@@ -577,6 +600,7 @@ model MediaAsset {
   usedAsAnniversaryCover Anniversary[]              @relation("AnniversaryCover")
   memoryMedia            MemoryMedia[]
   capsuleMedia           CapsuleMedia[]
+  wishMedia              WishMedia[]
   reviewContributions    AnnualReviewContribution[]
 
   @@index([coupleId, status, createdAt(sort: Desc)])
@@ -1002,6 +1026,8 @@ model Wish {
   placeId         String?      @map("place_id") @db.Uuid
   plannedFor      DateTime?    @map("planned_for") @db.Timestamptz(3)
   completedAt     DateTime?    @map("completed_at") @db.Timestamptz(3)
+  completionNote  String?      @map("completion_note") @db.Text
+  completedById   String?      @map("completed_by") @db.Uuid
   convertedAt     DateTime?    @map("converted_at") @db.Timestamptz(3)
   sourceNoteId    String?      @unique @map("source_note_id") @db.Uuid
   createdById     String       @map("created_by") @db.Uuid
@@ -1012,15 +1038,32 @@ model Wish {
   place           Place?       @relation(fields: [placeId], references: [id], onDelete: SetNull)
   sourceNote      Note?        @relation("NoteConvertedWish", fields: [sourceNoteId], references: [id], onDelete: SetNull)
   createdBy       User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  completedBy     User?        @relation("WishCompletedBy", fields: [completedById], references: [id], onDelete: SetNull)
   updates         WishUpdate[]
+  media           WishMedia[]
   plan            Plan?
   capsules        Capsule[]
   convertedMemory Memory?      @relation("WishConvertedMemory")
 
   @@index([coupleId, status, updatedAt(sort: Desc)])
   @@index([coupleId, plannedFor])
+  @@index([completedById, completedAt])
   @@index([coupleId, deletedAt])
   @@map("wishes")
+}
+
+model WishMedia {
+  wishId       String     @map("wish_id") @db.Uuid
+  mediaAssetId String     @map("media_asset_id") @db.Uuid
+  sortOrder    Int        @default(0) @map("sort_order")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  wish         Wish       @relation(fields: [wishId], references: [id], onDelete: Cascade)
+  mediaAsset   MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Restrict)
+
+  @@id([wishId, mediaAssetId])
+  @@index([wishId, sortOrder])
+  @@index([mediaAssetId])
+  @@map("wish_media")
 }
 
 model WishUpdate {
@@ -1039,63 +1082,86 @@ model WishUpdate {
 }
 
 model Plan {
-  id            String       @id @default(uuid()) @db.Uuid
-  coupleId      String       @map("couple_id") @db.Uuid
-  wishId        String?      @unique @map("wish_id") @db.Uuid
-  anniversaryId String?      @map("anniversary_id") @db.Uuid
-  placeId       String?      @map("place_id") @db.Uuid
-  title         String       @db.VarChar(200)
-  itinerary     String?      @db.Text
-  preparations  Json         @default("[]")
-  participants  Json         @default("[]")
-  expectation   String?      @db.Text
-  startsAt      DateTime?    @map("starts_at") @db.Timestamptz(3)
-  endsAt        DateTime?    @map("ends_at") @db.Timestamptz(3)
-  reminderAt    DateTime?    @map("reminder_at") @db.Timestamptz(3)
-  status        PlanStatus   @default(DRAFT)
-  version       Int          @default(1)
-  createdById   String       @map("created_by") @db.Uuid
-  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt     DateTime?    @map("deleted_at") @db.Timestamptz(3)
-  couple        Couple       @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  wish          Wish?        @relation(fields: [wishId], references: [id], onDelete: SetNull)
-  anniversary   Anniversary? @relation(fields: [anniversaryId], references: [id], onDelete: SetNull)
-  place         Place?       @relation(fields: [placeId], references: [id], onDelete: SetNull)
-  createdBy     User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  id                        String       @id @default(uuid()) @db.Uuid
+  coupleId                  String       @map("couple_id") @db.Uuid
+  wishId                    String?      @unique @map("wish_id") @db.Uuid
+  anniversaryId             String?      @map("anniversary_id") @db.Uuid
+  placeId                   String?      @map("place_id") @db.Uuid
+  title                     String       @db.VarChar(200)
+  itinerary                 String?      @db.Text
+  preparations              Json         @default("[]")
+  participants              Json         @default("[]")
+  expectation               String?      @db.Text
+  startsAt                  DateTime?    @map("starts_at") @db.Timestamptz(3)
+  endsAt                    DateTime?    @map("ends_at") @db.Timestamptz(3)
+  reminderAt                DateTime?    @map("reminder_at") @db.Timestamptz(3)
+  anniversaryOccurrenceDate DateTime?    @map("anniversary_occurrence_date") @db.Date
+  status                    PlanStatus   @default(DRAFT)
+  version                   Int          @default(1)
+  completedAt               DateTime?    @map("completed_at") @db.Timestamptz(3)
+  cancelledAt               DateTime?    @map("cancelled_at") @db.Timestamptz(3)
+  createdById               String       @map("created_by") @db.Uuid
+  createdAt                 DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt                 DateTime?    @map("deleted_at") @db.Timestamptz(3)
+  couple                    Couple       @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  wish                      Wish?        @relation(fields: [wishId], references: [id], onDelete: SetNull)
+  anniversary               Anniversary? @relation(fields: [anniversaryId], references: [id], onDelete: SetNull)
+  place                     Place?       @relation(fields: [placeId], references: [id], onDelete: SetNull)
+  createdBy                 User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([coupleId, status, startsAt])
   @@index([anniversaryId])
+  @@index([anniversaryId, anniversaryOccurrenceDate])
   @@index([coupleId, deletedAt])
   @@map("plans")
 }
 
 model Anniversary {
-  id                 String            @id @default(uuid()) @db.Uuid
-  coupleId           String            @map("couple_id") @db.Uuid
-  title              String            @db.VarChar(200)
-  type               AnniversaryType   @default(CUSTOM)
-  date               DateTime          @db.Date
-  repeat             AnniversaryRepeat @default(YEARLY)
-  version            Int               @default(1)
-  reminderDaysBefore Int               @default(0) @map("reminder_days_before")
-  backgroundMediaId  String?           @map("background_media_id") @db.Uuid
-  sourceNoteId       String?           @unique @map("source_note_id") @db.Uuid
-  createdById        String            @map("created_by") @db.Uuid
-  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt          DateTime?         @map("deleted_at") @db.Timestamptz(3)
-  couple             Couple            @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  backgroundMedia    MediaAsset?       @relation("AnniversaryCover", fields: [backgroundMediaId], references: [id], onDelete: SetNull)
-  sourceNote         Note?             @relation("NoteConvertedAnniversary", fields: [sourceNoteId], references: [id], onDelete: SetNull)
-  createdBy          User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  id                 String                 @id @default(uuid()) @db.Uuid
+  coupleId           String                 @map("couple_id") @db.Uuid
+  title              String                 @db.VarChar(200)
+  type               AnniversaryType        @default(CUSTOM)
+  date               DateTime               @db.Date
+  repeat             AnniversaryRepeat      @default(YEARLY)
+  leapDayRule        AnniversaryLeapDayRule @default(FEBRUARY_28) @map("leap_day_rule")
+  version            Int                    @default(1)
+  reminderDaysBefore Int                    @default(0) @map("reminder_days_before")
+  backgroundMediaId  String?                @map("background_media_id") @db.Uuid
+  sourceNoteId       String?                @unique @map("source_note_id") @db.Uuid
+  createdById        String                 @map("created_by") @db.Uuid
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt          DateTime?              @map("deleted_at") @db.Timestamptz(3)
+  couple             Couple                 @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  backgroundMedia    MediaAsset?            @relation("AnniversaryCover", fields: [backgroundMediaId], references: [id], onDelete: SetNull)
+  sourceNote         Note?                  @relation("NoteConvertedAnniversary", fields: [sourceNoteId], references: [id], onDelete: SetNull)
+  createdBy          User                   @relation(fields: [createdById], references: [id], onDelete: Restrict)
   plans              Plan[]
+  reminders          AnniversaryReminder[]
   capsules           Capsule[]
-  memories           Memory[]          @relation("AnniversaryMemories")
+  memories           Memory[]               @relation("AnniversaryMemories")
 
   @@index([coupleId, date])
   @@index([coupleId, deletedAt])
   @@map("anniversaries")
+}
+
+model AnniversaryReminder {
+  id            String      @id @default(uuid()) @db.Uuid
+  coupleId      String      @map("couple_id") @db.Uuid
+  anniversaryId String      @map("anniversary_id") @db.Uuid
+  daysBefore    Int         @default(0) @map("days_before")
+  minuteOfDay   Int         @default(540) @map("minute_of_day")
+  enabled       Boolean     @default(true)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  couple        Couple      @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  anniversary   Anniversary @relation(fields: [anniversaryId], references: [id], onDelete: Cascade)
+
+  @@unique([anniversaryId, daysBefore, minuteOfDay])
+  @@index([coupleId, enabled])
+  @@map("anniversary_reminders")
 }
 
 model Capsule {
@@ -1111,6 +1177,7 @@ model Capsule {
   wishId                   String?             @map("wish_id") @db.Uuid
   unlockCondition          String?             @map("unlock_condition") @db.VarChar(500)
   requiresBothConfirmation Boolean             @default(false) @map("requires_both_confirmation")
+  sealedDigest             String?             @map("sealed_digest") @db.VarChar(64)
   createdById              String              @map("created_by") @db.Uuid
   sealedAt                 DateTime?           @map("sealed_at") @db.Timestamptz(3)
   dueAt                    DateTime?           @map("due_at") @db.Timestamptz(3)
@@ -1130,6 +1197,7 @@ model Capsule {
   convertedMemory          Memory?             @relation("CapsuleConvertedMemory")
 
   @@index([coupleId, status, unlockAt])
+  @@index([coupleId, status, dueAt])
   @@index([anniversaryId])
   @@index([wishId])
   @@index([coupleId, deletedAt])
@@ -1176,4 +1244,23 @@ model CapsuleOpenRecord {
   @@unique([capsuleId, userId])
   @@index([userId, openedAt])
   @@map("capsule_open_records")
+}
+
+model ContentConversion {
+  id               String               @id @default(uuid()) @db.Uuid
+  coupleId         String               @map("couple_id") @db.Uuid
+  sourceType       ConversionSourceType @map("source_type")
+  sourceId         String               @map("source_id") @db.Uuid
+  sourceOccurrence String               @default("once") @map("source_occurrence") @db.VarChar(32)
+  targetType       ConversionTargetType @map("target_type")
+  targetId         String               @map("target_id") @db.Uuid
+  convertedById    String               @map("converted_by") @db.Uuid
+  convertedAt      DateTime             @default(now()) @map("converted_at") @db.Timestamptz(3)
+  couple           Couple               @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  convertedBy      User                 @relation(fields: [convertedById], references: [id], onDelete: Restrict)
+
+  @@unique([coupleId, sourceType, sourceId, sourceOccurrence])
+  @@unique([coupleId, targetType, targetId])
+  @@index([coupleId, convertedAt(sort: Desc)])
+  @@map("content_conversions")
 }

@@ -27,10 +27,90 @@ export function queryKeysForRealtimeEvent(event: RealtimeEvent): string[] {
   if (event.type.startsWith("notification.")) {
     return ["notifications"];
   }
+  if (event.type.startsWith("wish.")) {
+    return [
+      "wishes",
+      "wish",
+      "wish-options",
+      "plans",
+      "capsules",
+      "upcoming",
+      "today",
+      "notifications",
+    ];
+  }
+  if (event.type.startsWith("plan.")) {
+    return [
+      "plans",
+      "plan",
+      "wishes",
+      "wish",
+      "wish-options",
+      "anniversaries",
+      "anniversary",
+      "capsules",
+      "upcoming",
+      "today",
+      "notifications",
+    ];
+  }
+  if (event.type.startsWith("anniversary.")) {
+    return [
+      "anniversaries",
+      "anniversary",
+      "anniversary-occurrences",
+      "plans",
+      "plan",
+      "capsules",
+      "upcoming",
+      "today",
+      "notifications",
+    ];
+  }
+  if (event.type.startsWith("capsule.")) {
+    return ["capsules", "capsule", "upcoming", "today", "notifications"];
+  }
+  if (event.type === "conversion.completed") {
+    return [
+      "wishes",
+      "wish",
+      "wish-options",
+      "notes",
+      "anniversaries",
+      "anniversary",
+      "anniversary-occurrences",
+      "capsules",
+      "capsule",
+      "memories",
+      "memory",
+      "random-memory",
+      "upcoming",
+      "today",
+      "notifications",
+    ];
+  }
   return ["today"];
 }
 
 function invalidate(queryClient: QueryClient, event: RealtimeEvent) {
+  if (event.type === "capsule.hidden") {
+    if (event.resourceId) {
+      queryClient.setQueriesData(
+        { queryKey: ["capsules"] },
+        (current: unknown) =>
+          Array.isArray(current)
+            ? current.filter(
+                (item) =>
+                  !item ||
+                  typeof item !== "object" ||
+                  !("id" in item) ||
+                  item.id !== event.resourceId,
+              )
+            : current,
+      );
+    }
+    void queryClient.resetQueries({ queryKey: ["capsule"] });
+  }
   for (const key of queryKeysForRealtimeEvent(event)) {
     void queryClient.invalidateQueries({ queryKey: [key] });
   }
@@ -62,6 +142,20 @@ export function syncRealtimeIdentity(
       "moods",
       "notifications",
       "today",
+      "wishes",
+      "wish",
+      "wish-options",
+      "plans",
+      "plan",
+      "anniversaries",
+      "anniversary",
+      "anniversary-occurrences",
+      "capsules",
+      "capsule",
+      "upcoming",
+      "memories",
+      "memory",
+      "random-memory",
     ]) {
       void queryClient.invalidateQueries({ queryKey: [key] });
     }

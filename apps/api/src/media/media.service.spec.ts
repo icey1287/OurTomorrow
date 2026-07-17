@@ -407,6 +407,57 @@ describe("MediaService", () => {
     });
   });
 
+  it("deletes an expired completion record before safely reusing its key", async () => {
+    const storageRoot = await temporaryMediaRoot();
+    const summaryRecord = {
+      id: MEDIA_ID,
+      originalName: "remember.webp",
+      mimeType: "image/webp",
+      size: BigInt(1_234),
+      width: 800,
+      height: 600,
+      createdAt: new Date("2026-07-16T08:29:00.000Z"),
+    };
+    const deleteMany = vi.fn().mockResolvedValue({ count: 1 });
+    const create = vi.fn().mockResolvedValue({ id: "new-record" });
+    const prisma = {
+      idempotencyRecord: {
+        findUnique: vi
+          .fn()
+          .mockResolvedValueOnce({
+            requestHash: createHash("sha256")
+              .update(JSON.stringify({ uploadId: MEDIA_ID }))
+              .digest("hex"),
+            responseBody: {},
+            expiresAt: new Date("2026-07-16T08:29:59.999Z"),
+          })
+          .mockResolvedValue(null),
+        deleteMany,
+        create,
+      },
+      mediaAsset: { findFirst: vi.fn().mockResolvedValue(summaryRecord) },
+    } as unknown as PrismaService;
+    const service = mediaService(
+      prisma,
+      {
+        current: vi.fn().mockResolvedValue(identity()),
+      } as unknown as IdentityService,
+      storageRoot,
+    );
+
+    await expect(
+      service.complete("boy", MEDIA_ID, "complete-upload-11111111"),
+    ).resolves.toMatchObject({ id: MEDIA_ID, originalName: "remember.webp" });
+    expect(deleteMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        userId: BOY_ID,
+        route: "POST /api/v1/uploads/complete",
+        expiresAt: { lte: new Date("2026-07-16T08:30:00.000Z") },
+      }),
+    });
+    expect(create).toHaveBeenCalledOnce();
+  });
+
   it("scopes private reads and only admits partner-visible associations", async () => {
     const storageRoot = await temporaryMediaRoot();
     const storageKey = `media/11/${MEDIA_ID}/original.webp`;
@@ -444,14 +495,49 @@ describe("MediaService", () => {
       status: MediaStatus.READY,
       deletedAt: null,
     });
-    expect(query.where.OR).toContainEqual({ createdById: GIRL_ID });
+    expect(query.where.OR).toContainEqual({
+      AND: expect.arrayContaining([
+        { createdById: GIRL_ID },
+        { wishMedia: { none: {} } },
+        { capsuleMedia: { none: {} } },
+      ]),
+    });
     expect(query.where.OR).toContainEqual({
       memoryMedia: {
         some: {
           memory: {
             coupleId: COUPLE_ID,
-            status: { in: ["PUBLISHED", "ARCHIVED"] },
             deletedAt: null,
+            OR: [
+              { status: { in: ["PUBLISHED", "ARCHIVED"] } },
+              { status: "DRAFT", createdById: GIRL_ID },
+            ],
+          },
+        },
+      },
+    });
+    expect(query.where.OR).toContainEqual({
+      wishMedia: {
+        some: {
+          wish: {
+            coupleId: COUPLE_ID,
+            deletedAt: null,
+          },
+        },
+      },
+    });
+    expect(query.where.OR).toContainEqual({
+      capsuleMedia: {
+        some: {
+          capsule: {
+            coupleId: COUPLE_ID,
+            deletedAt: null,
+            openRecords: {
+              some: {
+                userId: GIRL_ID,
+                openedAt: { not: null },
+              },
+            },
           },
         },
       },
@@ -472,6 +558,7 @@ describe("MediaService", () => {
             usedAsMemoryCover: 0,
             usedAsAnniversaryCover: 0,
             memoryMedia: 1,
+            wishMedia: 0,
             capsuleMedia: 0,
             reviewContributions: 0,
           },

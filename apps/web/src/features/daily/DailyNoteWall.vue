@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type {
   CreateNoteRequest,
+  NoteConversionRequest,
   NoteType,
   NoteView,
   UpdateNoteRequest,
@@ -9,6 +10,7 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import {
   Clock3,
+  ArrowRightLeft,
   Eye,
   EyeOff,
   LockKeyhole,
@@ -34,15 +36,18 @@ import {
 } from "@/features/daily/daily-utils";
 import { ApiClientError } from "@/shared/api/client";
 import { stageThreeApi } from "@/shared/api/stage-three";
+import { stageFourApi } from "@/shared/api/stage-four";
 import AsyncState from "@/shared/components/AsyncState.vue";
 import BaseButton from "@/shared/components/BaseButton.vue";
 import SectionHeading from "@/shared/components/SectionHeading.vue";
 import SurfaceCard from "@/shared/components/SurfaceCard.vue";
 import { useIdentityStore } from "@/shared/stores/identity";
+import { operationKey } from "@/features/tomorrow/tomorrow-utils";
 
 type NoteScope = "all" | "sent" | "received";
 type NoteTiming = "now" | "scheduled";
 type NoteExpiry = "never" | "day" | "three-days" | "custom";
+type ConversionTarget = NoteConversionRequest["targetType"];
 
 const identity = useIdentityStore();
 const queryClient = useQueryClient();
@@ -54,6 +59,24 @@ const actionMessage = ref<string | null>(null);
 const deletingId = ref<string | null>(null);
 const viewingId = ref<string | null>(null);
 const reactingKey = ref<string | null>(null);
+const convertingNote = ref<VisibleNoteView | null>(null);
+const conversionError = ref<string | null>(null);
+const conversionForm = reactive({
+  targetType: "WISH" as ConversionTarget,
+  title: "",
+  category: "CUSTOM" as
+    | "TRAVEL"
+    | "FOOD"
+    | "LIFE"
+    | "LEARNING"
+    | "COMMEMORATION"
+    | "FAMILY"
+    | "PHOTOGRAPHY"
+    | "ADVENTURE"
+    | "CUSTOM",
+  date: "",
+  repeat: "YEARLY" as "NONE" | "YEARLY",
+});
 
 const form = reactive({
   type: "LOVE" as NoteType,
@@ -94,6 +117,18 @@ watch(
     if (type === "SURPRISE" && form.timing !== "scheduled") {
       form.timing = "scheduled";
       form.showAt = toDateTimeLocalValue(addMinutesIso(new Date(), 24 * 60));
+    }
+  },
+);
+
+watch(
+  () => identity.role,
+  (role, previousRole) => {
+    if (previousRole && role !== previousRole) {
+      composerOpen.value = false;
+      editingNote.value = null;
+      convertingNote.value = null;
+      conversionError.value = null;
     }
   },
 );
@@ -172,6 +207,88 @@ const reactionMutation = useMutation({
     ]);
   },
 });
+
+const conversionMutation = useMutation({
+  mutationFn: (input: {
+    role: "boy" | "girl";
+    noteId: string;
+    request: NoteConversionRequest;
+    key: string;
+  }) => stageFourApi.convertNote(input.noteId, input.request, input.key),
+  onSuccess: async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["notes"] }),
+      queryClient.invalidateQueries({ queryKey: ["wishes"] }),
+      queryClient.invalidateQueries({ queryKey: ["wish-options"] }),
+      queryClient.invalidateQueries({ queryKey: ["anniversaries"] }),
+      queryClient.invalidateQueries({ queryKey: ["memories"] }),
+      queryClient.invalidateQueries({ queryKey: ["today"] }),
+      queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+    ]);
+  },
+});
+
+function openConversion(note: VisibleNoteView) {
+  if (note.author.id !== identity.user?.id) return;
+  convertingNote.value = note;
+  conversionForm.targetType = "WISH";
+  conversionForm.title = "";
+  conversionForm.category = "CUSTOM";
+  conversionForm.date = new Date().toISOString().slice(0, 10);
+  conversionForm.repeat = "YEARLY";
+  conversionError.value = null;
+}
+
+async function submitConversion() {
+  const note = convertingNote.value;
+  const role = identity.role;
+  if (!note || !role || conversionMutation.isPending.value) return;
+  const title = conversionForm.title.trim() || undefined;
+  let request: NoteConversionRequest;
+  if (conversionForm.targetType === "WISH") {
+    request = {
+      targetType: "WISH",
+      ...(title ? { title } : {}),
+      category: conversionForm.category,
+    };
+  } else if (conversionForm.targetType === "ANNIVERSARY") {
+    if (!conversionForm.date) {
+      conversionError.value = "请选择纪念日日期。";
+      return;
+    }
+    request = {
+      targetType: "ANNIVERSARY",
+      ...(title ? { title } : {}),
+      date: conversionForm.date,
+      repeat: conversionForm.repeat,
+    };
+  } else {
+    request = {
+      targetType: "MEMORY",
+      ...(title ? { title } : {}),
+    };
+  }
+
+  conversionError.value = null;
+  try {
+    await conversionMutation.mutateAsync({
+      role,
+      noteId: note.id,
+      request,
+      key: operationKey(`note-to-${request.targetType.toLowerCase()}`),
+    });
+    if (identity.role !== role) return;
+    convertingNote.value = null;
+    actionMessage.value =
+      request.targetType === "WISH"
+        ? "这张便利贴已经放进明天清单。"
+        : request.targetType === "ANNIVERSARY"
+          ? "这张便利贴已经成为一个重要日子。"
+          : "这张便利贴已经写进记录。";
+  } catch (error) {
+    conversionError.value = conflictMessage(error, "转换");
+  }
+}
 
 function resetForm() {
   editingNote.value = null;
@@ -587,6 +704,14 @@ async function toggleReaction(note: NoteView, emoji: string) {
                   }}
                 </BaseButton>
                 <BaseButton
+                  v-if="note.author.id === identity.user?.id"
+                  size="sm"
+                  variant="secondary"
+                  @click="openConversion(note)"
+                >
+                  <ArrowRightLeft class="size-4" />转为…
+                </BaseButton>
+                <BaseButton
                   v-if="note.canEdit"
                   size="sm"
                   variant="ghost"
@@ -610,6 +735,159 @@ async function toggleReaction(note: NoteView, emoji: string) {
           </article>
         </div>
       </div>
+    </SurfaceCard>
+
+    <SurfaceCard
+      v-if="convertingNote"
+      class="mt-4"
+      aria-labelledby="note-conversion-heading"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <p class="eyebrow">跨时间转换</p>
+          <h3
+            id="note-conversion-heading"
+            class="mt-2 font-display text-xl font-semibold text-ink-950 dark:text-white"
+          >
+            把这句话放到更合适的时间里
+          </h3>
+          <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
+            转换成功后，原便利贴会归档；同一张便利贴只会生成一个目标。
+          </p>
+        </div>
+        <button
+          type="button"
+          class="grid size-9 place-items-center rounded-xl text-ink-400 transition hover:bg-ink-100 hover:text-ink-700 motion-reduce:transition-none dark:hover:bg-white/[0.07] dark:hover:text-white"
+          aria-label="关闭便利贴转换"
+          @click="convertingNote = null"
+        >
+          <X class="size-4" />
+        </button>
+      </div>
+
+      <blockquote
+        class="mt-5 rounded-2xl bg-ink-50 px-4 py-3 text-sm leading-6 text-ink-700 dark:bg-white/[0.05] dark:text-ink-200"
+      >
+        {{ convertingNote.content }}
+      </blockquote>
+
+      <form class="mt-5 space-y-5" @submit.prevent="submitConversion">
+        <fieldset>
+          <legend class="field-label">转换为</legend>
+          <div class="mt-2 grid gap-2 sm:grid-cols-3">
+            <label
+              v-for="option in [
+                { value: 'WISH', label: '愿望', hint: '放进明天清单' },
+                {
+                  value: 'ANNIVERSARY',
+                  label: '纪念日',
+                  hint: '记住一个重要日子',
+                },
+                { value: 'MEMORY', label: '回忆', hint: '直接写进记录' },
+              ] as const"
+              :key="option.value"
+              class="cursor-pointer rounded-2xl border p-3"
+              :class="
+                conversionForm.targetType === option.value
+                  ? 'border-future-300 bg-future-50 dark:border-future-700 dark:bg-future-950/35'
+                  : 'border-ink-200/80 bg-white/55 dark:border-white/10 dark:bg-white/[0.03]'
+              "
+            >
+              <input
+                v-model="conversionForm.targetType"
+                type="radio"
+                :value="option.value"
+                class="sr-only"
+              />
+              <span class="block text-sm font-semibold">{{
+                option.label
+              }}</span>
+              <span class="mt-1 block text-xs text-ink-400">{{
+                option.hint
+              }}</span>
+            </label>
+          </div>
+        </fieldset>
+
+        <label class="block">
+          <span class="field-label"
+            >标题 <span class="font-normal text-ink-400">可选</span></span
+          >
+          <input
+            v-model="conversionForm.title"
+            maxlength="200"
+            class="field-input"
+            placeholder="留空会从便利贴内容自动生成"
+          />
+        </label>
+
+        <label v-if="conversionForm.targetType === 'WISH'" class="block">
+          <span class="field-label">愿望分类</span>
+          <select v-model="conversionForm.category" class="field-input py-3">
+            <option value="CUSTOM">自定义</option>
+            <option value="TRAVEL">旅行</option>
+            <option value="FOOD">美食</option>
+            <option value="LIFE">生活</option>
+            <option value="LEARNING">学习</option>
+            <option value="COMMEMORATION">纪念</option>
+            <option value="FAMILY">家庭</option>
+            <option value="PHOTOGRAPHY">摄影</option>
+            <option value="ADVENTURE">小冒险</option>
+          </select>
+        </label>
+
+        <div
+          v-else-if="conversionForm.targetType === 'ANNIVERSARY'"
+          class="grid gap-4 sm:grid-cols-2"
+        >
+          <label class="block">
+            <span class="field-label">日期</span>
+            <input
+              v-model="conversionForm.date"
+              type="date"
+              required
+              class="field-input"
+            />
+          </label>
+          <label class="block">
+            <span class="field-label">重复</span>
+            <select v-model="conversionForm.repeat" class="field-input py-3">
+              <option value="YEARLY">每年</option>
+              <option value="NONE">仅这一次</option>
+            </select>
+          </label>
+        </div>
+
+        <p
+          v-else
+          class="rounded-2xl bg-memory-50 px-4 py-3 text-sm leading-6 text-memory-800 dark:bg-memory-950/30 dark:text-memory-200"
+        >
+          回忆会沿用便利贴写下的时间，之后可以在“记录”里继续补照片、地点和双方视角。
+        </p>
+
+        <p
+          v-if="conversionError"
+          class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-200"
+          role="alert"
+        >
+          {{ conversionError }}
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <BaseButton
+            type="submit"
+            :loading="conversionMutation.isPending.value"
+          >
+            <ArrowRightLeft class="size-4" />确认转换
+          </BaseButton>
+          <BaseButton
+            type="button"
+            variant="ghost"
+            @click="convertingNote = null"
+          >
+            取消
+          </BaseButton>
+        </div>
+      </form>
     </SurfaceCard>
 
     <SurfaceCard
