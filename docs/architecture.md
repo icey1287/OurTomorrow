@@ -79,21 +79,22 @@ PostgreSQL / media adapter / outbox
 
 ## 5. 领域边界与数据所有权
 
-| 边界                    | 所有模型/职责                                                                                  | 可依赖                                 | 首次交付阶段     |
-| ----------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------- |
-| Fixed Identity          | `User`、`boy/girl` 映射、确定性初始化、角色 header 解析                                        | Audit                                  | 1                |
-| Couple Space            | `Couple`、`CoupleMember`、昵称、时区、固定 slot 1/2                                            | Identity、Media（头像/封面引用）       | 1                |
-| Remember                | `Memory`、`MemoryPerspective`、`Tag`、`MemoryTag`、`Place`、`Comment`、`Reaction`              | Couple、Media、Revision                | 2                |
-| Daily                   | `CurrentStatus`、`Note`、`DailyPrompt`、`DailyEntry`、`MoodEntry`、`TouchEvent`、`DailyRitual` | Couple、Scheduler、Notification        | 3/6              |
-| Tomorrow                | `Wish`、`WishUpdate`、`Plan`、`Anniversary`、`Capsule`、`CapsuleMessage`、`CapsuleOpenRecord`  | Couple、Media、Scheduler、Notification | 4                |
-| Media                   | `MediaAsset`、`MemoryMedia`、`CapsuleMedia`，验证、重编码、缩略图、签名读取                    | Couple、Audit                          | 2/4              |
-| Conversion              | 便利贴/愿望/胶囊/纪念日到回忆的幂等转换与来源追溯                                              | Daily、Tomorrow、Remember、Outbox      | 3/4              |
-| Scheduling              | `ScheduledEvent`，任务认领、重试、到期状态迁移                                                 | 各领域公开的任务处理器                 | 0 起步，3/4 完整 |
-| Notification & Realtime | `Notification`、站内消息、WebSocket 推送、隐私化通知摘要                                       | Outbox、Couple                         | 3                |
-| Data Lifecycle          | 软删除、回收站、`ExportJob`、延迟媒体清理                                                      | 所有内容模块、Scheduler                | 5                |
-| Platform Audit          | `OutboxEvent`、`AuditLog`、`ContentRevision`、请求 ID、健康检查                                | 无业务反向依赖                         | 0/5              |
+| 边界                    | 所有模型/职责                                                                                 | 可依赖                                 | 首次交付阶段     |
+| ----------------------- | --------------------------------------------------------------------------------------------- | -------------------------------------- | ---------------- |
+| Fixed Identity          | `User`、`boy/girl` 映射、确定性初始化、角色 header 解析                                       | Audit                                  | 1                |
+| Couple Space            | `Couple`、`CoupleMember`、昵称、时区、固定 slot 1/2                                           | Identity、Media（头像/封面引用）       | 1                |
+| Remember                | `Memory`、`MemoryPerspective`、`MemoryResurface`、`Tag`、`Place`、`Comment`、`Reaction`       | Couple、Media、Revision、Scheduler     | 2/6              |
+| Daily                   | `CurrentStatus`、`Note`、`DailyPrompt`、`DailyEntry`、`MoodEntry`、`TouchEvent`、`CalmLetter` | Couple、Scheduler、Notification、Audit | 3/6              |
+| Tomorrow                | `Wish`、`WishUpdate`、`Plan`、`Anniversary`、`Capsule`、`CapsuleMessage`、`CapsuleOpenRecord` | Couple、Media、Scheduler、Notification | 4                |
+| Annual Review           | `AnnualReview`、`AnnualReviewContribution`，年度公开内容统计、双方选图/寄语和发布冻结         | Remember、Tomorrow、Media、Scheduler   | 6                |
+| Media                   | `MediaAsset`、`MemoryMedia`、`CapsuleMedia`，验证、重编码、缩略图、签名读取                   | Couple、Audit                          | 2/4              |
+| Conversion              | 便利贴/愿望/胶囊/纪念日到回忆的幂等转换与来源追溯                                             | Daily、Tomorrow、Remember、Outbox      | 3/4              |
+| Scheduling              | `ScheduledEvent`，任务认领、重试、到期状态迁移                                                | 各领域公开的任务处理器                 | 0 起步，3/4 完整 |
+| Notification & Realtime | `Notification`、站内消息、WebSocket 推送、隐私化通知摘要                                      | Outbox、Couple                         | 3                |
+| Data Lifecycle          | 软删除、回收站、`ExportJob`、延迟媒体清理                                                     | 所有内容模块、Scheduler                | 5                |
+| Platform Audit          | `OutboxEvent`、`AuditLog`、`ContentRevision`、请求 ID、健康检查                               | 无业务反向依赖                         | 0/5              |
 
-P1/P2 的 `MemoryResurface`、`AnnualReview`、`CalmLetter` 等模型仍归属现有领域，不创建独立服务。
+`MemoryResurface`、`AnnualReview`、`CalmLetter` 在模块化单体内按领域组织，不拆成独立部署服务。
 
 ### 5.1 边界间协作示例
 
@@ -107,6 +108,15 @@ P1/P2 的 `MemoryResurface`、`AnnualReview`、`CalmLetter` 等模型仍归属�
 6. 提交后由 worker 发送通知或刷新首页。
 
 唯一约束或幂等键保证同一愿望只有一个转换结果。
+
+### 5.2 阶段 6 协作与不变量
+
+- TouchEvent 命令只接受固定 `kind`，不接受 `message`。发送者维度的 Serializable 事务同时检查 30 秒冷却与滚动一小时 12 次上限；Outbox 只携带固定事件类型，离线 Notification payload 只增加同一个固定 `kind`。
+- MemoryResurface 以 `(coupleId, localDate)` 唯一约束保证两种角色共享每日同一盲盒。创建、打开与忽略都由服务端状态控制；未打开或已忽略的响应不映射关联 Memory。
+- Place 将历史轴 `historyState` 与未来轴 `futureState` 分开保存，旧 `status` 只是兼容投影。愿望/计划完成与地点迁移处于同一事务；地图只投影显式经纬度和等价列表，不连接定位服务或第三方瓦片。
+- CalmLetter 的元数据与正文分开查询。到期只把状态推进为 AVAILABLE，收件人显式 open 成功后才允许正文查询；解锁、通知和审计都不复制正文。
+- AnnualReview 的统计只读取共同公开来源。READY 可以重新进入 GENERATING 并重算，同时保留双方 contribution；PUBLISHED 后不再重算或编辑。年度选图查询和写入都限制为对应年份 PUBLISHED Memory 的 READY 图片。
+- 阶段 6 数据加入既有导出聚合，但沿用内容可见性：Touch 只有 kind，CalmLetter 收件正文要求 OPENED，未打开盲盒隐藏 memoryId，年度媒体仍经过统一可读性查询。
 
 ## 6. 多租户隔离与数据不变量
 
@@ -153,6 +163,8 @@ where: { id: resourceId, coupleId: actor.coupleId }
 | 交换日记 | save-draft / submit / add-postscript       | `DRAFT/EDITING → SUBMITTED/WAITING_FOR_PARTNER → BOTH_SUBMITTED → REVEALED` |
 | 愿望     | plan / start / complete / convert          | `IDEA → PLANNED → IN_PROGRESS → COMPLETED → CONVERTED_TO_MEMORY`            |
 | 胶囊     | seal / confirm-open / open / convert       | `DRAFT → SEALED/LOCKED → DUE → UNLOCKED → OPENED → CONVERTED_TO_MEMORY`     |
+| 冷静信   | create / unlock / open                     | `LOCKED → AVAILABLE → OPENED`                                               |
+| 年度书   | request / generate / update / publish      | `DRAFT/READY → GENERATING → READY → PUBLISHED`                              |
 
 应用服务在事务内读取当前状态并执行条件更新；受并发影响的更新使用版本号、条件 `updateMany` 或行锁语义。冲突返回 `409 STATE_CONFLICT`，而不是最后写入者静默覆盖。
 
@@ -169,7 +181,7 @@ PENDING / RETRYING → RUNNING → COMPLETED
                       └─────→ RETRYING / FAILED / CANCELLED
 ```
 
-记录至少包含 `coupleId`、类型、负载、`runAt`、状态、尝试次数、最后错误、锁定进程和锁定到期时间。worker 以小批量原子认领到期任务，处理器必须幂等；进程崩溃后超时锁可再次认领。阶段 0 的 worker 骨架只证明独立进程和持久表连接，阶段 3/4 才加入各领域处理器。
+记录至少包含 `coupleId`、类型、负载、`runAt`、状态、尝试次数、最后错误、锁定进程和锁定到期时间。worker 以小批量原子认领到期任务，处理器必须幂等；进程崩溃后超时锁可再次认领。阶段 6 在既有处理器上增加 `CALM_LETTER_UNLOCK`、`MEMORY_RESURFACE` 和 `ANNUAL_REVIEW`，任务处理器继续验证事件 Couple 与目标聚合一致。
 
 ### 9.2 OutboxEvent
 
@@ -224,9 +236,11 @@ Web 采用 Vue 3、Vue Router、Pinia、TanStack Vue Query 和 Tailwind CSS：
 - `shared/components/`：实现 `brand.md` 的基础组件；
 - `shared/utils/`：纯函数，不包含业务状态机。
 
-Pinia 保存短期 UI 状态，不复制服务器实体缓存；服务器数据由 Vue Query 管理。`localStorage` 只保存 `our-tomorrow-role=boy|girl`。查询键必须包含当前角色/空间语义，切换或清除角色时清空私密缓存和 object URL。响应中的秘密字段缺失被视为协议设计，而不是由 CSS 隐藏。
+Pinia 保存短期 UI 状态，不复制服务器实体缓存；服务器数据由 Vue Query 管理。身份相关本地数据只保存 `our-tomorrow-role=boy|girl`，另可保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好；正文、媒体、Couple/API 实体和秘密不得进入 `localStorage`。查询键必须包含当前角色/空间语义，切换或清除角色时清空私密缓存和 object URL。响应中的秘密字段缺失被视为协议设计，而不是由 CSS 隐藏。
 
 页面按路由懒加载；图片使用尺寸占位和懒加载。实时消息只触发精确查询失效或更新通知计数，不把 WebSocket 当作永久数据仓库。
+
+阶段 6 的 Service Worker 只缓存导航 shell、manifest、图标和构建后的静态资源；`/api/*`、`/socket/*`、媒体和导出请求不进入 Cache Storage。页面进入后台或 `pagehide` 时显示顶层隐私幕，并使下面的路由内容 inert；回到前台后先清空 Vue Query、内存媒体 URL 和 Service Worker 私密数据，再用本地角色重新读取身份，成功后才揭开。抱抱到达浮层是本地可关闭偏好，并继续尊重减少动效设置。
 
 ## 13. 可观测性与健康检查
 
@@ -254,15 +268,15 @@ Pinia 保存短期 UI 状态，不复制服务器实体缓存；服务器数据�
 
 ## 15. 阶段演进与架构门槛
 
-| 阶段 | 架构增量                                                                   | 不允许留下的临时方案                             |
-| ---- | -------------------------------------------------------------------------- | ------------------------------------------------ |
-| 0    | monorepo、设计系统、Prisma 基线、OpenAPI 骨架、Compose、worker/backup 骨架 | 内存数据库、内存计时器、公开媒体目录             |
-| 1    | 固定 boy/girl、幂等共同空间初始化、显式角色上下文、路由守卫                | 把 role 伪装成认证、在 localStorage 保存私人实体 |
-| 2    | Remember/Media、游标分页、并发版本、内容修订                               | 仅扩展名文件校验、按资源 ID 裸查询               |
-| 3    | Daily、ScheduledEvent 处理器、Outbox、通知/实时                            | 前端定时解锁、提交后返回对方日记正文             |
-| 4    | Tomorrow、纪念日时区规则、幂等转换                                         | 任意 PATCH 状态、浏览器时间决定胶囊状态          |
-| 5    | 回收站、导出、生产安全、恢复证据、迁移演练                                 | 只验证“备份命令成功”、不可读的专有导出           |
-| 6    | 地图/盲盒/回顾/PWA 等增强                                                  | 持续定位、关系评分、第三方默认追踪               |
+| 阶段 | 架构增量                                                                    | 不允许留下的临时方案                             |
+| ---- | --------------------------------------------------------------------------- | ------------------------------------------------ |
+| 0    | monorepo、设计系统、Prisma 基线、OpenAPI 骨架、Compose、worker/backup 骨架  | 内存数据库、内存计时器、公开媒体目录             |
+| 1    | 固定 boy/girl、幂等共同空间初始化、显式角色上下文、路由守卫                 | 把 role 伪装成认证、在 localStorage 保存私人实体 |
+| 2    | Remember/Media、游标分页、并发版本、内容修订                                | 仅扩展名文件校验、按资源 ID 裸查询               |
+| 3    | Daily、ScheduledEvent 处理器、Outbox、通知/实时                             | 前端定时解锁、提交后返回对方日记正文             |
+| 4    | Tomorrow、纪念日时区规则、幂等转换                                          | 任意 PATCH 状态、浏览器时间决定胶囊状态          |
+| 5    | 回收站、导出、生产安全、恢复证据、迁移演练                                  | 只验证“备份命令成功”、不可读的专有导出           |
+| 6    | Couple 每日盲盒、地点双状态、固定 Touch、冷静信、年度书、私密 PWA、扩展导出 | 持续定位、第三方地图、自由文本 Touch、缓存正文   |
 
 ## 16. 架构决策摘要
 

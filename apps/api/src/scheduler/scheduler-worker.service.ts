@@ -17,10 +17,13 @@ import {
   type ScheduledEventType,
 } from "@prisma/client";
 import { AnniversariesService } from "../anniversaries/anniversaries.service";
+import { AnnualReviewsService } from "../annual-reviews/annual-reviews.service";
+import { CalmLettersService } from "../calm-letters/calm-letters.service";
 import { CapsulesService } from "../capsules/capsules.service";
 import { Clock } from "../common/clock/clock";
 import type { Environment } from "../config/env.schema";
 import { PrismaService } from "../database/prisma.service";
+import { MemoryResurfaceService } from "../memories/memory-resurface.service";
 import { PlansService } from "../plans/plans.service";
 import { RecycleBinService } from "../recycle-bin/recycle-bin.service";
 import {
@@ -39,6 +42,9 @@ const SUPPORTED_TYPES = [
   "CAPSULE_DUE",
   "OUTBOX_RETRY",
   "RECYCLE_BIN_PURGE",
+  "CALM_LETTER_UNLOCK",
+  "MEMORY_RESURFACE",
+  "ANNUAL_REVIEW",
 ] satisfies ScheduledEventType[];
 
 const scheduledEventSelect = Prisma.validator<Prisma.ScheduledEventSelect>()({
@@ -132,6 +138,15 @@ export class SchedulerWorkerService implements OnApplicationShutdown {
     @Optional()
     @Inject(RecycleBinService)
     private readonly recycleBin?: RecycleBinService,
+    @Optional()
+    @Inject(CalmLettersService)
+    private readonly calmLetters?: CalmLettersService,
+    @Optional()
+    @Inject(MemoryResurfaceService)
+    private readonly memoryResurfaces?: MemoryResurfaceService,
+    @Optional()
+    @Inject(AnnualReviewsService)
+    private readonly annualReviews?: AnnualReviewsService,
   ) {}
 
   start(): void {
@@ -293,6 +308,32 @@ export class SchedulerWorkerService implements OnApplicationShutdown {
           throw new Error("RecycleBinService is unavailable");
         await this.recycleBin.purge(
           requiredString(payload, "recycleBinItemId"),
+          now,
+        );
+        return;
+      case "CALM_LETTER_UNLOCK":
+        if (!this.calmLetters)
+          throw new Error("CalmLettersService is unavailable");
+        await this.calmLetters.materializeUnlock(
+          requiredCoupleId(event),
+          requiredString(payload, "calmLetterId"),
+          now,
+        );
+        return;
+      case "MEMORY_RESURFACE":
+        if (!this.memoryResurfaces)
+          throw new Error("MemoryResurfaceService is unavailable");
+        await this.memoryResurfaces.materializeScheduled(
+          requiredCoupleId(event),
+          now,
+        );
+        return;
+      case "ANNUAL_REVIEW":
+        if (!this.annualReviews)
+          throw new Error("AnnualReviewsService is unavailable");
+        await this.annualReviews.generate(
+          requiredCoupleId(event),
+          requiredString(payload, "annualReviewId"),
           now,
         );
         return;

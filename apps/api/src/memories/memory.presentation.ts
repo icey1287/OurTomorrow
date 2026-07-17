@@ -2,6 +2,8 @@ import {
   MediaStatus,
   type MemoryMediaRole,
   type MemoryStatus,
+  type PlaceFutureState,
+  type PlaceHistoryState,
   type PlaceStatus,
   type Prisma,
 } from "@prisma/client";
@@ -27,6 +29,8 @@ export type PlaceSummary = {
   latitude: number | null;
   longitude: number | null;
   status: PlaceStatus;
+  historyState: PlaceHistoryState;
+  futureState: PlaceFutureState;
   firstVisitedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -126,6 +130,8 @@ export type PlaceRecord = {
   latitude: DecimalLike | null;
   longitude: DecimalLike | null;
   status: PlaceStatus;
+  historyState: PlaceHistoryState;
+  futureState: PlaceFutureState;
   firstVisitedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -249,6 +255,8 @@ export function toPlaceSummary(place: PlaceRecord): PlaceSummary {
     latitude: place.latitude?.toNumber() ?? null,
     longitude: place.longitude?.toNumber() ?? null,
     status: place.status,
+    historyState: place.historyState,
+    futureState: place.futureState,
     firstVisitedAt: place.firstVisitedAt?.toISOString() ?? null,
     createdAt: place.createdAt.toISOString(),
     updatedAt: place.updatedAt.toISOString(),

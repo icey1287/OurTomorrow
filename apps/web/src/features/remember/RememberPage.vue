@@ -13,17 +13,19 @@ import {
   Camera,
   Filter,
   History,
+  Landmark,
   MapPinned,
   Plus,
-  RefreshCw,
   Search,
-  Sparkles,
   UsersRound,
   X,
 } from "lucide-vue-next";
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
 import { useRoute } from "vue-router";
 
+import BlindBoxPanel from "@/features/remember/BlindBoxPanel.vue";
+import FootprintMapPanel from "@/features/maps/FootprintMapPanel.vue";
+import FirstTimeMuseum from "@/features/remember/FirstTimeMuseum.vue";
 import MemoryCard from "@/features/remember/MemoryCard.vue";
 import MemoryDetailPanel from "@/features/remember/MemoryDetailPanel.vue";
 import MemoryEditor from "@/features/remember/MemoryEditor.vue";
@@ -50,7 +52,7 @@ const selectedMemoryId = ref<string | null>(null);
 const editorOpen = ref(false);
 const editingMemory = ref<MemoryDetail | null>(null);
 const pageMessage = ref<string | null>(null);
-const randomExcludeId = ref<string | null>(null);
+const viewMode = ref<"timeline" | "footprint" | "first-times">("timeline");
 let searchTimer: ReturnType<typeof setTimeout> | null = null;
 
 const filters = reactive({
@@ -131,15 +133,15 @@ const memoriesQuery = useInfiniteQuery({
     }),
   initialPageParam: null as string | null,
   getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
+  enabled: computed(() => viewMode.value === "timeline"),
 });
-const randomQuery = useQuery({
-  queryKey: computed(() => [
-    "random-memory",
-    identity.role,
-    randomExcludeId.value,
-  ]),
-  queryFn: () => stageTwoApi.randomMemory(randomExcludeId.value),
-  retry: false,
+const firstTimesQuery = useInfiniteQuery({
+  queryKey: computed(() => ["first-times", identity.role]),
+  queryFn: ({ pageParam }) =>
+    stageTwoApi.firstTimes({ limit: 12, cursor: pageParam }),
+  initialPageParam: null as string | null,
+  getNextPageParam: (lastPage) => lastPage.meta.nextCursor ?? undefined,
+  enabled: computed(() => viewMode.value === "first-times"),
 });
 
 const tags = computed(() => tagsQuery.data.value ?? []);
@@ -147,6 +149,9 @@ const places = computed(() => placesQuery.data.value ?? []);
 const timezone = computed(() => identity.couple?.timezone ?? "Asia/Shanghai");
 const memories = computed(
   () => memoriesQuery.data.value?.pages.flatMap((page) => page.items) ?? [],
+);
+const firstTimeMemories = computed(
+  () => firstTimesQuery.data.value?.pages.flatMap((page) => page.items) ?? [],
 );
 const timelineGroups = computed(() =>
   groupMemoriesByMonth(memories.value, timezone.value),
@@ -183,6 +188,12 @@ const listErrorMessage = computed(() => {
   if (error instanceof ApiClientError) return error.message;
   return "回忆时间线暂时没有打开，请稍后再试。";
 });
+const museumErrorMessage = computed(() => {
+  if (!firstTimesQuery.isError.value) return null;
+  const error = firstTimesQuery.error.value;
+  if (error instanceof ApiClientError) return error.message;
+  return "第一次博物馆暂时没有打开，请稍后再试。";
+});
 
 function resetFilters() {
   filters.year = "";
@@ -215,6 +226,8 @@ async function handleSaved(memory: MemoryDetail) {
   queryClient.setQueryData(["memory", identity.role, memory.id], memory);
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ["memories"] }),
+    queryClient.invalidateQueries({ queryKey: ["first-times"] }),
+    queryClient.invalidateQueries({ queryKey: ["memory-resurface"] }),
     queryClient.invalidateQueries({ queryKey: ["random-memory"] }),
     queryClient.invalidateQueries({ queryKey: ["today"] }),
   ]);
@@ -226,6 +239,8 @@ async function handleDeleted() {
   pageMessage.value = "回忆已移入回收站。";
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: ["memories"] }),
+    queryClient.invalidateQueries({ queryKey: ["first-times"] }),
+    queryClient.invalidateQueries({ queryKey: ["memory-resurface"] }),
     queryClient.invalidateQueries({ queryKey: ["random-memory"] }),
     queryClient.invalidateQueries({ queryKey: ["today"] }),
   ]);
@@ -233,6 +248,11 @@ async function handleDeleted() {
 
 function handleChanged(memory: MemoryDetail) {
   queryClient.setQueryData(["memory", identity.role, memory.id], memory);
+  void Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["memories"] }),
+    queryClient.invalidateQueries({ queryKey: ["first-times"] }),
+    queryClient.invalidateQueries({ queryKey: ["memory-resurface"] }),
+  ]);
 }
 
 function addTag(tag: TagSummary) {
@@ -255,11 +275,7 @@ function addPlace(place: PlaceSummary) {
 
 function handleConflict() {
   void queryClient.invalidateQueries({ queryKey: ["memories"] });
-}
-
-function showAnotherRandomMemory() {
-  randomExcludeId.value = randomQuery.data.value?.id ?? null;
-  if (!randomExcludeId.value) void randomQuery.refetch();
+  void queryClient.invalidateQueries({ queryKey: ["first-times"] });
 }
 </script>
 
@@ -289,7 +305,56 @@ function showAnotherRandomMemory() {
       </button>
     </p>
 
-    <section class="mb-6 space-y-3" aria-label="回忆筛选">
+    <nav
+      class="mb-6 flex w-full rounded-2xl border border-ink-200 bg-white/70 p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.045] sm:inline-flex sm:w-auto"
+      aria-label="记录展示模式"
+    >
+      <button
+        type="button"
+        class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition sm:flex-none sm:px-4"
+        :class="
+          viewMode === 'timeline'
+            ? 'bg-ink-950 text-white shadow-sm dark:bg-white dark:text-ink-950'
+            : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
+        "
+        :aria-pressed="viewMode === 'timeline'"
+        @click="viewMode = 'timeline'"
+      >
+        <History class="size-4" /> 回忆时间线
+      </button>
+      <button
+        type="button"
+        class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition sm:flex-none sm:px-4"
+        :class="
+          viewMode === 'footprint'
+            ? 'bg-ink-950 text-white shadow-sm dark:bg-white dark:text-ink-950'
+            : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
+        "
+        :aria-pressed="viewMode === 'footprint'"
+        @click="viewMode = 'footprint'"
+      >
+        <MapPinned class="size-4" /> 足迹地图
+      </button>
+      <button
+        type="button"
+        class="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl px-3 text-sm font-semibold transition sm:flex-none sm:px-4"
+        :class="
+          viewMode === 'first-times'
+            ? 'bg-ink-950 text-white shadow-sm dark:bg-white dark:text-ink-950'
+            : 'text-ink-500 hover:text-ink-900 dark:text-ink-400 dark:hover:text-white'
+        "
+        :aria-pressed="viewMode === 'first-times'"
+        @click="viewMode = 'first-times'"
+      >
+        <Landmark class="size-4" /> 第一次博物馆
+      </button>
+    </nav>
+
+    <section
+      v-if="viewMode === 'timeline'"
+      class="mb-6 space-y-3"
+      aria-label="回忆筛选"
+    >
       <div class="flex flex-col gap-3 sm:flex-row">
         <label class="relative flex-1">
           <span class="sr-only">搜索回忆</span>
@@ -412,155 +477,122 @@ function showAnotherRandomMemory() {
       </SurfaceCard>
     </section>
 
-    <section class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
+    <FootprintMapPanel v-if="viewMode === 'footprint'" />
+
+    <section v-else class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <SurfaceCard>
-        <div class="flex items-center justify-between gap-4">
-          <SectionHeading
-            title="时光长河"
-            :description="
-              appliedFilterCount
-                ? '正在展示符合筛选条件的共同故事。'
-                : '按发生时间慢慢往回走。'
-            "
-          />
-          <span
-            class="shrink-0 rounded-full bg-memory-100 px-3 py-1 text-xs font-semibold text-memory-700 dark:bg-memory-950/45 dark:text-memory-200"
-          >
-            {{ memories.length }} 条已载入
-          </span>
-        </div>
+        <FirstTimeMuseum
+          v-if="viewMode === 'first-times'"
+          :memories="firstTimeMemories"
+          :timezone="timezone"
+          :pending="firstTimesQuery.isPending.value"
+          :error-message="museumErrorMessage"
+          :has-more="Boolean(firstTimesQuery.hasNextPage.value)"
+          :loading-more="firstTimesQuery.isFetchingNextPage.value"
+          @open="selectedMemoryId = $event"
+          @retry="firstTimesQuery.refetch()"
+          @load-more="firstTimesQuery.fetchNextPage()"
+          @create="openNewMemory"
+        />
 
-        <div class="mt-6">
-          <AsyncState
-            v-if="memoriesQuery.isPending.value"
-            state="loading"
-            title="正在沿时间线找回故事…"
-            message="发生时间、标签、地点与双方视角状态正在一起整理。"
-          />
-          <AsyncState
-            v-else-if="memoriesQuery.isError.value"
-            state="error"
-            title="时间线暂时没有打开"
-            :message="listErrorMessage"
-            action-label="重新加载"
-            @action="memoriesQuery.refetch()"
-          />
-          <AsyncState
-            v-else-if="!memories.length"
-            state="empty"
-            :title="
-              appliedFilterCount
-                ? '没有找到符合条件的回忆'
-                : '故事已经发生，只差被慢慢写下来。'
-            "
-            :message="
-              appliedFilterCount
-                ? '换一组筛选，或清除条件看看完整时间线。'
-                : '第一条回忆可以只有一句话和一个日期，照片与另一个视角以后再补也没关系。'
-            "
-            :action-label="appliedFilterCount ? '清除筛选' : '写下第一条回忆'"
-            @action="appliedFilterCount ? resetFilters() : openNewMemory()"
-          />
-
-          <div v-else class="space-y-9">
-            <section v-for="group in timelineGroups" :key="group.key">
-              <div class="mb-4 flex items-center gap-3">
-                <span
-                  class="grid size-9 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-950/50 dark:text-memory-200"
-                  ><History class="size-4"
-                /></span>
-                <h2
-                  class="font-display text-xl font-semibold text-ink-950 dark:text-white"
-                >
-                  {{ group.label }}
-                </h2>
-                <span class="text-xs font-semibold text-ink-400"
-                  >{{ group.items.length }} 段</span
-                >
-              </div>
-              <div class="grid gap-4 lg:grid-cols-2">
-                <MemoryCard
-                  v-for="memory in group.items"
-                  :key="memory.id"
-                  :memory="memory"
-                  :timezone="timezone"
-                  @open="selectedMemoryId = memory.id"
-                />
-              </div>
-            </section>
-
-            <div
-              v-if="memoriesQuery.hasNextPage.value"
-              class="flex justify-center pt-1"
+        <template v-else>
+          <div class="flex items-center justify-between gap-4">
+            <SectionHeading
+              title="时光长河"
+              :description="
+                appliedFilterCount
+                  ? '正在展示符合筛选条件的共同故事。'
+                  : '按发生时间慢慢往回走。'
+              "
+            />
+            <span
+              class="shrink-0 rounded-full bg-memory-100 px-3 py-1 text-xs font-semibold text-memory-700 dark:bg-memory-950/45 dark:text-memory-200"
             >
-              <BaseButton
-                variant="secondary"
-                :loading="memoriesQuery.isFetchingNextPage.value"
-                @click="memoriesQuery.fetchNextPage()"
-              >
-                继续往前翻
-              </BaseButton>
-            </div>
-            <p v-else class="text-center text-xs text-ink-400">
-              已经走到这组时间线的最早处。
-            </p>
+              {{ memories.length }} 条已载入
+            </span>
           </div>
-        </div>
+
+          <div class="mt-6">
+            <AsyncState
+              v-if="memoriesQuery.isPending.value"
+              state="loading"
+              title="正在沿时间线找回故事…"
+              message="发生时间、标签、地点与双方视角状态正在一起整理。"
+            />
+            <AsyncState
+              v-else-if="memoriesQuery.isError.value"
+              state="error"
+              title="时间线暂时没有打开"
+              :message="listErrorMessage"
+              action-label="重新加载"
+              @action="memoriesQuery.refetch()"
+            />
+            <AsyncState
+              v-else-if="!memories.length"
+              state="empty"
+              :title="
+                appliedFilterCount
+                  ? '没有找到符合条件的回忆'
+                  : '故事已经发生，只差被慢慢写下来。'
+              "
+              :message="
+                appliedFilterCount
+                  ? '换一组筛选，或清除条件看看完整时间线。'
+                  : '第一条回忆可以只有一句话和一个日期，照片与另一个视角以后再补也没关系。'
+              "
+              :action-label="appliedFilterCount ? '清除筛选' : '写下第一条回忆'"
+              @action="appliedFilterCount ? resetFilters() : openNewMemory()"
+            />
+
+            <div v-else class="space-y-9">
+              <section v-for="group in timelineGroups" :key="group.key">
+                <div class="mb-4 flex items-center gap-3">
+                  <span
+                    class="grid size-9 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-950/50 dark:text-memory-200"
+                    ><History class="size-4"
+                  /></span>
+                  <h2
+                    class="font-display text-xl font-semibold text-ink-950 dark:text-white"
+                  >
+                    {{ group.label }}
+                  </h2>
+                  <span class="text-xs font-semibold text-ink-400"
+                    >{{ group.items.length }} 段</span
+                  >
+                </div>
+                <div class="grid gap-4 lg:grid-cols-2">
+                  <MemoryCard
+                    v-for="memory in group.items"
+                    :key="memory.id"
+                    :memory="memory"
+                    :timezone="timezone"
+                    @open="selectedMemoryId = memory.id"
+                  />
+                </div>
+              </section>
+
+              <div
+                v-if="memoriesQuery.hasNextPage.value"
+                class="flex justify-center pt-1"
+              >
+                <BaseButton
+                  variant="secondary"
+                  :loading="memoriesQuery.isFetchingNextPage.value"
+                  @click="memoriesQuery.fetchNextPage()"
+                >
+                  继续往前翻
+                </BaseButton>
+              </div>
+              <p v-else class="text-center text-xs text-ink-400">
+                已经走到这组时间线的最早处。
+              </p>
+            </div>
+          </div>
+        </template>
       </SurfaceCard>
 
       <aside class="space-y-5">
-        <SurfaceCard tone="memory">
-          <span
-            class="grid size-10 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-900/45 dark:text-memory-200"
-            ><Sparkles class="size-4"
-          /></span>
-          <h2
-            class="mt-5 font-display text-xl font-semibold text-ink-950 dark:text-white"
-          >
-            随机遇见
-          </h2>
-          <template v-if="randomQuery.data.value">
-            <button
-              type="button"
-              class="mt-4 w-full text-left"
-              @click="selectedMemoryId = randomQuery.data.value?.id ?? null"
-            >
-              <p class="font-semibold leading-6 text-ink-900 dark:text-white">
-                {{ randomQuery.data.value.title }}
-              </p>
-              <p
-                v-if="randomQuery.data.value.excerpt"
-                class="mt-2 line-clamp-3 text-sm leading-6 text-ink-500 dark:text-ink-400"
-              >
-                {{ randomQuery.data.value.excerpt }}
-              </p>
-            </button>
-            <button
-              type="button"
-              class="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-memory-700 dark:text-memory-300"
-              :disabled="randomQuery.isFetching.value"
-              @click="showAnotherRandomMemory"
-            >
-              <RefreshCw
-                class="size-3.5"
-                :class="randomQuery.isFetching.value ? 'animate-spin' : ''"
-              />
-              换一段回忆
-            </button>
-          </template>
-          <p
-            v-else-if="randomQuery.isPending.value"
-            class="mt-4 text-sm text-ink-400"
-          >
-            正在从过去选一段故事…
-          </p>
-          <p
-            v-else
-            class="mt-4 text-sm leading-6 text-ink-500 dark:text-ink-400"
-          >
-            写下已发布的过去后，这里会偶尔带你重新遇见它。
-          </p>
-        </SurfaceCard>
+        <BlindBoxPanel :timezone="timezone" @open="selectedMemoryId = $event" />
 
         <SurfaceCard>
           <div class="flex items-center gap-3">

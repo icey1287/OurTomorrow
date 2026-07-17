@@ -62,6 +62,44 @@ describe("stage two API", () => {
     });
   });
 
+  it("uses static first-time and blind-box routes", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse({ items: [], meta: { nextCursor: null, hasMore: false } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ items: [], meta: { nextCursor: null, hasMore: false } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          serverNow: "2026-07-16T08:30:00.000Z",
+          localDate: "2026-07-16",
+          box: null,
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ id: "box-1", memory: { id: "memory-1" } }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ id: "box-1", memory: null }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await stageTwoApi.firstTimes({ limit: 12, cursor: "next page" });
+    await stageTwoApi.memoryResurfaceToday();
+    await stageTwoApi.openMemoryResurface("box-1");
+    await stageTwoApi.dismissMemoryResurface("box-1");
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "/api/v1/memories/first-times?limit=12&cursor=next+page",
+      "/api/v1/memory-resurfaces/today",
+      "/api/v1/memory-resurfaces/box-1/open",
+      "/api/v1/memory-resurfaces/box-1/dismiss",
+    ]);
+    expect(
+      fetchMock.mock.calls.slice(2).map(([, init]) => init.method),
+    ).toEqual(["POST", "POST"]);
+  });
+
   it("normalizes same-origin upload and media paths", () => {
     expect(normalizeStageTwoApiPath("/api/v1/uploads/u-1/content")).toBe(
       "/uploads/u-1/content",

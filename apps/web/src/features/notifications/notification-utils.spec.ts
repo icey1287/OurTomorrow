@@ -62,9 +62,36 @@ describe("notification presentation helpers", () => {
   });
 
   it("provides generic copy when the backend fields are empty", () => {
-    expect(notificationCopy({ title: " ", body: "" })).toEqual({
+    expect(
+      notificationCopy({ type: "GENERIC", title: " ", body: "", payload: {} }),
+    ).toEqual({
       title: "明天有一条新消息",
       body: "打开明天，看看刚刚发生的变化。",
+    });
+  });
+
+  it("recovers only the fixed touch kind from an offline notification", () => {
+    expect(
+      notificationCopy({
+        type: "TOUCH_EVENT_RECEIVED",
+        title: "明天有新动态",
+        body: "你收到了一条来自明天的新消息。",
+        payload: { kind: "HUG", resourceId: "touch-1" },
+      }),
+    ).toEqual({
+      title: "收到一个轻轻的信号",
+      body: "对方送来一个抱抱。",
+    });
+    expect(
+      notificationCopy({
+        type: "TOUCH_EVENT_RECEIVED",
+        title: "明天有新动态",
+        body: "你收到了一条来自明天的新消息。",
+        payload: { kind: "NOT_ALLOWED", message: "不应显示" },
+      }),
+    ).toEqual({
+      title: "明天有新动态",
+      body: "你收到了一条来自明天的新消息。",
     });
   });
 

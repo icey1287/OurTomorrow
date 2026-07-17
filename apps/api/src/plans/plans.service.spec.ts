@@ -107,6 +107,7 @@ function transaction() {
     },
     wish: {
       findFirst: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     wishUpdate: {
@@ -126,6 +127,7 @@ function transaction() {
     },
     place: {
       findFirst: vi.fn().mockResolvedValue(null),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     scheduledEvent: {
       upsert: vi.fn().mockResolvedValue({ id: PLAN_ID }),
@@ -349,6 +351,7 @@ describe("PlansService", () => {
       .mockResolvedValueOnce(
         plan({
           wishId: WISH_ID,
+          placeId: PLACE_ID,
           status: PlanStatus.IN_PROGRESS,
           version: 3,
         }),
@@ -394,15 +397,48 @@ describe("PlansService", () => {
       .mockResolvedValueOnce(
         plan({
           wishId: WISH_ID,
+          placeId: PLACE_ID,
           status: PlanStatus.COMPLETED,
           version: 4,
           completedAt: NOW,
+        }),
+      )
+      .mockResolvedValueOnce(
+        plan({
+          wishId: WISH_ID,
+          placeId: PLACE_ID,
+          status: PlanStatus.COMPLETED,
+          version: 4,
+          completedAt: NOW,
+          place: {
+            id: PLACE_ID,
+            version: 3,
+            name: "海边",
+            address: null,
+            latitude: null,
+            longitude: null,
+            status: "COMPLETED",
+            historyState: "VISITED",
+            futureState: "COMPLETED",
+            firstVisitedAt: NOW,
+            createdAt: NOW,
+            updatedAt: NOW,
+            deletedAt: null,
+          },
         }),
       );
     tx.wish.findFirst.mockResolvedValue({
       id: WISH_ID,
       version: 6,
       status: WishStatus.IN_PROGRESS,
+      placeId: PLACE_ID,
+    });
+    tx.place.findFirst.mockResolvedValue({
+      version: 2,
+      status: "PLANNED",
+      historyState: "UNVISITED",
+      futureState: "PLANNED",
+      firstVisitedAt: null,
     });
     const { service } = serviceWith(tx);
 
@@ -435,6 +471,17 @@ describe("PlansService", () => {
       }),
     );
     expect(result.completedAt).toBe(NOW.toISOString());
+    expect(tx.place.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: PLACE_ID, version: 2 }),
+        data: expect.objectContaining({
+          status: "COMPLETED",
+          historyState: "VISITED",
+          futureState: "COMPLETED",
+          firstVisitedAt: NOW,
+        }),
+      }),
+    );
   });
 
   it("cancels an active plan and releases its wish back to IDEA", async () => {

@@ -23,6 +23,16 @@ export interface NotificationState {
   label: "未读" | "已读" | "已归档";
 }
 
+const TOUCH_COPY: Record<string, string> = {
+  HUG: "对方送来一个抱抱。",
+  MISS_YOU: "对方正在想你。",
+  KISS: "对方轻轻亲了你一下。",
+  CHEER: "对方在为你加油。",
+  REST: "对方提醒你记得休息。",
+  TELL_ME_WHEN_HOME: "对方想知道你平安到家。",
+  I_AM_HERE: "对方想告诉你：我在这里。",
+};
+
 function localParts(
   value: string | Date,
   timeZone: string,
@@ -86,8 +96,19 @@ export function formatNotificationTime(
 
 /** Keeps notification rendering independent from potentially private payload data. */
 export function notificationCopy(
-  notification: Pick<NotificationView, "title" | "body">,
+  notification: Pick<NotificationView, "type" | "title" | "body" | "payload">,
 ): NotificationCopy {
+  const touchKind =
+    notification.type === "TOUCH_EVENT_RECEIVED" &&
+    typeof notification.payload.kind === "string"
+      ? notification.payload.kind
+      : null;
+  if (touchKind && TOUCH_COPY[touchKind]) {
+    return {
+      title: "收到一个轻轻的信号",
+      body: TOUCH_COPY[touchKind],
+    };
+  }
   return {
     title: notification.title.trim() || "明天有一条新消息",
     body: notification.body.trim() || "打开明天，看看刚刚发生的变化。",

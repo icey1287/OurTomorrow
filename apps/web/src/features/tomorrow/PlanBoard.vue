@@ -155,6 +155,8 @@ async function refreshPlans(role: "boy" | "girl") {
     queryClient.invalidateQueries({ queryKey: ["plans", role] }),
     queryClient.invalidateQueries({ queryKey: ["wishes", role] }),
     queryClient.invalidateQueries({ queryKey: ["wish-options", role] }),
+    queryClient.invalidateQueries({ queryKey: ["places-map", role] }),
+    queryClient.invalidateQueries({ queryKey: ["places", role] }),
     queryClient.invalidateQueries({ queryKey: ["anniversaries", role] }),
     queryClient.invalidateQueries({ queryKey: ["capsules", role] }),
     queryClient.invalidateQueries({ queryKey: ["upcoming", role] }),

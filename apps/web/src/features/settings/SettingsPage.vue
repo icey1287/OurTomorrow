@@ -2,6 +2,7 @@
 import type { IdentityRole, ThemePreference } from "@our-tomorrow/contracts";
 import {
   BadgeCheck,
+  BellRing,
   Check,
   Mars,
   Monitor,
@@ -27,6 +28,8 @@ import BaseButton from "@/shared/components/BaseButton.vue";
 import PageHeader from "@/shared/components/PageHeader.vue";
 import SectionHeading from "@/shared/components/SectionHeading.vue";
 import SurfaceCard from "@/shared/components/SurfaceCard.vue";
+import PwaInstallPanel from "@/shared/pwa/PwaInstallPanel.vue";
+import { usePwa } from "@/shared/pwa/pwa";
 import { useIdentityStore } from "@/shared/stores/identity";
 import { type MotionPreference, useThemeStore } from "@/shared/stores/theme";
 import {
@@ -39,6 +42,7 @@ type ProfileField = "displayName" | "nicknameInRelationship";
 const router = useRouter();
 const identity = useIdentityStore();
 const theme = useThemeStore();
+const pwa = usePwa();
 
 const profile = reactive({
   displayName: "",
@@ -339,6 +343,8 @@ watch(
 
         <DataStatusPanel />
 
+        <PwaInstallPanel />
+
         <SurfaceCard>
           <div class="flex items-start gap-3">
             <span
@@ -533,6 +539,54 @@ watch(
                 {{ option.label }}
               </button>
             </div>
+          </div>
+
+          <div class="quiet-divider my-6" />
+          <div
+            class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div class="flex items-start gap-3">
+              <BellRing class="mt-0.5 size-4 text-ink-400" />
+              <div>
+                <p class="text-sm font-semibold text-ink-900 dark:text-white">
+                  抱抱到达浮层
+                </p>
+                <p
+                  class="mt-1 max-w-xl text-xs leading-5 text-ink-400 dark:text-ink-500"
+                >
+                  控制抱抱、想你等信号到达时的页面浮层。只保存在当前浏览器，关闭后也不会改变站内通知记录。
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="inline-flex min-h-10 shrink-0 items-center gap-2 self-start rounded-xl border px-3 py-2 text-xs font-semibold transition sm:self-auto"
+              :class="
+                pwa.touchArrivalsEnabled.value
+                  ? 'border-present-300 bg-present-50 text-present-800 dark:border-present-800 dark:bg-present-950/35 dark:text-present-200'
+                  : 'border-ink-200 bg-white/60 text-ink-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-400'
+              "
+              :aria-pressed="pwa.touchArrivalsEnabled.value"
+              :aria-label="
+                pwa.touchArrivalsEnabled.value
+                  ? '关闭抱抱到达浮层'
+                  : '开启抱抱到达浮层'
+              "
+              @click="
+                pwa.setTouchArrivalsEnabled(!pwa.touchArrivalsEnabled.value)
+              "
+            >
+              <span
+                class="size-2 rounded-full"
+                :class="
+                  pwa.touchArrivalsEnabled.value
+                    ? 'bg-present-500'
+                    : 'bg-ink-300 dark:bg-ink-600'
+                "
+                aria-hidden="true"
+              />
+              {{ pwa.touchArrivalsEnabled.value ? "已开启" : "已关闭" }}
+            </button>
           </div>
         </SurfaceCard>
 

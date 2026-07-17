@@ -2,7 +2,6 @@
 import {
   ArrowRight,
   CheckCircle2,
-  MapPinned,
   Send,
   Sparkles,
   Sunrise,
@@ -14,28 +13,7 @@ import SurfaceCard from "@/shared/components/SurfaceCard.vue";
 <template>
   <section aria-labelledby="tomorrow-later-heading">
     <h2 id="tomorrow-later-heading" class="sr-only">稍后开放的明天功能</h2>
-    <div class="grid gap-5 lg:grid-cols-2">
-      <SurfaceCard class="cursor-not-allowed opacity-70" aria-disabled="true">
-        <div class="flex items-start justify-between gap-3">
-          <span
-            class="grid size-10 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
-            ><MapPinned class="size-4"
-          /></span>
-          <span
-            class="rounded-full bg-ink-100 px-2.5 py-1 text-[11px] font-semibold text-ink-500 dark:bg-white/[0.06] dark:text-ink-400"
-            >稍后开放</span
-          >
-        </div>
-        <h3
-          class="mt-5 font-display text-xl font-semibold text-ink-950 dark:text-white"
-        >
-          未来地图
-        </h3>
-        <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
-          想去、已计划、即将出发与共同足迹的地图闭环将在后续阶段开放。
-        </p>
-      </SurfaceCard>
-
+    <div class="grid gap-5">
       <SurfaceCard class="cursor-not-allowed opacity-70" aria-disabled="true">
         <div class="flex items-start justify-between gap-3">
           <span

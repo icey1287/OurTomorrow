@@ -29,6 +29,7 @@ export type NotificationInput = {
   resourceId: string;
   title?: string;
   body?: string;
+  payload?: Prisma.InputJsonObject;
 };
 
 export type OutboxEventInput = {
@@ -112,6 +113,7 @@ export async function createPrivateNotification(
       title: input.title ?? PRIVATE_NOTIFICATION_TITLE,
       body: input.body ?? PRIVATE_NOTIFICATION_BODY,
       payload: {
+        ...(input.payload ?? {}),
         resourceType: input.resourceType,
         resourceId: input.resourceId,
       },

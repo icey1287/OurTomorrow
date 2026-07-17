@@ -252,7 +252,17 @@ docker compose -f infra/compose.yaml build api web backup
 
 ### 阶段 6：浪漫增强
 
-逐项纵向实现抱抱、盲盒、足迹、第一次、冷静信箱、未来地图、年度回忆书和 PWA。每项评审“无评分/无持续定位/无默认追踪/可关闭/减少动效/离线缓存不泄密”。
+当前阶段 6 的已实现范围是：固定 kind 抱抱、Couple 每日盲盒、第一次博物馆、足迹/未来双状态地图、冷静信箱、年度回忆书、私密 PWA 和阶段 6 导出扩展。
+
+- Touch 请求不含自由文本；服务端以 Serializable 事务执行发送者 30 秒冷却和滚动一小时 12 次上限。在线事件和离线通知只传固定 kind。
+- CalmLetter 到期只进入 AVAILABLE；收件人显式 open 前，列表、详情、通知、实时事件和导出都不能出现正文。
+- MemoryResurface 依赖 `(coupleId, localDate)` 唯一约束；boy/girl 必须读取同一盲盒，open/dismiss 并发仍只有一个最终状态。`/memories/first-times` 只返回 PUBLISHED、非未来、未删除回忆。
+- Place 同时维护历史/未来状态；地图没有定位权限、第三方 SDK 或瓦片网络请求，并提供键盘可用的等价列表。完成愿望/计划时地点迁移和业务状态处于同一事务。
+- AnnualReview 的 READY 状态允许再次 request 并重算统计，PUBLISHED 后冻结；`media-options` 和更新校验只接受对应年份 PUBLISHED 回忆中的 READY 图片。
+- PWA 只缓存 shell/manifest/icon/hashed assets。切换角色或应用进入后台时清理私密内存状态；前台恢复要重新读取当前角色后才移除隐私幕。抱抱到达浮层可在设置中关闭。
+- 导出新增地点双状态、TouchEvent、CalmLetter、MemoryResurface 和 AnnualReview，并继续按当前角色可见性裁剪正文、memoryId 与媒体 ID。
+
+今日一件小事、未来来信、简单共同日历和月度合集尚未实现；开发与测试不得把占位文案或既有日历摘要当成这些功能已经交付。
 
 ## 8. Prisma 与数据库迁移
 
@@ -340,7 +350,7 @@ Controller 不读取请求体 `coupleId`，不直接调用其他模块 Prisma �
 ### 11.1 数据所有权
 
 - Vue Query 管服务器实体、分页、刷新和 mutation；
-- Pinia 管主题和短期 UI 状态；`localStorage` 只允许保存 `boy`/`girl` 角色选择；
+- Pinia 管主题和短期 UI 状态；身份相关本地数据只允许保存 `boy`/`girl`，另可保存 theme、reduce-motion、touch-arrivals 等非敏感偏好，禁止持久化正文、媒体和 Couple/API 实体；
 - 不把完整 API 数据复制到 Pinia；
 - 切换角色、清除身份选择或页面锁定时清空所有私密 Query cache 和 object URL；
 - WebSocket 事件使精确查询失效，再通过 REST 读取事实。
@@ -398,6 +408,8 @@ Controller 不读取请求体 `coupleId`，不直接调用其他模块 Prisma �
 
 使用 PostgreSQL 16 和真实 Prisma migration，验证唯一约束、事务、固定身份并发初始化、跨空间查询、ScheduledEvent/Outbox、媒体适配器和导出。空间隔离测试可直接建立额外数据库夹具；产品 UI 仍只暴露固定共同空间。
 
+阶段 6 额外覆盖：Touch 并发限流与固定伴侣推导、离线通知固定 kind；CalmLetter 到期/open 竞争和正文查询边界；两角色并发创建同一每日盲盒；first-times 隔离；地点双状态和愿望/计划完成迁移；年度书 READY 重算、PUBLISHED 冻结、年度媒体白名单；阶段 6 导出字段与内容裁剪。
+
 ### 14.3 E2E
 
 Playwright 使用两个独立浏览器 context，分别选择“我是男生”和“我是女生”：
@@ -412,6 +424,8 @@ Playwright 使用两个独立浏览器 context，分别选择“我是男生”�
 ```
 
 E2E 同时覆盖 320 px 移动视口、桌面、深色、键盘关键路径和减少动效。不要只依赖截图；对权限和状态查询 API/DOM 语义断言。
+
+阶段 6 的双 context 场景继续覆盖：一方发送固定 Touch、另一方在线看到可关闭浮层且离线通知保留 kind；冷静信到期后仍需显式 open；两角色看到同一盲盒并可 open/dismiss；第一次博物馆分页；足迹/未来地图的 SVG 与等价列表；READY 年度书重算、选图和发布冻结。PWA 用 production build/preview 验证，断言 Service Worker 不缓存 API、Socket、媒体或导出，并验证后台隐私幕与前台角色恢复。
 
 阶段 3 起，涉及日记、心情和定时任务的 Playwright 用例只允许重置显式指定的隔离数据库。数据库名必须包含 `test` 或 `e2e`，并同时设置 `E2E_RESET_DATABASE=true`：
 

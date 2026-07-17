@@ -15,6 +15,7 @@ import {
   CheckCheck,
   ChevronDown,
   LoaderCircle,
+  HeartHandshake,
   MessageCircleHeart,
   RefreshCw,
   ShieldCheck,
@@ -137,6 +138,7 @@ function iconFor(type: string): Component {
   if (type.startsWith("DAILY_")) return BookHeart;
   if (type.startsWith("MOOD_")) return Smile;
   if (type.startsWith("STATUS_")) return MessageCircleHeart;
+  if (type === "TOUCH_EVENT_RECEIVED") return HeartHandshake;
   return Sparkles;
 }
 

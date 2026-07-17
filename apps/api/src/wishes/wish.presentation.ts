@@ -29,6 +29,8 @@ const wishPlaceSelect = Prisma.validator<Prisma.PlaceSelect>()({
   latitude: true,
   longitude: true,
   status: true,
+  historyState: true,
+  futureState: true,
   firstVisitedAt: true,
   createdAt: true,
   updatedAt: true,

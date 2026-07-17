@@ -70,6 +70,7 @@ describe("RealtimeRelayService", () => {
           recipientIds: ["00000000-0000-4000-8000-000000000101"],
           resourceId: `80000000-0000-4000-8000-00000000000${index + 1}`,
           secret: "must-not-be-relayed",
+          message: "custom touch message must-not-be-relayed",
         },
         publishedAt,
       })),
@@ -95,6 +96,7 @@ describe("RealtimeRelayService", () => {
     );
     for (const [, realtimeEvent] of publish.mock.calls) {
       expect(realtimeEvent).not.toHaveProperty("secret");
+      expect(realtimeEvent).not.toHaveProperty("message");
       expect(realtimeEvent).toEqual({
         id: expect.any(String),
         type: expect.any(String),

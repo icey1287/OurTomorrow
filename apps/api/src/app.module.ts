@@ -3,6 +3,8 @@ import { ClockModule } from "./common/clock/clock.module";
 import { IdempotencyModule } from "./common/idempotency/idempotency.module";
 import { AuditModule } from "./common/audit/audit.module";
 import { AnniversariesModule } from "./anniversaries/anniversaries.module";
+import { AnnualReviewsModule } from "./annual-reviews/annual-reviews.module";
+import { CalmLettersModule } from "./calm-letters/calm-letters.module";
 import { CapsulesModule } from "./capsules/capsules.module";
 import { RequestIdMiddleware } from "./common/http/request-id.middleware";
 import { NoStoreMiddleware } from "./common/http/no-store.middleware";
@@ -28,6 +30,7 @@ import { StatusesModule } from "./statuses/statuses.module";
 import { SettingsModule } from "./settings/settings.module";
 import { TagsModule } from "./tags/tags.module";
 import { TodayModule } from "./today/today.module";
+import { TouchEventsModule } from "./touch-events/touch-events.module";
 import { UsersModule } from "./users/users.module";
 import { WishesModule } from "./wishes/wishes.module";
 
@@ -45,11 +48,14 @@ import { WishesModule } from "./wishes/wishes.module";
     WishesModule,
     PlansModule,
     AnniversariesModule,
+    AnnualReviewsModule,
     CapsulesModule,
+    CalmLettersModule,
     StatusesModule,
     MoodsModule,
     DailyEntriesModule,
     NotesModule,
+    TouchEventsModule,
     NotificationsModule,
     MediaModule,
     TagsModule,

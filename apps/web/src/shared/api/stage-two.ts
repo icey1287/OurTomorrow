@@ -10,6 +10,8 @@ import type {
   MemoryComment,
   MemoryDetail,
   MemoryPerspectiveView,
+  MemoryResurfaceTodayResponse,
+  MemoryResurfaceView,
   MemoryRevision,
   Paginated,
   PlaceSummary,
@@ -36,6 +38,11 @@ export interface MemoryListFilters {
   firstTime?: boolean | null;
   perspectiveState?: PerspectiveFilter | null;
   query?: string | null;
+}
+
+export interface FirstTimeListFilters {
+  cursor?: string | null;
+  limit?: number;
 }
 
 const uploadCompletionKeys = new Map<string, string>();
@@ -90,6 +97,12 @@ export const stageTwoApi = {
   memories(filters: MemoryListFilters = {}) {
     return apiClient.get<Paginated<MemoryCardSummary>>(
       `/memories${queryString(filters)}`,
+    );
+  },
+
+  firstTimes(filters: FirstTimeListFilters = {}) {
+    return apiClient.get<Paginated<MemoryCardSummary>>(
+      `/memories/first-times${queryString(filters)}`,
     );
   },
 
@@ -212,6 +225,22 @@ export const stageTwoApi = {
   randomMemory(excludeId?: string | null) {
     return apiClient.get<MemoryCardSummary | null>(
       `/today/random-memory${queryString({ excludeId })}`,
+    );
+  },
+
+  memoryResurfaceToday() {
+    return apiClient.get<MemoryResurfaceTodayResponse>(
+      "/memory-resurfaces/today",
+    );
+  },
+
+  openMemoryResurface(id: string) {
+    return apiClient.post<MemoryResurfaceView>(`/memory-resurfaces/${id}/open`);
+  },
+
+  dismissMemoryResurface(id: string) {
+    return apiClient.post<MemoryResurfaceView>(
+      `/memory-resurfaces/${id}/dismiss`,
     );
   },
 };

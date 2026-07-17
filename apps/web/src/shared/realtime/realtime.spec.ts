@@ -9,6 +9,7 @@ import {
   disconnectRealtime,
   queryKeysForRealtimeEvent,
   syncRealtimeIdentity,
+  touchKindForRealtimeEvent,
 } from "./realtime";
 
 type Listener = (payload: unknown) => void;
@@ -58,6 +59,16 @@ describe("queryKeysForRealtimeEvent", () => {
     ],
     ["mood_entry.updated", ["moods", "today", "notifications"]],
     ["notification.created", ["notifications"]],
+    ["touch_event.received", ["touch-events", "today", "notifications"]],
+    [
+      "calm_letter.available",
+      ["calm-letters", "calm-letter", "today", "notifications"],
+    ],
+    ["memory_resurface.opened", ["memory-resurface", "random-memory", "today"]],
+    [
+      "annual-review.ready",
+      ["annual-reviews", "annual-review-photo-options", "notifications"],
+    ],
     [
       "wish.completed",
       [
@@ -113,6 +124,12 @@ describe("queryKeysForRealtimeEvent", () => {
     ],
   ])("maps %s to precise query invalidations", (type, keys) => {
     expect(queryKeysForRealtimeEvent(event(type))).toEqual(keys);
+  });
+
+  it("allows only fixed non-content touch kinds", () => {
+    expect(touchKindForRealtimeEvent(event("touch.HUG"))).toBe("HUG");
+    expect(touchKindForRealtimeEvent(event("touch.CUSTOM_MESSAGE"))).toBeNull();
+    expect(touchKindForRealtimeEvent(event("note.visible"))).toBeNull();
   });
 
   it("disconnects the old role socket and ignores its later events", () => {

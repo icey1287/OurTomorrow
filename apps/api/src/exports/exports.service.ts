@@ -16,6 +16,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import {
+  CalmLetterStatus,
   ExportFormat,
   ExportJobStatus,
   MemoryStatus,
@@ -506,22 +507,8 @@ export class ExportsService implements OnApplicationBootstrap {
       },
     });
 
-    const [places, tags, notifications] = await Promise.all([
-      this.prisma.place.findMany({
-        where: { coupleId: actor.couple.id, deletedAt: null },
-        orderBy: [{ name: "asc" }, { id: "asc" }],
-        select: {
-          id: true,
-          name: true,
-          address: true,
-          latitude: true,
-          longitude: true,
-          status: true,
-          firstVisitedAt: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      }),
+    const [places, tags, notifications, stageSix] = await Promise.all([
+      this.collectPlaces(actor.couple.id),
       this.prisma.tag.findMany({
         where: { coupleId: actor.couple.id, deletedAt: null },
         orderBy: [{ name: "asc" }, { id: "asc" }],
@@ -545,6 +532,11 @@ export class ExportsService implements OnApplicationBootstrap {
           archivedAt: true,
         },
       }),
+      this.collectStageSix(
+        actor.couple.id,
+        actor.user.id,
+        new Set(memoryIds.map(({ id }) => id)),
+      ),
     ]);
 
     return {
@@ -568,6 +560,215 @@ export class ExportsService implements OnApplicationBootstrap {
       places,
       tags,
       notifications,
+      ...stageSix,
+    };
+  }
+
+  private collectPlaces(coupleId: string) {
+    return this.prisma.place.findMany({
+      where: { coupleId, deletedAt: null },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        latitude: true,
+        longitude: true,
+        status: true,
+        historyState: true,
+        futureState: true,
+        firstVisitedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  private async collectStageSix(
+    coupleId: string,
+    userId: string,
+    visibleMemoryIds: ReadonlySet<string>,
+  ): Promise<Record<string, unknown>> {
+    const [touchEvents, calmLetters, memoryResurfaces, annualReviews] =
+      await Promise.all([
+        this.prisma.touchEvent.findMany({
+          where: {
+            coupleId,
+            OR: [{ senderId: userId }, { recipientId: userId }],
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            senderId: true,
+            recipientId: true,
+            kind: true,
+            createdAt: true,
+            deliveredAt: true,
+            readAt: true,
+          },
+        }),
+        this.prisma.calmLetter.findMany({
+          where: {
+            coupleId,
+            deletedAt: null,
+            OR: [
+              { authorId: userId },
+              {
+                recipientId: userId,
+                status: { not: CalmLetterStatus.DRAFT },
+              },
+            ],
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            authorId: true,
+            recipientId: true,
+            purpose: true,
+            status: true,
+            version: true,
+            unlockAt: true,
+            sentAt: true,
+            openedAt: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        }),
+        this.prisma.memoryResurface.findMany({
+          where: { coupleId },
+          orderBy: [{ localDate: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            memoryId: true,
+            localDate: true,
+            reason: true,
+            displayedAt: true,
+            openedAt: true,
+            dismissedAt: true,
+          },
+        }),
+        this.prisma.annualReview.findMany({
+          where: { coupleId },
+          orderBy: [{ year: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            year: true,
+            status: true,
+            version: true,
+            statistics: true,
+            keywords: true,
+            nextYearLetter: true,
+            createdAt: true,
+            updatedAt: true,
+            publishedAt: true,
+            contributions: {
+              orderBy: [{ authorId: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                authorId: true,
+                selectedMediaId: true,
+                message: true,
+                updatedAt: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+    const selectedMediaIds = [
+      ...new Set(
+        annualReviews.flatMap((review) =>
+          review.contributions.flatMap((contribution) =>
+            contribution.selectedMediaId === null
+              ? []
+              : [contribution.selectedMediaId],
+          ),
+        ),
+      ),
+    ];
+    const readableCalmLetterIds = calmLetters
+      .filter(
+        (letter) =>
+          letter.authorId === userId ||
+          (letter.recipientId === userId &&
+            letter.status === CalmLetterStatus.OPENED),
+      )
+      .map(({ id }) => id);
+    const [readableSelectedMedia, readableCalmLetterContent] =
+      await Promise.all([
+        selectedMediaIds.length === 0
+          ? []
+          : this.prisma.mediaAsset.findMany({
+              where: {
+                AND: [
+                  readableMediaAssetWhere(coupleId, userId),
+                  { id: { in: selectedMediaIds } },
+                ],
+              },
+              select: { id: true },
+            }),
+        readableCalmLetterIds.length === 0
+          ? []
+          : this.prisma.calmLetter.findMany({
+              where: {
+                coupleId,
+                deletedAt: null,
+                id: { in: readableCalmLetterIds },
+                OR: [
+                  { authorId: userId },
+                  {
+                    recipientId: userId,
+                    status: CalmLetterStatus.OPENED,
+                  },
+                ],
+              },
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: { id: true, content: true },
+            }),
+      ]);
+    const readableSelectedMediaIds = new Set(
+      readableSelectedMedia.map(({ id }) => id),
+    );
+    const calmLetterContentById = new Map(
+      readableCalmLetterContent.map((letter) => [letter.id, letter.content]),
+    );
+
+    return {
+      touchEvents: touchEvents.map((event) => ({
+        id: event.id,
+        kind: event.kind,
+        direction: event.senderId === userId ? "SENT" : "RECEIVED",
+        senderRole: roleForUserId(event.senderId),
+        recipientRole: roleForUserId(event.recipientId),
+        createdAt: event.createdAt,
+        deliveredAt: event.deliveredAt,
+        readAt: event.readAt,
+      })),
+      calmLetters: calmLetters.map((letter) => ({
+        ...letter,
+        direction: letter.authorId === userId ? "SENT" : "RECEIVED",
+        content: calmLetterContentById.get(letter.id) ?? null,
+      })),
+      memoryResurfaces: memoryResurfaces.map((resurface) => ({
+        ...resurface,
+        localDate: localDate(resurface.localDate),
+        memoryId:
+          resurface.openedAt !== null &&
+          visibleMemoryIds.has(resurface.memoryId)
+            ? resurface.memoryId
+            : null,
+      })),
+      annualReviews: annualReviews.map((review) => ({
+        ...review,
+        contributions: review.contributions.map((contribution) => ({
+          ...contribution,
+          selectedMediaId:
+            contribution.selectedMediaId !== null &&
+            readableSelectedMediaIds.has(contribution.selectedMediaId)
+              ? contribution.selectedMediaId
+              : null,
+        })),
+      })),
     };
   }
 

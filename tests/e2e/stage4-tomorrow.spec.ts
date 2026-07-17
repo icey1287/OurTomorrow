@@ -88,12 +88,15 @@ test("two identities carry a wish into memory and cannot read a locked capsule e
     await openTomorrow(boy);
     await openTomorrow(girl);
 
-    for (const title of ["未来地图", "未来来信"]) {
-      const disabledFeature = girl
-        .locator('[aria-disabled="true"]')
-        .filter({ has: girl.getByRole("heading", { name: title }) });
-      await expect(disabledFeature).toContainText("稍后开放");
-    }
+    await expect(
+      girl.getByRole("heading", {
+        name: "把想去的地方放在同一张地图上",
+      }),
+    ).toBeVisible();
+    const futureLetter = girl
+      .locator('[aria-disabled="true"]')
+      .filter({ has: girl.getByRole("heading", { name: "未来来信" }) });
+    await expect(futureLetter).toContainText("稍后开放");
 
     await boy.getByRole("button", { name: "新愿望" }).first().click();
     const wishComposer = boy.getByRole("dialog", {

@@ -23,6 +23,7 @@ import {
 } from "../identity/identity.service";
 import { readableMediaAssetWhere } from "../media/media-access";
 import { createRecycleBinItem } from "../recycle-bin/recycle-bin.persistence";
+import type { ListFirstTimesQueryDto } from "./dto/first-times-query.dto";
 import type {
   BindMemoryMediaDto,
   CreateMemoryCommentDto,
@@ -68,6 +69,8 @@ const placeSelect = Prisma.validator<Prisma.PlaceSelect>()({
   latitude: true,
   longitude: true,
   status: true,
+  historyState: true,
+  futureState: true,
   firstVisitedAt: true,
   createdAt: true,
   updatedAt: true,
@@ -500,6 +503,58 @@ export class MemoriesService {
     const reactions = await this.reactionsFor(
       actor.couple.id,
       page.map((memory) => memory.id),
+    );
+
+    return {
+      items: page.map((memory) =>
+        toMemoryCardSummary(
+          memory as MemoryCardRecord,
+          actor.user.id,
+          reactions.get(memory.id) ?? [],
+        ),
+      ),
+      meta: {
+        nextCursor:
+          hasMore && page.length > 0
+            ? encodeCursor(page[page.length - 1]!, filterHash)
+            : null,
+        hasMore,
+      },
+    };
+  }
+
+  async firstTimes(
+    role: IdentityRole,
+    query: ListFirstTimesQueryDto,
+  ): Promise<PaginatedMemories> {
+    const actor = await this.identities.current(role);
+    const filterContext: ListMemoriesQueryDto = {
+      limit: query.limit,
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+      firstTime: true,
+    };
+    const filterHash = memoryFilterHash(actor, filterContext);
+    const where: Prisma.MemoryWhereInput = {
+      coupleId: actor.couple.id,
+      status: MemoryStatus.PUBLISHED,
+      deletedAt: null,
+      isFirstTime: true,
+      happenedAt: { lte: this.clock.now() },
+      ...(query.cursor === undefined
+        ? {}
+        : { AND: [cursorWhere(decodeCursor(query.cursor, filterHash))] }),
+    };
+    const records = await this.prisma.memory.findMany({
+      where,
+      orderBy: [{ isPinned: "desc" }, { happenedAt: "desc" }, { id: "desc" }],
+      take: query.limit + 1,
+      select: memoryCardSelect,
+    });
+    const hasMore = records.length > query.limit;
+    const page = hasMore ? records.slice(0, query.limit) : records;
+    const reactions = await this.reactionsFor(
+      actor.couple.id,
+      page.map(({ id }) => id),
     );
 
     return {

@@ -22,6 +22,10 @@ import {
 } from "../identity/identity.service";
 import { readableMediaAssetWhere } from "../media/media-access";
 import {
+  completeLinkedPlaces,
+  reopenLinkedPlaces,
+} from "../places/place-lifecycle";
+import {
   createRecycleBinItem,
   nullableInstant,
 } from "../recycle-bin/recycle-bin.persistence";
@@ -80,6 +84,7 @@ type WishActionRecord = {
     id: string;
     version: number;
     status: PlanStatus;
+    placeId: string | null;
     reminderAt: Date | null;
     completedAt: Date | null;
     cancelledAt: Date | null;
@@ -688,6 +693,11 @@ export class WishesService {
         },
       });
       if (wishChanged.count !== 1) throw stateConflict();
+      await completeLinkedPlaces(transaction, {
+        coupleId: actor.couple.id,
+        placeIds: [current.placeId, plan.placeId],
+        completedAt,
+      });
       if (mediaIds !== undefined) {
         await transaction.wishMedia.deleteMany({ where: { wishId } });
         if (mediaIds.length > 0) {
@@ -784,6 +794,10 @@ export class WishesService {
         },
       });
       if (wishChanged.count !== 1) throw stateConflict();
+      await reopenLinkedPlaces(transaction, {
+        coupleId: actor.couple.id,
+        placeIds: [current.placeId, plan.placeId],
+      });
       await cancelScheduledEvent(
         transaction,
         PLAN_REMINDER_KEY(plan.id),
@@ -895,6 +909,7 @@ export class WishesService {
             id: true,
             version: true,
             status: true,
+            placeId: true,
             reminderAt: true,
             completedAt: true,
             cancelledAt: true,

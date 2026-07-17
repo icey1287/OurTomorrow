@@ -15,10 +15,12 @@ import { computed, ref, watch } from "vue";
 import { RouterLink, RouterView, useRouter } from "vue-router";
 
 import NotificationCenter from "@/features/notifications/NotificationCenter.vue";
+import TouchArrival from "@/features/daily/TouchArrival.vue";
 import BrandMark from "@/shared/components/BrandMark.vue";
 import CreatePanel, {
   type CreateSelection,
 } from "@/shared/components/CreatePanel.vue";
+import PwaOfflineBanner from "@/shared/pwa/PwaOfflineBanner.vue";
 import { useIdentityStore } from "@/shared/stores/identity";
 import { useThemeStore } from "@/shared/stores/theme";
 
@@ -189,6 +191,8 @@ async function handleCreate(selection: CreateSelection) {
         </div>
       </header>
 
+      <PwaOfflineBanner />
+
       <RouterView />
     </div>
 
@@ -234,5 +238,6 @@ async function handleCreate(selection: CreateSelection) {
     </nav>
 
     <CreatePanel v-model="createOpen" @select="handleCreate" />
+    <TouchArrival />
   </div>
 </template>

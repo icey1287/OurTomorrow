@@ -29,8 +29,9 @@ import {
   CreatePlaceDto,
   DeletePlaceQueryDto,
   UpdatePlaceDto,
+  UpdatePlaceStatusDto,
 } from "./dto/place.dto";
-import { PlacesService } from "./places.service";
+import { type PlaceMapResponse, PlacesService } from "./places.service";
 
 const uuidPipe = new ParseUUIDPipe({ version: "4" });
 
@@ -47,6 +48,14 @@ export class PlacesController {
     private readonly places: PlacesService,
   ) {}
 
+  @Get("map")
+  @ApiOkResponse({
+    description: "Relationship-scoped footprint and future-map projection",
+  })
+  map(@CurrentIdentityRole() role: IdentityRole): Promise<PlaceMapResponse> {
+    return this.places.map(role);
+  }
+
   @Get()
   @ApiOkResponse({ description: "Active explicit places in the shared space" })
   list(@CurrentIdentityRole() role: IdentityRole): Promise<PlaceSummary[]> {
@@ -60,6 +69,16 @@ export class PlacesController {
     @Body(createValidationPipe(CreatePlaceDto)) dto: CreatePlaceDto,
   ): Promise<PlaceSummary> {
     return this.places.create(role, dto);
+  }
+
+  @Patch(":id/status")
+  @ApiOkResponse({ description: "Updated dual-axis place status" })
+  updateStatus(
+    @CurrentIdentityRole() role: IdentityRole,
+    @Param("id", uuidPipe) placeId: string,
+    @Body(createValidationPipe(UpdatePlaceStatusDto)) dto: UpdatePlaceStatusDto,
+  ): Promise<PlaceSummary> {
+    return this.places.updateStatus(role, placeId, dto);
   }
 
   @Patch(":id")

@@ -159,6 +159,45 @@ describe("MemoriesService", () => {
     ).rejects.toSatisfy((error: unknown) => statusOf(error) === 400);
   });
 
+  it("lists the first-time museum from published non-future couple memories only", async () => {
+    const next = {
+      ...cardRecord(),
+      id: "10000000-0000-4000-8000-000000000002",
+      happenedAt: new Date("2024-07-01T10:30:00.000Z"),
+    };
+    const memory = {
+      findMany: vi.fn().mockResolvedValue([cardRecord(), next]),
+    };
+    const service = serviceWith({
+      memory,
+      reaction: { findMany: vi.fn().mockResolvedValue([]) },
+    });
+
+    const result = await service.firstTimes("boy", { limit: 1 });
+
+    expect(memory.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          coupleId: COUPLE_ID,
+          status: MemoryStatus.PUBLISHED,
+          deletedAt: null,
+          isFirstTime: true,
+          happenedAt: { lte: new Date("2026-07-16T08:30:00.000Z") },
+        },
+        take: 2,
+      }),
+    );
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      id: MEMORY_ID,
+      isFirstTime: true,
+    });
+    expect(result.meta).toEqual({
+      hasMore: true,
+      nextCursor: expect.any(String),
+    });
+  });
+
   it("rejects a cursor when its filter context changes", async () => {
     const second = {
       ...cardRecord(),

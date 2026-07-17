@@ -24,6 +24,16 @@ export const PLACE_STATUSES = [
   "COMPLETED",
 ] as const;
 
+export const PLACE_HISTORY_STATES = ["UNVISITED", "VISITED", "LIVED"] as const;
+
+export const PLACE_FUTURE_STATES = [
+  "NONE",
+  "WANT_TO_GO",
+  "PLANNED",
+  "DEPARTING",
+  "COMPLETED",
+] as const;
+
 function trim(value: unknown): unknown {
   return typeof value === "string" ? value.trim() : value;
 }
@@ -68,6 +78,16 @@ export class CreatePlaceDto {
   @IsIn(PLACE_STATUSES)
   status?: (typeof PLACE_STATUSES)[number];
 
+  @ApiPropertyOptional({ enum: PLACE_HISTORY_STATES })
+  @IsOptional()
+  @IsIn(PLACE_HISTORY_STATES)
+  historyState?: (typeof PLACE_HISTORY_STATES)[number];
+
+  @ApiPropertyOptional({ enum: PLACE_FUTURE_STATES })
+  @IsOptional()
+  @IsIn(PLACE_FUTURE_STATES)
+  futureState?: (typeof PLACE_FUTURE_STATES)[number];
+
   @ApiPropertyOptional({ format: "date-time", nullable: true })
   @IsOptional()
   @IsISO8601({ strict: true })
@@ -92,4 +112,22 @@ export class DeletePlaceQueryDto {
   @IsInt()
   @Min(1)
   version?: number;
+}
+
+export class UpdatePlaceStatusDto {
+  @ApiProperty({ minimum: 1 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  version!: number;
+
+  @ApiPropertyOptional({ enum: PLACE_HISTORY_STATES })
+  @IsOptional()
+  @IsIn(PLACE_HISTORY_STATES)
+  historyState?: (typeof PLACE_HISTORY_STATES)[number];
+
+  @ApiPropertyOptional({ enum: PLACE_FUTURE_STATES })
+  @IsOptional()
+  @IsIn(PLACE_FUTURE_STATES)
+  futureState?: (typeof PLACE_FUTURE_STATES)[number];
 }

@@ -63,6 +63,8 @@ export const planSelect = Prisma.validator<Prisma.PlanSelect>()({
       latitude: true,
       longitude: true,
       status: true,
+      historyState: true,
+      futureState: true,
       firstVisitedAt: true,
       createdAt: true,
       updatedAt: true,

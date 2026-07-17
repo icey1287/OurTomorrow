@@ -1,4 +1,7 @@
-import type { MemoryCardSummary } from "@our-tomorrow/contracts";
+import type {
+  MemoryCardSummary,
+  MemoryResurfaceReason,
+} from "@our-tomorrow/contracts";
 
 export const ALLOWED_IMAGE_TYPES = [
   "image/jpeg",
@@ -152,4 +155,28 @@ export function groupMemoriesByMonth(
   }
 
   return [...groups.values()];
+}
+
+export function firstTimeSentence(
+  memory: Pick<MemoryCardSummary, "firstTimeLabel" | "title" | "happenedAt">,
+  timeZone?: string,
+) {
+  const labelled =
+    memory.firstTimeLabel?.trim().replace(/^第一次\s*/, "") ?? "";
+  const titled = memory.title.trim().replace(/^第一次\s*/, "");
+  const subject = labelled || titled || "留下这段故事";
+  return `你们第一次${subject}，是在 ${formatMemoryDate(memory.happenedAt, false, timeZone)}。`;
+}
+
+const MEMORY_RESURFACE_REASON_TEXT: Record<MemoryResurfaceReason, string> = {
+  ON_THIS_DAY: "同一天的旧时光，今天又绕回了你们身边。",
+  FIRST_UPLOAD: "这是最早被你们收藏起来的影像故事。",
+  PLACE: "一个共同地点，把这段故事重新带了回来。",
+  SEASON: "相似的季节里，过去正轻轻回应今天。",
+  COMPLETE_PERSPECTIVES: "这段故事里，刚好保存着两个人的完整视角。",
+  RANDOM: "很久没遇见的旧故事，今天随机来敲门。",
+};
+
+export function memoryResurfaceReasonText(reason: MemoryResurfaceReason) {
+  return MEMORY_RESURFACE_REASON_TEXT[reason];
 }

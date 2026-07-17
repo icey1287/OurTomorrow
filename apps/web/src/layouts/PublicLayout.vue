@@ -3,10 +3,12 @@ import { LockKeyhole } from "lucide-vue-next";
 import { RouterLink, RouterView } from "vue-router";
 
 import BrandMark from "@/shared/components/BrandMark.vue";
+import PwaOfflineBanner from "@/shared/pwa/PwaOfflineBanner.vue";
 </script>
 
 <template>
   <main class="relative min-h-dvh overflow-hidden">
+    <PwaOfflineBanner />
     <div
       class="pointer-events-none absolute inset-0 bg-soft-grid bg-[size:32px_32px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]"
       aria-hidden="true"

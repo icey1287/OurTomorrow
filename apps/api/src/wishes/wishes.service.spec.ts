@@ -156,6 +156,7 @@ function actionWish(
             id: plan.id,
             version: plan.version,
             status: plan.status,
+            placeId: plan.placeId,
             reminderAt: plan.reminderAt,
             completedAt: plan.completedAt,
             cancelledAt: plan.cancelledAt,
@@ -171,6 +172,7 @@ function transaction(
   return {
     wish: {
       findFirst: vi.fn().mockResolvedValue(current),
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: WISH_ID, version: 1 }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
@@ -185,11 +187,13 @@ function transaction(
       }),
     },
     plan: {
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn().mockResolvedValue({ id: PLAN_ID, version: 1 }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     place: {
       findFirst: vi.fn().mockResolvedValue({ id: PLACE_ID }),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
     },
     mediaAsset: {
       count: vi.fn().mockResolvedValue(2),
@@ -486,8 +490,15 @@ describe("WishesService", () => {
   });
 
   it("completes both states and binds only READY media from this couple", async () => {
-    const plan = planRecord(PlanStatus.IN_PROGRESS, 3);
+    const plan = planRecord(PlanStatus.IN_PROGRESS, 3, { placeId: PLACE_ID });
     const tx = transaction(actionWish(WishStatus.IN_PROGRESS, 6, plan));
+    tx.place.findFirst.mockResolvedValue({
+      version: 4,
+      status: "PLANNED",
+      historyState: "UNVISITED",
+      futureState: "PLANNED",
+      firstVisitedAt: null,
+    });
     const { service } = serviceWith(
       tx,
       wishRecord(WishStatus.COMPLETED, 7, planRecord(PlanStatus.COMPLETED, 4)),
@@ -541,6 +552,17 @@ describe("WishesService", () => {
         }),
       }),
     );
+    expect(tx.place.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: PLACE_ID, version: 4 }),
+        data: expect.objectContaining({
+          status: "COMPLETED",
+          historyState: "VISITED",
+          futureState: "COMPLETED",
+          firstVisitedAt: new Date("2026-07-17T03:00:00.000Z"),
+        }),
+      }),
+    );
   });
 
   it("rejects missing, non-ready, or foreign completion media atomically", async () => {
@@ -561,8 +583,17 @@ describe("WishesService", () => {
   });
 
   it("reopens only the adjacent completed states without deleting media", async () => {
-    const plan = planRecord(PlanStatus.COMPLETED, 4);
+    const plan = planRecord(PlanStatus.COMPLETED, 4, { placeId: PLACE_ID });
     const tx = transaction(actionWish(WishStatus.COMPLETED, 7, plan));
+    tx.place.findFirst.mockResolvedValue({
+      version: 5,
+      status: "COMPLETED",
+      historyState: "VISITED",
+      futureState: "COMPLETED",
+      firstVisitedAt: NOW,
+    });
+    tx.wish.findMany.mockResolvedValue([{ status: WishStatus.IN_PROGRESS }]);
+    tx.plan.findMany.mockResolvedValue([{ status: PlanStatus.IN_PROGRESS }]);
     const { service } = serviceWith(
       tx,
       wishRecord(
@@ -601,6 +632,16 @@ describe("WishesService", () => {
     expect(tx.wishUpdate.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ note: "还想补一段旅程" }),
+      }),
+    );
+    expect(tx.place.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "DEPARTING",
+          historyState: "VISITED",
+          futureState: "DEPARTING",
+          firstVisitedAt: NOW,
+        }),
       }),
     );
   });

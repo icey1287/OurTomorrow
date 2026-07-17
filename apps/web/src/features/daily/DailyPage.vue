@@ -1,17 +1,13 @@
 <script setup lang="ts">
-import {
-  BellRing,
-  HeartHandshake,
-  LockKeyhole,
-  Plus,
-  Sparkles,
-} from "lucide-vue-next";
+import { BellRing, Plus, Sparkles } from "lucide-vue-next";
 import { ref } from "vue";
 
+import CalmLetterPanel from "@/features/daily/CalmLetterPanel.vue";
 import DailyMoodPanel from "@/features/daily/DailyMoodPanel.vue";
 import DailyNoteWall from "@/features/daily/DailyNoteWall.vue";
 import DailyStatusPanel from "@/features/daily/DailyStatusPanel.vue";
 import ExchangeDiaryPanel from "@/features/daily/ExchangeDiaryPanel.vue";
+import TouchSignalPanel from "@/features/daily/TouchSignalPanel.vue";
 import BaseButton from "@/shared/components/BaseButton.vue";
 import PageHeader from "@/shared/components/PageHeader.vue";
 
@@ -24,19 +20,9 @@ function goToNotes() {
 
 const laterFeatures = [
   {
-    label: "抱抱信号",
-    text: "克制地发送一个实时小信号",
-    icon: HeartHandshake,
-  },
-  {
     label: "今日一件小事",
     text: "选一件很小的事一起完成",
     icon: BellRing,
-  },
-  {
-    label: "冷静信箱",
-    text: "把需要时间的话先温柔收好",
-    icon: LockKeyhole,
   },
 ];
 </script>
@@ -62,6 +48,8 @@ const laterFeatures = [
         <DailyNoteWall ref="noteWall" />
       </div>
       <DailyMoodPanel />
+      <TouchSignalPanel />
+      <CalmLetterPanel />
 
       <section aria-labelledby="later-heading">
         <div class="mb-4 flex items-center gap-2">
@@ -73,7 +61,7 @@ const laterFeatures = [
             更多轻互动
           </h2>
         </div>
-        <div class="grid gap-4 sm:grid-cols-3">
+        <div class="grid gap-4 sm:max-w-sm">
           <button
             v-for="item in laterFeatures"
             :key="item.label"

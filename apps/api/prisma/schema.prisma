@@ -75,6 +75,20 @@ enum PlaceStatus {
   COMPLETED
 }
 
+enum PlaceHistoryState {
+  UNVISITED
+  VISITED
+  LIVED
+}
+
+enum PlaceFutureState {
+  NONE
+  WANT_TO_GO
+  PLANNED
+  DEPARTING
+  COMPLETED
+}
+
 enum ReactionTargetType {
   MEMORY
   COMMENT
@@ -273,6 +287,7 @@ enum ScheduledEventType {
   BACKUP_CHECK
   OUTBOX_RETRY
   RECYCLE_BIN_PURGE
+  CALM_LETTER_UNLOCK
 }
 
 enum ScheduledEventStatus {
@@ -670,26 +685,30 @@ model MediaAsset {
 }
 
 model Place {
-  id             String      @id @default(uuid()) @db.Uuid
-  coupleId       String      @map("couple_id") @db.Uuid
-  name           String      @db.VarChar(160)
-  address        String?     @db.VarChar(300)
-  latitude       Decimal?    @db.Decimal(9, 6)
-  longitude      Decimal?    @db.Decimal(9, 6)
-  status         PlaceStatus @default(VISITED)
-  version        Int         @default(1)
-  firstVisitedAt DateTime?   @map("first_visited_at") @db.Timestamptz(3)
-  createdById    String      @map("created_by") @db.Uuid
-  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
-  deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(3)
-  couple         Couple      @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  createdBy      User        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  id             String            @id @default(uuid()) @db.Uuid
+  coupleId       String            @map("couple_id") @db.Uuid
+  name           String            @db.VarChar(160)
+  address        String?           @db.VarChar(300)
+  latitude       Decimal?          @db.Decimal(9, 6)
+  longitude      Decimal?          @db.Decimal(9, 6)
+  status         PlaceStatus       @default(VISITED)
+  historyState   PlaceHistoryState @default(VISITED) @map("history_state")
+  futureState    PlaceFutureState  @default(NONE) @map("future_state")
+  version        Int               @default(1)
+  firstVisitedAt DateTime?         @map("first_visited_at") @db.Timestamptz(3)
+  createdById    String            @map("created_by") @db.Uuid
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime?         @map("deleted_at") @db.Timestamptz(3)
+  couple         Couple            @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  createdBy      User              @relation(fields: [createdById], references: [id], onDelete: Restrict)
   memories       Memory[]
   wishes         Wish[]
   plans          Plan[]
 
   @@index([coupleId, status, deletedAt])
+  @@index([coupleId, historyState, deletedAt])
+  @@index([coupleId, futureState, deletedAt])
   @@index([coupleId, name])
   @@map("places")
 }
@@ -838,12 +857,15 @@ model MemoryResurface {
   id          String                @id @default(uuid()) @db.Uuid
   coupleId    String                @map("couple_id") @db.Uuid
   memoryId    String                @map("memory_id") @db.Uuid
+  localDate   DateTime              @map("local_date") @db.Date
   reason      MemoryResurfaceReason
   displayedAt DateTime              @default(now()) @map("displayed_at") @db.Timestamptz(3)
+  openedAt    DateTime?             @map("opened_at") @db.Timestamptz(3)
   dismissedAt DateTime?             @map("dismissed_at") @db.Timestamptz(3)
   couple      Couple                @relation(fields: [coupleId], references: [id], onDelete: Cascade)
   memory      Memory                @relation(fields: [memoryId], references: [id], onDelete: Cascade)
 
+  @@unique([coupleId, localDate])
   @@index([coupleId, displayedAt(sort: Desc)])
   @@index([coupleId, reason, displayedAt(sort: Desc)])
   @@index([memoryId, displayedAt(sort: Desc)])
@@ -1024,6 +1046,7 @@ model TouchEvent {
   recipient   User           @relation("TouchRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([senderId, createdAt(sort: Desc)])
+  @@index([coupleId, senderId, createdAt(sort: Desc)])
   @@index([recipientId, readAt, createdAt(sort: Desc)])
   @@map("touch_events")
 }

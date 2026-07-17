@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192" role="img" aria-label="我们的明天">
+  <defs>
+    <linearGradient id="sky" x1="24" y1="20" x2="164" y2="176" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F4D7A4"/>
+      <stop offset="0.52" stop-color="#D8EAF0"/>
+      <stop offset="1" stop-color="#DCCFEB"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="48" fill="#F8F6F2"/>
+  <circle cx="96" cy="96" r="70" fill="url(#sky)"/>
+  <path d="M45 112c19-25 34-37 51-37 18 0 33 12 51 37" fill="none" stroke="#252A31" stroke-width="11" stroke-linecap="round"/>
+  <path d="M55 118h82" stroke="#252A31" stroke-width="8" stroke-linecap="round"/>
+  <circle cx="96" cy="58" r="12" fill="#F2B75D"/>
+</svg>

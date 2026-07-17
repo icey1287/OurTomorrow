@@ -90,7 +90,10 @@ test("two local identities complete and rediscover one private memory", async ({
   await girl.getByRole("button", { name: /❤️/ }).click();
   await expect(girl.getByRole("button", { name: /❤️ 1/ })).toBeVisible();
 
-  await girl.getByRole("button", { name: /关闭/ }).first().click();
+  await girl
+    .getByRole("dialog", { name: "回忆详情" })
+    .getByRole("button", { name: "关闭", exact: true })
+    .click();
   await girl.getByPlaceholder("搜索标题、正文或地点").fill(title);
   await girl.getByRole("button", { name: "筛选" }).click();
   await girl.getByLabel("年份").selectOption("2025");

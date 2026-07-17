@@ -2,10 +2,12 @@ import type { MemoryCardSummary } from "@our-tomorrow/contracts";
 import { describe, expect, it } from "vitest";
 
 import {
+  firstTimeSentence,
   fromDateTimeLocal,
   groupMemoriesByMonth,
   imageFileError,
   MAX_IMAGE_BYTES,
+  memoryResurfaceReasonText,
   toDateTimeLocal,
   yearInTimeZone,
 } from "@/features/remember/remember-utils";
@@ -84,6 +86,26 @@ describe("remember utilities", () => {
     ).toBe("2024-08");
     expect(yearInTimeZone("2024-12-31T16:30:00.000Z", "Asia/Shanghai")).toBe(
       2025,
+    );
+  });
+
+  it("writes museum labels without repeating the first-time prefix", () => {
+    expect(
+      firstTimeSentence(
+        {
+          firstTimeLabel: "第一次一起看海",
+          title: "海边傍晚",
+          happenedAt: "2024-01-01T10:30:00.000Z",
+        },
+        "Asia/Shanghai",
+      ),
+    ).toBe("你们第一次一起看海，是在 2024年8月17日。");
+  });
+
+  it("provides a privacy-safe explanation for every blind-box reason", () => {
+    expect(memoryResurfaceReasonText("ON_THIS_DAY")).toContain("同一天");
+    expect(memoryResurfaceReasonText("COMPLETE_PERSPECTIVES")).toContain(
+      "两个人",
     );
   });
 });

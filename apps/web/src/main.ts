@@ -6,6 +6,7 @@ import App from "@/App.vue";
 import { queryClient } from "@/app/query-client";
 import { router } from "@/router";
 import { revokeAllPrivateMediaUrls } from "@/shared/composables/use-private-media";
+import { clearPwaPrivateData, initializePwa } from "@/shared/pwa/pwa";
 import {
   disconnectRealtime,
   syncRealtimeIdentity,
@@ -22,6 +23,7 @@ app.use(VueQueryPlugin, { queryClient });
 app.use(router);
 
 useThemeStore(pinia).initialize();
+initializePwa();
 
 const identityStore = useIdentityStore(pinia);
 let previousRole = identityStore.role;
@@ -30,6 +32,7 @@ identityStore.$subscribe((_mutation, state) => {
   if (state.role !== previousRole) {
     previousRole = state.role;
     revokeAllPrivateMediaUrls();
+    clearPwaPrivateData();
     queryClient.clear();
     syncRealtimeIdentity(state.role, queryClient);
   }

@@ -20,6 +20,7 @@ import PageHeader from "@/shared/components/PageHeader.vue";
 import SectionHeading from "@/shared/components/SectionHeading.vue";
 import SurfaceCard from "@/shared/components/SurfaceCard.vue";
 import { useIdentityStore } from "@/shared/stores/identity";
+import AnnualReviewBook from "@/features/us/AnnualReviewBook.vue";
 import {
   type FieldErrors,
   isValidTimezone,
@@ -445,6 +446,8 @@ watch(
         </div>
       </SurfaceCard>
     </section>
+
+    <AnnualReviewBook />
 
     <p
       v-if="todayQuery.isError.value"

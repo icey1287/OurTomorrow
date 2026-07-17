@@ -28,6 +28,7 @@ import {
   IDENTITY_ROLE_HEADER,
 } from "../identity/current-role.decorator";
 import type { IdentityRole } from "../identity/identity.constants";
+import { ListFirstTimesQueryDto } from "./dto/first-times-query.dto";
 import {
   BindMemoryMediaDto,
   CreateMemoryCommentDto,
@@ -70,6 +71,18 @@ export class MemoriesController {
     query: ListMemoriesQueryDto,
   ): Promise<PaginatedMemories> {
     return this.memories.list(role, query);
+  }
+
+  @Get("first-times")
+  @ApiOkResponse({
+    description: "Published past first-time memories for the current couple",
+  })
+  firstTimes(
+    @CurrentIdentityRole() role: IdentityRole,
+    @Query(createValidationPipe(ListFirstTimesQueryDto))
+    query: ListFirstTimesQueryDto,
+  ): Promise<PaginatedMemories> {
+    return this.memories.firstTimes(role, query);
   }
 
   @Post()

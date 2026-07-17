@@ -104,6 +104,16 @@ export function readableMediaAssetWhere(
         },
       },
       {
+        reviewContributions: {
+          some: {
+            annualReview: {
+              coupleId,
+              status: { in: ["READY", "PUBLISHED"] },
+            },
+          },
+        },
+      },
+      {
         AND: [
           { createdById: userId },
           {

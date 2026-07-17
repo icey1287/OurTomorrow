@@ -69,6 +69,8 @@ function record(overrides: Partial<PlanRecord> = {}): PlanRecord {
       latitude: { toNumber: () => 31.2 } as never,
       longitude: { toNumber: () => 121.5 } as never,
       status: PlaceStatus.PLANNED,
+      historyState: "UNVISITED",
+      futureState: "PLANNED",
       firstVisitedAt: null,
       createdAt: NOW,
       updatedAt: NOW,

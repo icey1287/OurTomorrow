@@ -25,6 +25,7 @@ import {
   enqueueOutboxEvent,
   upsertScheduledEvent,
 } from "../shared-events/persistent-event";
+import { completeLinkedPlaces } from "../places/place-lifecycle";
 import {
   createRecycleBinItem,
   nullableInstant,
@@ -665,6 +666,7 @@ export class PlansService {
         await this.releaseWish(transaction, existing, actor.user.id);
       }
       const plan = await this.findPlan(transaction, actor.couple.id, planId);
+      let linkedWishPlaceId: string | null = null;
       if (transition.to === PlanStatus.SCHEDULED) {
         await this.syncWishStatus(
           transaction,
@@ -684,7 +686,7 @@ export class PlansService {
           now,
         );
       } else if (transition.to === PlanStatus.COMPLETED) {
-        await this.syncWishStatus(
+        linkedWishPlaceId = await this.syncWishStatus(
           transaction,
           plan,
           WishStatus.IN_PROGRESS,
@@ -699,6 +701,11 @@ export class PlansService {
             completedAt: now,
           });
         }
+        await completeLinkedPlaces(transaction, {
+          coupleId: plan.coupleId,
+          placeIds: [plan.placeId, linkedWishPlaceId],
+          completedAt: now,
+        });
       }
       await this.syncReminder(transaction, plan, now);
       await this.writeMutationEvents(
@@ -709,7 +716,9 @@ export class PlansService {
         transition.action,
         now,
       );
-      return plan;
+      return transition.to === PlanStatus.COMPLETED
+        ? this.findPlan(transaction, actor.couple.id, planId)
+        : plan;
     });
     return toPlanSummary(updated, actor.couple);
   }
@@ -770,15 +779,15 @@ export class PlansService {
     to: WishStatus,
     actorId: string,
     now: Date,
-  ): Promise<void> {
-    if (plan.wishId === null) return;
+  ): Promise<string | null> {
+    if (plan.wishId === null) return null;
     const wish = await transaction.wish.findFirst({
       where: {
         id: plan.wishId,
         coupleId: plan.coupleId,
         deletedAt: null,
       },
-      select: { id: true, version: true, status: true },
+      select: { id: true, version: true, status: true, placeId: true },
     });
     if (!wish) {
       throw stateConflict({ linkedWishUnavailable: true });
@@ -813,6 +822,7 @@ export class PlansService {
       },
       select: { id: true },
     });
+    return wish.placeId;
   }
 
   private async syncWishPlannedFor(

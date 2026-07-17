@@ -5,6 +5,7 @@ import { useRoute, useRouter } from "vue-router";
 
 import AnniversaryBoard from "@/features/tomorrow/AnniversaryBoard.vue";
 import CapsuleBoard from "@/features/tomorrow/CapsuleBoard.vue";
+import FutureMapPanel from "@/features/tomorrow/FutureMapPanel.vue";
 import PlanBoard from "@/features/tomorrow/PlanBoard.vue";
 import TomorrowHero from "@/features/tomorrow/TomorrowHero.vue";
 import TomorrowLaterFeatures from "@/features/tomorrow/TomorrowLaterFeatures.vue";
@@ -67,6 +68,7 @@ function consumeCreate(type: TomorrowCreateType) {
         :request-create="createTarget === 'plan'"
         @create-consumed="consumeCreate('plan')"
       />
+      <FutureMapPanel />
       <AnniversaryBoard
         :request-create="createTarget === 'anniversary'"
         @create-consumed="consumeCreate('anniversary')"

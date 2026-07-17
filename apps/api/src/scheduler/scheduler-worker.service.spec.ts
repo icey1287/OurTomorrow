@@ -1,10 +1,13 @@
 import type { ConfigService } from "@nestjs/config";
 import { describe, expect, it, vi } from "vitest";
 import type { AnniversariesService } from "../anniversaries/anniversaries.service";
+import type { AnnualReviewsService } from "../annual-reviews/annual-reviews.service";
+import type { CalmLettersService } from "../calm-letters/calm-letters.service";
 import type { CapsulesService } from "../capsules/capsules.service";
 import type { Clock } from "../common/clock/clock";
 import type { Environment } from "../config/env.schema";
 import type { PrismaService } from "../database/prisma.service";
+import type { MemoryResurfaceService } from "../memories/memory-resurface.service";
 import type { PlansService } from "../plans/plans.service";
 import { SchedulerWorkerService } from "./scheduler-worker.service";
 
@@ -15,6 +18,8 @@ const PLAN_ID = "72000000-0000-4000-8000-000000000001";
 const ANNIVERSARY_ID = "73000000-0000-4000-8000-000000000001";
 const REMINDER_ID = "74000000-0000-4000-8000-000000000001";
 const CAPSULE_ID = "75000000-0000-4000-8000-000000000001";
+const CALM_LETTER_ID = "76000000-0000-4000-8000-000000000001";
+const ANNUAL_REVIEW_ID = "77000000-0000-4000-8000-000000000001";
 const COUPLE_ID = "00000000-0000-4000-8000-000000000001";
 const BOY_ID = "00000000-0000-4000-8000-000000000101";
 const GIRL_ID = "00000000-0000-4000-8000-000000000102";
@@ -44,6 +49,9 @@ function event(
       | "PLAN_REMINDER"
       | "ANNIVERSARY_REMINDER"
       | "CAPSULE_DUE"
+      | "CALM_LETTER_UNLOCK"
+      | "MEMORY_RESURFACE"
+      | "ANNUAL_REVIEW"
       | "OUTBOX_RETRY";
     payload: Record<string, unknown>;
     status: "PENDING" | "RUNNING" | "RETRYING";
@@ -76,6 +84,15 @@ function stageFourServices() {
     capsules: {
       markDue: vi.fn().mockResolvedValue(undefined),
     } as unknown as CapsulesService,
+    calmLetters: {
+      materializeUnlock: vi.fn().mockResolvedValue(undefined),
+    } as unknown as CalmLettersService,
+    memoryResurfaces: {
+      materializeScheduled: vi.fn().mockResolvedValue(undefined),
+    } as unknown as MemoryResurfaceService,
+    annualReviews: {
+      generate: vi.fn().mockResolvedValue(undefined),
+    } as unknown as AnnualReviewsService,
   };
 }
 
@@ -88,6 +105,10 @@ function worker(prisma: PrismaService, services = stageFourServices()) {
       services.plans,
       services.anniversaries,
       services.capsules,
+      undefined,
+      services.calmLetters,
+      services.memoryResurfaces,
+      services.annualReviews,
     ),
     ...services,
   };
@@ -426,6 +447,83 @@ describe("SchedulerWorkerService", () => {
     });
     expect(services.capsules.markDue).toHaveBeenCalledWith(CAPSULE_ID);
   });
+
+  it("dispatches a durable calm-letter unlock without loading its content", async () => {
+    const candidate = event({
+      type: "CALM_LETTER_UNLOCK",
+      payload: { calmLetterId: CALM_LETTER_ID },
+    });
+    const claimed = event({
+      type: "CALM_LETTER_UNLOCK",
+      payload: { calmLetterId: CALM_LETTER_ID },
+      status: "RUNNING",
+      attempts: 1,
+      lockedUntil: new Date(NOW.getTime() + 30_000),
+    });
+    const prisma = {
+      scheduledEvent: {
+        findFirst: vi
+          .fn()
+          .mockResolvedValueOnce(candidate)
+          .mockResolvedValueOnce(claimed)
+          .mockResolvedValueOnce(null),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    } as unknown as PrismaService;
+    const services = stageFourServices();
+    const { worker: scheduler } = worker(prisma, services);
+
+    await scheduler.poll();
+
+    expect(services.calmLetters.materializeUnlock).toHaveBeenCalledWith(
+      COUPLE_ID,
+      CALM_LETTER_ID,
+      NOW,
+    );
+  });
+
+  it.each([
+    ["MEMORY_RESURFACE", {}, "memory"],
+    ["ANNUAL_REVIEW", { annualReviewId: ANNUAL_REVIEW_ID }, "annual"],
+  ] as const)(
+    "dispatches %s through its domain service",
+    async (type, payload, target) => {
+      const candidate = event({ type, payload });
+      const claimed = event({
+        type,
+        payload,
+        status: "RUNNING",
+        attempts: 1,
+        lockedUntil: new Date(NOW.getTime() + 30_000),
+      });
+      const prisma = {
+        scheduledEvent: {
+          findFirst: vi
+            .fn()
+            .mockResolvedValueOnce(candidate)
+            .mockResolvedValueOnce(claimed)
+            .mockResolvedValueOnce(null),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
+      } as unknown as PrismaService;
+      const services = stageFourServices();
+      const { worker: scheduler } = worker(prisma, services);
+
+      await scheduler.poll();
+
+      if (target === "memory") {
+        expect(
+          services.memoryResurfaces.materializeScheduled,
+        ).toHaveBeenCalledWith(COUPLE_ID, NOW);
+      } else {
+        expect(services.annualReviews.generate).toHaveBeenCalledWith(
+          COUPLE_ID,
+          ANNUAL_REVIEW_ID,
+          NOW,
+        );
+      }
+    },
+  );
 
   it("keeps its polling timer referenced so the worker process stays alive", () => {
     vi.useFakeTimers();

@@ -75,6 +75,9 @@ export type PlaceStatus =
   | "PLANNED"
   | "DEPARTING"
   | "COMPLETED";
+export type PlaceHistoryState = "UNVISITED" | "VISITED" | "LIVED";
+export type PlaceFutureState =
+  "NONE" | "WANT_TO_GO" | "PLANNED" | "DEPARTING" | "COMPLETED";
 
 export interface TagSummary {
   id: string;
@@ -93,6 +96,8 @@ export interface PlaceSummary {
   latitude: number | null;
   longitude: number | null;
   status: PlaceStatus;
+  historyState: PlaceHistoryState;
+  futureState: PlaceFutureState;
   firstVisitedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -246,6 +251,8 @@ export interface CreatePlaceRequest {
   latitude?: number | null;
   longitude?: number | null;
   status?: PlaceStatus;
+  historyState?: PlaceHistoryState;
+  futureState?: PlaceFutureState;
   firstVisitedAt?: string | null;
 }
 
@@ -889,6 +896,177 @@ export interface TodayUpcomingResponse {
   anniversaries: AnniversarySummary[];
   plans: PlanSummary[];
   capsules: CapsuleSummary[];
+}
+
+export type TouchEventKind =
+  | "HUG"
+  | "MISS_YOU"
+  | "KISS"
+  | "CHEER"
+  | "REST"
+  | "TELL_ME_WHEN_HOME"
+  | "I_AM_HERE";
+
+export interface CreateTouchEventRequest {
+  kind: TouchEventKind;
+}
+
+export interface TouchEventView {
+  id: string;
+  kind: TouchEventKind;
+  direction: "SENT" | "RECEIVED";
+  createdAt: string;
+  deliveredAt: string | null;
+  readAt: string | null;
+}
+
+export type CalmLetterPurpose =
+  | "BE_HEARD"
+  | "DISCUSS_LATER"
+  | "SOLVE_TOGETHER"
+  | "NEED_SPACE"
+  | "READY_TO_OPEN";
+
+export type CalmLetterStatus = "LOCKED" | "AVAILABLE" | "OPENED" | "ARCHIVED";
+
+export interface CreateCalmLetterRequest {
+  purpose: CalmLetterPurpose;
+  content: string;
+  unlockAt?: string | null;
+}
+
+export interface CalmLetterSummary {
+  id: string;
+  version: number;
+  direction: "SENT" | "RECEIVED";
+  purpose: CalmLetterPurpose;
+  status: CalmLetterStatus;
+  unlockAt: string | null;
+  sentAt: string;
+  openedAt: string | null;
+  createdAt: string;
+  bodyAvailable: boolean;
+  canOpen: boolean;
+}
+
+export interface CalmLetterLockedDetail extends CalmLetterSummary {
+  bodyAvailable: false;
+}
+
+export interface CalmLetterReadableDetail extends CalmLetterSummary {
+  bodyAvailable: true;
+  content: string;
+}
+
+export type CalmLetterDetail =
+  CalmLetterLockedDetail | CalmLetterReadableDetail;
+
+export interface CalmLetterActionRequest {
+  version: number;
+}
+
+export type MemoryResurfaceReason =
+  | "ON_THIS_DAY"
+  | "RANDOM"
+  | "FIRST_UPLOAD"
+  | "PLACE"
+  | "SEASON"
+  | "COMPLETE_PERSPECTIVES";
+
+export interface MemoryResurfaceView {
+  id: string;
+  localDate: string;
+  reason: MemoryResurfaceReason;
+  openedAt: string | null;
+  dismissedAt: string | null;
+  memory: MemoryCardSummary | null;
+}
+
+export interface MemoryResurfaceTodayResponse {
+  serverNow: string;
+  localDate: string;
+  box: MemoryResurfaceView | null;
+}
+
+export interface PlaceMapMemorySummary {
+  id: string;
+  title: string;
+  happenedAt: string;
+  coverMedia: MediaAssetSummary | null;
+}
+
+export interface PlaceMapWishSummary {
+  id: string;
+  title: string;
+  status: WishStatus;
+  plannedFor: string | null;
+}
+
+export interface PlaceMapPlanSummary {
+  id: string;
+  title: string;
+  status: PlanStatus;
+  startsAt: string | null;
+}
+
+export interface PlaceMapItem extends PlaceSummary {
+  memories: PlaceMapMemorySummary[];
+  wishes: PlaceMapWishSummary[];
+  plans: PlaceMapPlanSummary[];
+}
+
+export interface PlaceMapResponse {
+  serverNow: string;
+  history: PlaceMapItem[];
+  future: PlaceMapItem[];
+  withoutCoordinates: PlaceMapItem[];
+}
+
+export interface UpdatePlaceStatusRequest {
+  version: number;
+  historyState?: PlaceHistoryState;
+  futureState?: PlaceFutureState;
+}
+
+export type AnnualReviewStatus = "DRAFT" | "GENERATING" | "READY" | "PUBLISHED";
+
+export interface AnnualReviewStatistics {
+  memories: number;
+  places: number;
+  completedWishes: number;
+  photos: number;
+}
+
+export interface AnnualReviewContributionView {
+  role: IdentityRole;
+  selectedMedia: MediaAssetSummary | null;
+  message: string | null;
+  editable: boolean;
+}
+
+export interface AnnualReviewView {
+  id: string;
+  year: number;
+  status: AnnualReviewStatus;
+  version: number;
+  statistics: AnnualReviewStatistics;
+  keywords: string[];
+  nextYearLetter: string | null;
+  contributions: AnnualReviewContributionView[];
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+}
+
+export interface UpdateAnnualReviewRequest {
+  version: number;
+  selectedMediaId?: string | null;
+  message?: string | null;
+  nextYearLetter?: string | null;
+}
+
+export interface PublishAnnualReviewRequest {
+  version: number;
 }
 
 export type RecycleBinResourceType =

@@ -31,7 +31,7 @@ X-Our-Tomorrow-Role: boy
 
 允许值只有 `boy` 和 `girl`。缺失或非法值返回 `400 IDENTITY_REQUIRED`。`POST /identity/select` 的请求体直接携带角色，因此该端点本身不要求 header。
 
-Web 可以在 `localStorage` 的 `our-tomorrow-role` 中保存字符串 `boy` 或 `girl` 以记住界面选择；不得在其中保存正文、情侣空间数据或未来新增的秘密。角色值不是凭据，header 也不是安全边界：任何能访问应用的人都能切换两个身份。部署者必须通过网络入口、设备访问控制或 VPN 保证应用只对这两个人可达。
+Web 可以在 `localStorage` 的 `our-tomorrow-role` 中保存字符串 `boy` 或 `girl` 以记住界面选择，并保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好；不得保存正文、媒体、情侣空间/API 实体、令牌或未来新增的秘密。角色值不是凭据，header 也不是安全边界：任何能访问应用的人都能切换两个身份。部署者必须通过网络入口、设备访问控制或 VPN 保证应用只对这两个人可达。
 
 因为请求不使用浏览器自动附带的认证 Cookie，当前 API 不采用 CSRF token。生产仍保持同域部署、配置的单一 CORS Origin、安全响应头和无公开内容入口；这些控制不能把角色选择包装成真正认证。
 
@@ -338,7 +338,7 @@ type ReadyHealth = {
 
 ### 7.3 随机回忆
 
-`GET /today/random-memory` 只返回卡片摘要，并记录当前空间最近展示历史。可接受 `excludeId` 作为用户主动换一条的提示，但服务端仍执行去重和安全筛选。
+`GET /today/random-memory` 是首页兼容端点，只返回卡片摘要。可接受 `excludeId` 作为用户主动换一条的提示，但服务端仍执行去重和安全筛选；它不会创建每日 MemoryResurface，也不会泄露尚未打开的盲盒内容。
 
 ## 8. 媒体上传与读取
 
@@ -361,12 +361,11 @@ type ReadyHealth = {
 
 ### 9.1 此刻状态
 
-| 方法   | 路径                               | 说明                                           |
-| ------ | ---------------------------------- | ---------------------------------------------- |
-| GET    | `/statuses/current`                | 返回双方状态；对方仅返回仍有效且允许共享的状态 |
-| PUT    | `/statuses/me`                     | 设置/替换当前用户状态，含 `expiresAt`          |
-| DELETE | `/statuses/me`                     | 提前结束当前状态                               |
-| POST   | `/statuses/me/convert-to-fragment` | 阶段 6；显式保存为日常碎片                     |
+| 方法   | 路径                | 说明                                           |
+| ------ | ------------------- | ---------------------------------------------- |
+| GET    | `/statuses/current` | 返回双方状态；对方仅返回仍有效且允许共享的状态 |
+| PUT    | `/statuses/me`      | 设置/替换当前用户状态，含 `expiresAt`          |
+| DELETE | `/statuses/me`      | 提前结束当前状态                               |
 
 服务端拒绝早于当前时间的失效时间，或直接将其视为结束；过期判断不采用浏览器时间。
 
@@ -415,21 +414,27 @@ type ReadyHealth = {
 
 ### 9.4 心情、通知和轻互动
 
-| 方法    | 路径                           | 阶段 | 说明                             |
-| ------- | ------------------------------ | ---- | -------------------------------- |
-| PUT     | `/moods/today`                 | 3    | 当前用户当天 upsert 心情         |
-| DELETE  | `/moods/today?version=...`     | 3    | 删除当前用户当天心情             |
-| GET     | `/moods?month=2026-07`         | 3    | 只返回有权查看的趋势和条目       |
-| GET     | `/notifications`               | 3    | 私密站内通知游标分页             |
-| GET     | `/notifications/unread-count`  | 3    | 当前角色未读数                   |
-| POST    | `/notifications/:id/mark-read` | 3    | 幂等标记单条已读                 |
-| POST    | `/notifications/mark-all-read` | 3    | 标记当前角色全部通知已读         |
-| POST    | `/notifications/:id/archive`   | 3    | 归档当前角色通知                 |
-| POST    | `/touch-events`                | 6    | 抱抱/想你等低频信号，受冷却限制  |
-| GET/PUT | `/daily-rituals/today`         | 6    | 今日一件小事                     |
-| POST    | `/calm-letters`                | 6    | 创建冷静信箱内容和服务端解锁规则 |
+| 方法   | 路径                           | 阶段 | 说明                             |
+| ------ | ------------------------------ | ---- | -------------------------------- |
+| PUT    | `/moods/today`                 | 3    | 当前用户当天 upsert 心情         |
+| DELETE | `/moods/today?version=...`     | 3    | 删除当前用户当天心情             |
+| GET    | `/moods?month=2026-07`         | 3    | 只返回有权查看的趋势和条目       |
+| GET    | `/notifications`               | 3    | 私密站内通知游标分页             |
+| GET    | `/notifications/unread-count`  | 3    | 当前角色未读数                   |
+| POST   | `/notifications/:id/mark-read` | 3    | 幂等标记单条已读                 |
+| POST   | `/notifications/mark-all-read` | 3    | 标记当前角色全部通知已读         |
+| POST   | `/notifications/:id/archive`   | 3    | 归档当前角色通知                 |
+| POST   | `/touch-events`                | 6    | 发送固定 kind 的低频信号         |
+| GET    | `/calm-letters`                | 6    | 元数据列表，不查询正文           |
+| GET    | `/calm-letters/:id`            | 6    | 作者或已显式打开的收件人可得正文 |
+| POST   | `/calm-letters`                | 6    | 创建冷静信和服务端解锁规则       |
+| POST   | `/calm-letters/:id/open`       | 6    | 收件人显式打开 AVAILABLE 信件    |
 
-浏览器通知正文默认只返回“你收到了一条来自明天的新消息”一类隐私摘要；完整内容需进入应用后通过显式角色、空间与内容可见性检查获取。
+Touch 请求体只有 `{ kind }`，不接受 `message`、收件人或 Couple。服务端固定推导另一位成员，按发送者执行 30 秒冷却与滚动一小时最多 12 次限制。在线事件类型为 `touch.<kind>`；离线通知正文仍使用隐私摘要，payload 只包含允许列表内的固定 kind。
+
+CalmLetter 到期只进入 `AVAILABLE`，不会自动返回或推送正文。收件人必须调用 `/open`，成功持久化为 `OPENED` 后，详情和导出才可包含正文。
+
+“今日一件小事”尚未实现，不存在 `/daily-rituals/today` 公共端点。
 
 ## 10. 阶段 4：明天
 
@@ -549,6 +554,8 @@ type ReadyHealth = {
 
 状态为 `QUEUED → RUNNING → READY/FAILED → EXPIRED`。导出包含版本化 `manifest.json`、可读 JSON 和媒体，不包含内部存储键、部署/备份秘密或原始审计敏感信息。固定角色值不是秘密，也无需作为独立凭据数据导出。
 
+阶段 6 的 `data.json` 新增地点 `historyState/futureState`、`touchEvents`、`calmLetters`、`memoryResurfaces` 和 `annualReviews`。Touch 只导出固定 kind；CalmLetter 作者可导出自己的正文，收件人仅在 OPENED 后导出正文；未打开盲盒的 `memoryId` 为 null；年度选图 ID 仍经过当前角色媒体可见性检查。
+
 ### 11.3 运维状态
 
 普通成员可在设置页读取非敏感状态：
@@ -561,14 +568,30 @@ type ReadyHealth = {
 
 ## 12. 阶段 6：增强端点
 
-| 领域          | 端点                                                                  | 约束                                                  |
-| ------------- | --------------------------------------------------------------------- | ----------------------------------------------------- |
-| 回忆盲盒      | `GET /memory-resurfaces/today`、`POST /memory-resurfaces/:id/dismiss` | 服务端去重，不形成“必须打开”任务                      |
-| 足迹/未来地图 | `GET /places/map`、`PATCH /places/:id/status`                         | 只用用户主动地点；无后台持续定位                      |
-| 第一次博物馆  | `GET /memories/first-times`                                           | 从回忆标记派生，游标分页                              |
-| 冷静信箱      | `GET/POST /calm-letters`、`POST /calm-letters/:id/open`               | 未到服务端解锁条件不返回正文                          |
-| 年度回忆书    | `GET/POST /annual-reviews/:year`、`PATCH /annual-reviews/:year`       | 自动草稿可编辑，不替用户编造文字                      |
-| PWA           | 不新增业务端点                                                        | 缓存不得持久保存未揭晓/未解锁正文；退出时清除私密缓存 |
+| 领域          | 方法  | 路径                                  | 约束                                                               |
+| ------------- | ----- | ------------------------------------- | ------------------------------------------------------------------ |
+| Touch         | POST  | `/touch-events`                       | 仅固定 kind；30 秒冷却、滚动一小时 12 次；伴侣由服务端推导         |
+| 回忆盲盒      | GET   | `/memory-resurfaces/today`            | Couple 本地日期唯一；未打开时 `memory: null`                       |
+| 回忆盲盒      | POST  | `/memory-resurfaces/:id/open`         | 显式打开当天盲盒；底层回忆仍需 PUBLISHED、未删除且非未来           |
+| 回忆盲盒      | POST  | `/memory-resurfaces/:id/dismiss`      | 幂等忽略当天盲盒；忽略后不返回回忆                                 |
+| 第一次博物馆  | GET   | `/memories/first-times`               | PUBLISHED、未删除、非未来、`isFirstTime=true`；游标分页            |
+| 足迹/未来地图 | GET   | `/places/map`                         | 历史/未来双状态；只用主动地点，无定位或第三方地图/瓦片             |
+| 足迹/未来地图 | PATCH | `/places/:id/status`                  | 按 version 更新 `historyState`/`futureState`                       |
+| 冷静信箱      | GET   | `/calm-letters`                       | 元数据列表，不查询正文                                             |
+| 冷静信箱      | GET   | `/calm-letters/:id`                   | 作者或 OPENED 收件人可得正文                                       |
+| 冷静信箱      | POST  | `/calm-letters`                       | 创建 LOCKED 或 AVAILABLE 信件                                      |
+| 冷静信箱      | POST  | `/calm-letters/:id/open`              | 收件人显式打开；到期但未 open 仍无正文                             |
+| 年度回忆书    | GET   | `/annual-reviews`                     | 按年份倒序列出                                                     |
+| 年度回忆书    | GET   | `/annual-reviews/:year`               | 返回统计、双方 contribution 和状态                                 |
+| 年度回忆书    | GET   | `/annual-reviews/:year/media-options` | 仅对应年份 PUBLISHED 回忆中的 READY 图片                           |
+| 年度回忆书    | POST  | `/annual-reviews/:year`               | 创建或重新排程生成；READY 可重算，PUBLISHED 不变                   |
+| 年度回忆书    | PATCH | `/annual-reviews/:year`               | 仅 READY；更新当前角色选图/寄语或共享下一年信件                    |
+| 年度回忆书    | POST  | `/annual-reviews/:year/publish`       | READY → PUBLISHED；发布后冻结                                      |
+| PWA           | —     | 不新增业务端点                        | 只缓存 shell/manifest/icon/assets；业务、媒体、Socket network-only |
+
+Place 同时保存历史轴 `UNVISITED / VISITED / LIVED` 与未来轴 `NONE / WANT_TO_GO / PLANNED / DEPARTING / COMPLETED`。愿望或计划完成时，关联地点状态在同一事务中迁入足迹；若仍有其他有效未来安排，可同时保留未来状态。
+
+AnnualReview 的统计只读取共同公开来源，不读取私人心情、日记、胶囊或冷静信正文。READY 重算保留双方 contribution，PUBLISHED 后不再重算或编辑。未来来信、今日一件小事、简单共同日历和月度合集不属于当前公共 API。
 
 ## 13. WebSocket 契约
 

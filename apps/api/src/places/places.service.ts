@@ -1,5 +1,13 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { Prisma, RecycleBinResourceType } from "@prisma/client";
+import {
+  MemoryStatus,
+  PlaceFutureState,
+  PlaceHistoryState,
+  PlaceStatus,
+  Prisma,
+  RecycleBinResourceType,
+} from "@prisma/client";
+import { Clock } from "../common/clock/clock";
 import {
   resourceNotFound,
   stateConflict,
@@ -9,11 +17,24 @@ import { PrismaService } from "../database/prisma.service";
 import type { IdentityRole } from "../identity/identity.constants";
 import { IdentityService } from "../identity/identity.service";
 import { createRecycleBinItem } from "../recycle-bin/recycle-bin.persistence";
+import { readableMediaAssetWhere } from "../media/media-access";
 import {
+  type MediaAssetSummary,
   type PlaceSummary,
+  toMediaAssetSummary,
   toPlaceSummary,
 } from "../memories/memory.presentation";
-import type { CreatePlaceDto, UpdatePlaceDto } from "./dto/place.dto";
+import type {
+  CreatePlaceDto,
+  UpdatePlaceDto,
+  UpdatePlaceStatusDto,
+} from "./dto/place.dto";
+import {
+  completePlaceState,
+  patchPlaceState,
+  resolvePlaceStateInput,
+  type PlaceStateSnapshot,
+} from "./place-state";
 
 const placeSelect = Prisma.validator<Prisma.PlaceSelect>()({
   id: true,
@@ -23,11 +44,66 @@ const placeSelect = Prisma.validator<Prisma.PlaceSelect>()({
   latitude: true,
   longitude: true,
   status: true,
+  historyState: true,
+  futureState: true,
   firstVisitedAt: true,
   createdAt: true,
   updatedAt: true,
   deletedAt: true,
 });
+
+const mapMediaSelect = Prisma.validator<Prisma.MediaAssetSelect>()({
+  id: true,
+  originalName: true,
+  mimeType: true,
+  size: true,
+  width: true,
+  height: true,
+  status: true,
+  createdAt: true,
+  deletedAt: true,
+});
+
+export type PlaceMapMemorySummary = {
+  id: string;
+  title: string;
+  happenedAt: string;
+  coverMedia: MediaAssetSummary | null;
+};
+
+export type PlaceMapWishSummary = {
+  id: string;
+  title: string;
+  status:
+    "IDEA" | "PLANNED" | "IN_PROGRESS" | "COMPLETED" | "CONVERTED_TO_MEMORY";
+  plannedFor: string | null;
+};
+
+export type PlaceMapPlanSummary = {
+  id: string;
+  title: string;
+  status: "DRAFT" | "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  startsAt: string | null;
+};
+
+export type PlaceMapItem = PlaceSummary & {
+  memories: PlaceMapMemorySummary[];
+  wishes: PlaceMapWishSummary[];
+  plans: PlaceMapPlanSummary[];
+};
+
+export type PlaceMapResponse = {
+  serverNow: string;
+  history: PlaceMapItem[];
+  future: PlaceMapItem[];
+  withoutCoordinates: PlaceMapItem[];
+};
+
+const ACTIVE_FUTURE_STATES = [
+  PlaceFutureState.WANT_TO_GO,
+  PlaceFutureState.PLANNED,
+  PlaceFutureState.DEPARTING,
+] as const;
 
 function parseOptionalInstant(
   value: string | null | undefined,
@@ -58,6 +134,8 @@ export class PlacesService {
     private readonly prisma: PrismaService,
     @Inject(IdentityService)
     private readonly identities: IdentityService,
+    @Inject(Clock)
+    private readonly clock: Clock,
   ) {}
 
   async list(role: IdentityRole): Promise<PlaceSummary[]> {
@@ -75,6 +153,33 @@ export class PlacesService {
     const latitude = dto.latitude ?? null;
     const longitude = dto.longitude ?? null;
     validateCoordinatePair(latitude, longitude);
+    const parsedFirstVisitedAt =
+      parseOptionalInstant(dto.firstVisitedAt) ?? null;
+    const usesNewDimensions =
+      dto.historyState !== undefined || dto.futureState !== undefined;
+    const initial: PlaceStateSnapshot = {
+      status: PlaceStatus.VISITED,
+      historyState: usesNewDimensions
+        ? PlaceHistoryState.UNVISITED
+        : PlaceHistoryState.VISITED,
+      futureState: PlaceFutureState.NONE,
+      firstVisitedAt: parsedFirstVisitedAt,
+    };
+    let state = resolvePlaceStateInput(initial, {
+      ...(dto.status === undefined ? {} : { status: dto.status }),
+      ...(dto.historyState === undefined
+        ? {}
+        : { historyState: dto.historyState }),
+      ...(dto.futureState === undefined
+        ? {}
+        : { futureState: dto.futureState }),
+    });
+    if (state.futureState === PlaceFutureState.COMPLETED) {
+      state = completePlaceState(
+        state,
+        parsedFirstVisitedAt ?? this.clock.now(),
+      );
+    }
     const place = await this.prisma.place.create({
       data: {
         coupleId: actor.couple.id,
@@ -83,8 +188,10 @@ export class PlacesService {
         address: dto.address === "" ? null : (dto.address ?? null),
         latitude,
         longitude,
-        ...(dto.status === undefined ? {} : { status: dto.status }),
-        firstVisitedAt: parseOptionalInstant(dto.firstVisitedAt) ?? null,
+        status: state.status,
+        historyState: state.historyState,
+        futureState: state.futureState,
+        firstVisitedAt: state.firstVisitedAt,
       },
       select: placeSelect,
     });
@@ -107,6 +214,10 @@ export class PlacesService {
         select: {
           latitude: true,
           longitude: true,
+          status: true,
+          historyState: true,
+          futureState: true,
+          firstVisitedAt: true,
         },
       });
       if (!existing) throw resourceNotFound();
@@ -119,6 +230,33 @@ export class PlacesService {
           ? (existing.longitude?.toNumber() ?? null)
           : dto.longitude;
       validateCoordinatePair(latitude, longitude);
+      const requestedFirstVisitedAt =
+        dto.firstVisitedAt === undefined
+          ? existing.firstVisitedAt
+          : dto.firstVisitedAt === null
+            ? null
+            : parseOptionalInstant(dto.firstVisitedAt)!;
+      const changesState =
+        dto.status !== undefined ||
+        dto.historyState !== undefined ||
+        dto.futureState !== undefined;
+      let state = changesState
+        ? resolvePlaceStateInput(
+            { ...existing, firstVisitedAt: requestedFirstVisitedAt },
+            {
+              ...(dto.status === undefined ? {} : { status: dto.status }),
+              ...(dto.historyState === undefined
+                ? {}
+                : { historyState: dto.historyState }),
+              ...(dto.futureState === undefined
+                ? {}
+                : { futureState: dto.futureState }),
+            },
+          )
+        : { ...existing, firstVisitedAt: requestedFirstVisitedAt };
+      if (changesState && state.futureState === PlaceFutureState.COMPLETED) {
+        state = completePlaceState(state, this.clock.now());
+      }
       const changed = await transaction.place.updateMany({
         where: {
           id: placeId,
@@ -133,15 +271,190 @@ export class PlacesService {
             : { address: dto.address === "" ? null : dto.address }),
           ...(dto.latitude === undefined ? {} : { latitude: dto.latitude }),
           ...(dto.longitude === undefined ? {} : { longitude: dto.longitude }),
-          ...(dto.status === undefined ? {} : { status: dto.status }),
-          ...(dto.firstVisitedAt === undefined
+          ...(changesState
+            ? {
+                status: state.status,
+                historyState: state.historyState,
+                futureState: state.futureState,
+              }
+            : {}),
+          ...(changesState || dto.firstVisitedAt !== undefined
+            ? { firstVisitedAt: state.firstVisitedAt }
+            : {}),
+          version: { increment: 1 },
+        },
+      });
+      if (changed.count !== 1) throw stateConflict();
+      const updated = await transaction.place.findUnique({
+        where: { id: placeId },
+        select: placeSelect,
+      });
+      if (!updated) throw resourceNotFound();
+      return toPlaceSummary(updated);
+    });
+  }
+
+  async map(role: IdentityRole): Promise<PlaceMapResponse> {
+    const actor = await this.identities.current(role);
+    const places = await this.prisma.place.findMany({
+      where: { coupleId: actor.couple.id, deletedAt: null },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+      select: {
+        ...placeSelect,
+        memories: {
+          where: {
+            deletedAt: null,
+            OR: [
+              {
+                status: {
+                  in: [MemoryStatus.PUBLISHED, MemoryStatus.ARCHIVED],
+                },
+              },
+              { status: MemoryStatus.DRAFT, createdById: actor.user.id },
+            ],
+          },
+          orderBy: [{ happenedAt: "desc" }, { id: "desc" }],
+          select: {
+            id: true,
+            title: true,
+            happenedAt: true,
+            coverMediaId: true,
+          },
+        },
+        wishes: {
+          where: { deletedAt: null },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            plannedFor: true,
+          },
+        },
+        plans: {
+          where: { deletedAt: null },
+          orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+          select: {
+            id: true,
+            title: true,
+            status: true,
+            startsAt: true,
+          },
+        },
+      },
+    });
+    const coverMediaIds = [
+      ...new Set(
+        places.flatMap((place) =>
+          place.memories.flatMap((memory) =>
+            memory.coverMediaId === null ? [] : [memory.coverMediaId],
+          ),
+        ),
+      ),
+    ];
+    const coverMedia =
+      coverMediaIds.length === 0
+        ? []
+        : await this.prisma.mediaAsset.findMany({
+            where: {
+              AND: [
+                readableMediaAssetWhere(actor.couple.id, actor.user.id),
+                { id: { in: coverMediaIds } },
+              ],
+            },
+            select: mapMediaSelect,
+          });
+    const mediaById = new Map(
+      coverMedia.map((asset) => [asset.id, toMediaAssetSummary(asset)]),
+    );
+    const items = places.map<PlaceMapItem>((place) => ({
+      ...toPlaceSummary(place),
+      memories: place.memories.map((memory) => ({
+        id: memory.id,
+        title: memory.title,
+        happenedAt: memory.happenedAt.toISOString(),
+        coverMedia:
+          memory.coverMediaId === null
+            ? null
+            : (mediaById.get(memory.coverMediaId) ?? null),
+      })),
+      wishes: place.wishes.map((wish) => ({
+        id: wish.id,
+        title: wish.title,
+        status: wish.status,
+        plannedFor: wish.plannedFor?.toISOString() ?? null,
+      })),
+      plans: place.plans.map((plan) => ({
+        id: plan.id,
+        title: plan.title,
+        status: plan.status,
+        startsAt: plan.startsAt?.toISOString() ?? null,
+      })),
+    }));
+    const withCoordinates = items.filter(
+      (place) => place.latitude !== null && place.longitude !== null,
+    );
+    return {
+      serverNow: this.clock.now().toISOString(),
+      history: withCoordinates.filter(
+        (place) => place.historyState !== PlaceHistoryState.UNVISITED,
+      ),
+      future: withCoordinates.filter((place) =>
+        ACTIVE_FUTURE_STATES.includes(
+          place.futureState as (typeof ACTIVE_FUTURE_STATES)[number],
+        ),
+      ),
+      withoutCoordinates: items.filter(
+        (place) => place.latitude === null || place.longitude === null,
+      ),
+    };
+  }
+
+  async updateStatus(
+    role: IdentityRole,
+    placeId: string,
+    dto: UpdatePlaceStatusDto,
+  ): Promise<PlaceSummary> {
+    if (dto.historyState === undefined && dto.futureState === undefined) {
+      throw validationFailed("At least one place status field must be updated");
+    }
+    const actor = await this.identities.current(role);
+    return this.serializable(async (transaction) => {
+      const existing = await transaction.place.findFirst({
+        where: { id: placeId, coupleId: actor.couple.id, deletedAt: null },
+        select: {
+          version: true,
+          status: true,
+          historyState: true,
+          futureState: true,
+          firstVisitedAt: true,
+        },
+      });
+      if (!existing) throw resourceNotFound();
+      const next = patchPlaceState(
+        existing,
+        {
+          ...(dto.historyState === undefined
             ? {}
-            : {
-                firstVisitedAt:
-                  dto.firstVisitedAt === null
-                    ? null
-                    : parseOptionalInstant(dto.firstVisitedAt)!,
-              }),
+            : { historyState: dto.historyState }),
+          ...(dto.futureState === undefined
+            ? {}
+            : { futureState: dto.futureState }),
+        },
+        this.clock.now(),
+      );
+      const changed = await transaction.place.updateMany({
+        where: {
+          id: placeId,
+          coupleId: actor.couple.id,
+          deletedAt: null,
+          version: dto.version,
+        },
+        data: {
+          status: next.status,
+          historyState: next.historyState,
+          futureState: next.futureState,
+          firstVisitedAt: next.firstVisitedAt,
           version: { increment: 1 },
         },
       });
