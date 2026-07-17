@@ -299,6 +299,12 @@ LATEST_MIGRATION="$(target_compose exec -T postgres psql --username "$DATABASE_U
   ORDER BY finished_at DESC
   LIMIT 1;
 ')"
+POSTGRES_VERSION_NUM="$(target_compose exec -T postgres psql --username "$DATABASE_USER" --dbname "$DATABASE_NAME" --tuples-only --no-align --set ON_ERROR_STOP=1 --command 'SHOW server_version_num;')"
+POSTGRES_MAJOR=$((POSTGRES_VERSION_NUM / 10000))
+[[ "$POSTGRES_MAJOR" -eq 16 ]] || {
+  printf 'restore drill must exercise the PostgreSQL 16 production baseline\n' >&2
+  exit 1
+}
 COUNTS_JSON="$(printf '%s\n' "$TARGET_COUNTS" | jq -Rn '[inputs | select(length > 0) | split("=") | {(.[0]): (.[1] | tonumber)}] | add')"
 EVIDENCE_FILE="$REPO_ROOT/infra/restore-drills/our-tomorrow-offline-$RUN_ID.json"
 jq -n \
@@ -309,6 +315,7 @@ jq -n \
   --arg targetProject "$TARGET_PROJECT" \
   --arg dumpSha256 "$DUMP_SHA256" \
   --arg latestMigration "$LATEST_MIGRATION" \
+  --argjson exercisedPostgresMajor "$POSTGRES_MAJOR" \
   --argjson counts "$COUNTS_JSON" \
   --argjson decodedMediaFiles "$DECODED_FILES" \
   --slurpfile fixture "$FIXTURE_ASSERTIONS" \
@@ -331,9 +338,9 @@ jq -n \
       mediaTransport: "isolated-private-directory-copy"
     },
     compatibility: {
-      exercisedPostgresMajor: 15,
+      exercisedPostgresMajor: $exercisedPostgresMajor,
       productionBaselinePostgresMajor: 16,
-      limitation: "Docker registry failure prevented the production-image/Restic path; a PostgreSQL 16 + Restic drill remains required before production."
+      limitation: null
     },
     latestMigration: $latestMigration,
     counts: $counts,
