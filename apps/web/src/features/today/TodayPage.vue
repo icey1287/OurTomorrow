@@ -45,6 +45,53 @@ const firstInitial = computed(() => firstName.value.trim().slice(0, 1) || "甲")
 const secondInitial = computed(
   () => secondName.value.trim().slice(0, 1) || "乙",
 );
+const partner = computed(() =>
+  members.value.find((member) => member.role !== identity.role),
+);
+const partnerName = computed(() => memberName(partner.value, "另一半"));
+
+const statusKindLabels = {
+  BUSY: "忙碌中",
+  COMMUTING: "在路上",
+  RESTING: "休息中",
+  TIRED: "有点累",
+  HAPPY: "心情很好",
+  NEED_HUG: "需要抱抱",
+  TALK_LATER: "晚点聊聊",
+  HOME: "已经到家",
+  MISS_YOU: "正在想你",
+  CUSTOM: "此刻",
+} as const;
+
+const partnerStatusLabel = computed(() => {
+  const status = today.value?.partnerStatus;
+  return status ? statusKindLabels[status.kind] : "今天还没有设置状态";
+});
+
+const partnerStatusUntil = computed(() => {
+  const status = today.value?.partnerStatus;
+  const timezone = relationship.value?.timezone;
+  if (!status || !timezone) return "暂无状态";
+  return `持续到 ${new Intl.DateTimeFormat("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: timezone,
+  }).format(new Date(status.expiresAt))}`;
+});
+
+const diarySummary = computed(() => {
+  const diary = today.value?.dailyEntryStatus;
+  if (!diary) return "今天的问题正在准备。";
+  if (diary.status === "REVEALED") return "两份答案已经同时揭晓。";
+  if (diary.status === "WAITING_FOR_PARTNER") {
+    return "你的答案已经收好，等待另一份答案。";
+  }
+  if (diary.partner.submitted) {
+    return "对方的答案已经收好，等你写下今天。";
+  }
+  if (diary.mine?.status === "EDITING") return "你的草稿还在，随时可以继续。";
+  return "分别回答，在两个人都提交前互不可见。";
+});
 
 const localDateLabel = computed(() => {
   const value = today.value?.localDate;
@@ -199,17 +246,29 @@ watch(
               /></span>
               <span
                 class="rounded-full bg-white/70 px-3 py-1 text-xs text-ink-400 dark:bg-white/[0.06] dark:text-ink-500"
-                >暂无状态</span
+                >{{ partnerStatusUntil }}</span
               >
             </div>
-            <p class="eyebrow mt-6">另一半的此刻</p>
+            <p class="eyebrow mt-6">{{ partnerName }}的此刻</p>
             <h2
               class="mt-2 font-display text-2xl font-semibold text-ink-950 dark:text-white"
             >
-              今天还没有设置状态
+              {{ partnerStatusLabel }}
             </h2>
             <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              此刻状态尚无内容。后续内容只会显示服务器判定仍然有效的状态。
+              <template v-if="today.partnerStatus">
+                {{
+                  today.partnerStatus.message ||
+                  today.partnerStatus.scene ||
+                  "对方轻轻留下了现在的状态。"
+                }}
+                <span v-if="today.partnerStatus.mood">
+                  · 心情：{{ today.partnerStatus.mood }}</span
+                >
+              </template>
+              <template v-else>
+                这里只显示服务器判定仍然有效的状态，不会挂着几天前的近况。
+              </template>
             </p>
           </div>
           <RouterLink
@@ -345,24 +404,64 @@ watch(
             </SurfaceCard>
           </RouterLink>
 
-          <SurfaceCard v-else>
-            <div class="flex items-start gap-4">
-              <span
-                class="grid size-11 shrink-0 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
-                ><MessageCircleHeart class="size-5"
-              /></span>
-              <div class="min-w-0 flex-1">
-                <h3 class="font-semibold text-ink-950 dark:text-white">
-                  今日交换日记
-                </h3>
-                <p
-                  class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400"
-                >
-                  今天还没有可展示的交换日记状态。
-                </p>
+          <RouterLink
+            v-if="today.latestNote && !today.latestNote.isPlaceholder"
+            to="/daily?focus=notes"
+            class="group block"
+          >
+            <SurfaceCard tone="present" interactive class="h-full">
+              <div class="flex items-start gap-4">
+                <span
+                  class="grid size-11 shrink-0 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
+                  ><StickyNote class="size-5"
+                /></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="eyebrow text-present-700 dark:text-present-300">
+                      对方刚刚留下的纸条
+                    </p>
+                    <ArrowUpRight
+                      class="size-4 shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
+                    />
+                  </div>
+                  <p
+                    class="mt-2 line-clamp-3 text-sm leading-6 text-ink-600 dark:text-ink-300"
+                  >
+                    {{ today.latestNote.content }}
+                  </p>
+                </div>
               </div>
-            </div>
-          </SurfaceCard>
+            </SurfaceCard>
+          </RouterLink>
+
+          <RouterLink to="/daily?focus=diary" class="group block">
+            <SurfaceCard tone="present" interactive class="h-full">
+              <div class="flex items-start gap-4">
+                <span
+                  class="grid size-11 shrink-0 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
+                  ><MessageCircleHeart class="size-5"
+                /></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-3">
+                    <h3 class="font-semibold text-ink-950 dark:text-white">
+                      今日交换日记
+                    </h3>
+                    <ArrowUpRight
+                      class="size-4 shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
+                    />
+                  </div>
+                  <p class="mt-2 font-medium text-ink-700 dark:text-ink-200">
+                    {{ today.dailyEntryStatus.prompt.text }}
+                  </p>
+                  <p
+                    class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400"
+                  >
+                    {{ diarySummary }}
+                  </p>
+                </div>
+              </div>
+            </SurfaceCard>
+          </RouterLink>
 
           <SurfaceCard>
             <div class="flex items-start gap-4">

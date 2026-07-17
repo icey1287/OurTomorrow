@@ -121,7 +121,9 @@ ETag: "memory:m_123:7"
 
 ## 3. 公共模型
 
-### 3.1 IdentitySession
+### 3.1 IdentityResponse
+
+这是角色选择后的当前上下文快照，不是登录 Session，也不会在服务端创建会话：
 
 ```json
 {
@@ -183,10 +185,10 @@ type SourceReference = {
 
 ## 4. 阶段 0：平台端点
 
-| 方法 | 路径            | 认证 | 响应                      | 说明                                    |
-| ---- | --------------- | ---- | ------------------------- | --------------------------------------- |
-| GET  | `/health/live`  | 否   | `200 LiveHealth`          | 仅进程存活，不访问依赖                  |
-| GET  | `/health/ready` | 否   | `200 ReadyHealth` / `503` | 检查 PostgreSQL；依赖异常时必须是非 2xx |
+| 方法 | 路径            | 角色 header | 响应                      | 说明                                    |
+| ---- | --------------- | ----------- | ------------------------- | --------------------------------------- |
+| GET  | `/health/live`  | 不需要      | `200 LiveHealth`          | 仅进程存活，不访问依赖                  |
+| GET  | `/health/ready` | 不需要      | `200 ReadyHealth` / `503` | 检查 PostgreSQL；依赖异常时必须是非 2xx |
 
 ```ts
 type LiveHealth = {
@@ -209,10 +211,10 @@ type ReadyHealth = {
 
 ### 5.1 身份选择
 
-| 方法 | 路径               | 请求/header                                              | 响应                  |
-| ---- | ------------------ | -------------------------------------------------------- | --------------------- |
-| POST | `/identity/select` | `{ "role": "boy" }` 或 `{ "role": "girl" }`；无需 header | `200 IdentitySession` |
-| GET  | `/identity/me`     | `X-Our-Tomorrow-Role`                                    | `200 IdentitySession` |
+| 方法 | 路径               | 请求/header                                              | 响应                   |
+| ---- | ------------------ | -------------------------------------------------------- | ---------------------- |
+| POST | `/identity/select` | `{ "role": "boy" }` 或 `{ "role": "girl" }`；无需 header | `200 IdentityResponse` |
+| GET  | `/identity/me`     | `X-Our-Tomorrow-Role`                                    | `200 IdentityResponse` |
 
 `POST /identity/select` 幂等创建或修复以下固定记录：
 
@@ -258,25 +260,33 @@ type ReadyHealth = {
 
 ```json
 {
+  "serverNow": "2026-07-16T08:30:00.000Z",
+  "localDate": "2026-07-16",
+  "greeting": "下午好，慢慢走向共同的明天。",
   "relationship": {
     "startDate": "2023-09-17",
     "daysTogether": 1035,
-    "today": "2026-07-16",
     "timezone": "Asia/Shanghai",
     "signature": "今天也一起认真生活。",
     "members": []
   },
   "partnerStatus": null,
   "latestNote": null,
-  "dailyEntryStatus": null,
+  "dailyEntryStatus": {
+    "date": "2026-07-16",
+    "timezone": "Asia/Shanghai",
+    "prompt": { "id": "prm_...", "text": "今天什么时候想起了对方？" },
+    "status": "DRAFT",
+    "mine": null,
+    "partner": { "submitted": false }
+  },
   "nextAnniversary": null,
   "randomMemory": null,
-  "activeWish": null,
-  "generatedAt": "2026-07-16T08:30:00.000Z"
+  "activeWish": null
 }
 ```
 
-`daysTogether` 与 `today` 由服务端按情侣空间时区计算。聚合端点不返回完整回忆正文、胶囊正文或未揭晓日记答案。
+`daysTogether` 与 `localDate` 由服务端按情侣空间时区计算。聚合端点不返回完整回忆正文、胶囊正文或未揭晓日记答案。
 
 ## 7. 阶段 2：记录
 
@@ -337,8 +347,8 @@ type ReadyHealth = {
 | POST   | `/uploads/presign`     | 2    | 创建短时上传意图；请求声明文件名、大小和 MIME                |
 | PUT    | `/uploads/:id/content` | 2    | 同域上传原始二进制；仅创建意图的角色可在有效期内写入一次     |
 | POST   | `/uploads/complete`    | 2    | 校验实际对象、重编码、去 EXIF、生成缩略图并登记 `MediaAsset` |
-| GET    | `/media/:id`           | 2    | 鉴权后流式读取或 302 到短时签名 URL                          |
-| GET    | `/media/:id/thumbnail` | 2    | 鉴权缩略图                                                   |
+| GET    | `/media/:id`           | 2    | 校验显式角色、空间和可见性后流式读取或 302 到短时签名 URL    |
+| GET    | `/media/:id/thumbnail` | 2    | 校验显式角色、空间和可见性后读取缩略图                       |
 | DELETE | `/media/:id`           | 2    | 标记删除；仍被内容引用时返回冲突或只解除指定关系             |
 
 `POST /uploads/presign` 返回 `{ uploadId, uploadUrl, method: "PUT", expiresAt }`；`POST /uploads/complete` 接受 `{ uploadId }` 并要求 `Idempotency-Key`。客户端声明 MIME 只用于早期提示，完成端点必须验证真实格式、像素、大小和解码完整性。响应只返回 `{ id, originalName, mimeType, size, width, height, url, thumbnailUrl, createdAt }`，不返回 `storageKey`。
@@ -362,16 +372,19 @@ type ReadyHealth = {
 
 ### 9.2 便利贴
 
-| 方法   | 路径                     | 说明                                                             |
-| ------ | ------------------------ | ---------------------------------------------------------------- |
-| GET    | `/notes`                 | 可按 `status`、`type`、`before` 查询；接收方看不到计划显示前正文 |
-| POST   | `/notes`                 | 创建草稿、立即显示或定时显示便利贴                               |
-| GET    | `/notes/:id`             | 按作者、接收方和状态裁剪字段                                     |
-| PATCH  | `/notes/:id`             | 仅作者且未到不可编辑状态；要求版本                               |
-| DELETE | `/notes/:id`             | 软删除/归档                                                      |
-| POST   | `/notes/:id/mark-viewed` | 接收方幂等标记已查看                                             |
-| PUT    | `/notes/:id/reaction`    | 接收方设置一个表情回应                                           |
-| POST   | `/notes/:id/convert`     | 转换到 `WISH`、`ANNIVERSARY` 或 `MEMORY`                         |
+| 方法   | 路径                     | 说明                                                                                 |
+| ------ | ------------------------ | ------------------------------------------------------------------------------------ |
+| GET    | `/notes`                 | 可按 `scope=all/sent/received` 与 `includeArchived` 查询；接收方看不到计划显示前正文 |
+| POST   | `/notes`                 | 创建草稿、立即显示或定时显示便利贴                                                   |
+| GET    | `/notes/:id`             | 按作者、接收方和状态裁剪字段                                                         |
+| PATCH  | `/notes/:id`             | 仅作者且未到不可编辑状态；要求版本                                                   |
+| DELETE | `/notes/:id`             | 软删除/归档                                                                          |
+| POST   | `/notes/:id/mark-viewed` | 接收方幂等标记已查看                                                                 |
+| PUT    | `/notes/:id/reaction`    | 接收方设置一个表情回应                                                               |
+| DELETE | `/notes/:id/reaction`    | 移除当前角色的指定回应                                                               |
+| PUT    | `/notes/order`           | 用各条 `version` 原子更新排列与置顶                                                  |
+
+`POST /notes/:id/convert` 是阶段 4 的跨时间转换目标，阶段 3 尚未暴露该端点；Web 不得提前把它显示为可用功能。
 
 计划显示前，接收方列表项最多返回 `{ id, status: "SCHEDULED", showAt }`；不能返回正文、长度、类型、图标或附件数量。
 
@@ -402,17 +415,21 @@ type ReadyHealth = {
 
 ### 9.4 心情、通知和轻互动
 
-| 方法    | 路径                      | 阶段 | 说明                             |
-| ------- | ------------------------- | ---- | -------------------------------- |
-| PUT     | `/moods/today`            | 3    | 当前用户当天 upsert 心情         |
-| GET     | `/moods?month=2026-07`    | 3    | 只返回有权查看的趋势和条目       |
-| GET     | `/notifications`          | 3    | 站内通知分页                     |
-| POST    | `/notifications/:id/read` | 3    | 幂等已读                         |
-| POST    | `/touch-events`           | 6    | 抱抱/想你等低频信号，受冷却限制  |
-| GET/PUT | `/daily-rituals/today`    | 6    | 今日一件小事                     |
-| POST    | `/calm-letters`           | 6    | 创建冷静信箱内容和服务端解锁规则 |
+| 方法    | 路径                           | 阶段 | 说明                             |
+| ------- | ------------------------------ | ---- | -------------------------------- |
+| PUT     | `/moods/today`                 | 3    | 当前用户当天 upsert 心情         |
+| DELETE  | `/moods/today?version=...`     | 3    | 删除当前用户当天心情             |
+| GET     | `/moods?month=2026-07`         | 3    | 只返回有权查看的趋势和条目       |
+| GET     | `/notifications`               | 3    | 私密站内通知游标分页             |
+| GET     | `/notifications/unread-count`  | 3    | 当前角色未读数                   |
+| POST    | `/notifications/:id/mark-read` | 3    | 幂等标记单条已读                 |
+| POST    | `/notifications/mark-all-read` | 3    | 标记当前角色全部通知已读         |
+| POST    | `/notifications/:id/archive`   | 3    | 归档当前角色通知                 |
+| POST    | `/touch-events`                | 6    | 抱抱/想你等低频信号，受冷却限制  |
+| GET/PUT | `/daily-rituals/today`         | 6    | 今日一件小事                     |
+| POST    | `/calm-letters`                | 6    | 创建冷静信箱内容和服务端解锁规则 |
 
-浏览器通知正文默认只返回“你收到了一条来自明天的新消息”一类隐私摘要；完整内容需解锁应用后通过受认证 API 获取。
+浏览器通知正文默认只返回“你收到了一条来自明天的新消息”一类隐私摘要；完整内容需进入应用后通过显式角色、空间与内容可见性检查获取。
 
 ## 10. 阶段 4：明天
 
@@ -500,15 +517,15 @@ type ReadyHealth = {
 
 ### 11.2 数据导出
 
-| 方法   | 路径                    | 说明                                           |
-| ------ | ----------------------- | ---------------------------------------------- |
-| GET    | `/exports`              | 当前用户可见的导出任务列表                     |
-| POST   | `/exports`              | 创建完整空间导出任务；需要幂等键和近期重新认证 |
-| GET    | `/exports/:id`          | 状态、校验和、过期时间；不含永久下载 URL       |
-| POST   | `/exports/:id/download` | 生成一次性/短时下载授权                        |
-| DELETE | `/exports/:id`          | 提前删除导出包                                 |
+| 方法   | 路径                    | 说明                                                               |
+| ------ | ----------------------- | ------------------------------------------------------------------ |
+| GET    | `/exports`              | 当前用户可见的导出任务列表                                         |
+| POST   | `/exports`              | 创建完整空间导出任务；需要幂等键和当前角色再次确认（不是重新认证） |
+| GET    | `/exports/:id`          | 状态、校验和、过期时间；不含永久下载 URL                           |
+| POST   | `/exports/:id/download` | 生成一次性/短时下载授权                                            |
+| DELETE | `/exports/:id`          | 提前删除导出包                                                     |
 
-状态为 `QUEUED → RUNNING → READY/FAILED → EXPIRED`。导出包含版本化 `manifest.json`、可读 JSON 和媒体，不包含内部存储键、部署/备份秘密或原始审计敏感信息。固定角色值不是秘密，但无需作为独立认证数据导出。
+状态为 `QUEUED → RUNNING → READY/FAILED → EXPIRED`。导出包含版本化 `manifest.json`、可读 JSON 和媒体，不包含内部存储键、部署/备份秘密或原始审计敏感信息。固定角色值不是秘密，也无需作为独立凭据数据导出。
 
 ### 11.3 运维状态
 
@@ -533,26 +550,20 @@ type ReadyHealth = {
 
 ## 13. WebSocket 契约
 
-阶段 3 开始在同域 `/socket` 建立连接并校验 Origin。WebSocket 必须显式携带 `boy` 或 `girl` 角色（具体握手载体随阶段 3 契约固定），服务端再映射到固定成员和共同空间，不接受客户端声明 `coupleId`。该角色值仍不是认证秘密。
+阶段 3 开始用 Socket.IO 在同域 `/socket` 建立 WebSocket-only 连接并校验 Origin。握手 `auth.role` 必须是 `boy` 或 `girl`，服务端再映射到固定成员和共同空间，不接受客户端声明或订阅 `coupleId`。该角色值仍不是秘密或凭据。
 
 事件载荷保持最小：
 
 ```ts
 type RealtimeEvent = {
   id: string;
-  type:
-    | "notification.created"
-    | "status.changed"
-    | "note.visible"
-    | "daily-entry.revealed"
-    | "wish.changed"
-    | "capsule.unlocked";
+  type: string; // 例如 current_status.updated、note.visible、daily-entry.revealed
   resourceId?: string;
   occurredAt: string;
 };
 ```
 
-事件不包含便利贴正文、日记答案、胶囊正文、媒体 URL或对方未公开的心情说明。客户端收到事件后通过 REST 鉴权读取。断线重连以通知/实体列表为准，不要求 WebSocket 回放成为唯一恢复机制。
+事件不包含便利贴正文、日记答案、胶囊正文、媒体 URL 或对方未公开的心情说明。客户端收到事件后通过 REST 重新执行显式角色、空间和内容可见性检查。断线重连以通知/实体列表为准，不要求 WebSocket 回放成为唯一恢复机制。
 
 ## 14. OpenAPI 与客户端生成
 

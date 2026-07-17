@@ -18,6 +18,11 @@ export default defineConfig({
         target: process.env.VITE_DEV_API_TARGET ?? "http://localhost:3000",
         changeOrigin: true,
       },
+      "/socket": {
+        target: process.env.VITE_DEV_API_TARGET ?? "http://localhost:3000",
+        changeOrigin: true,
+        ws: true,
+      },
     },
   },
   preview: {

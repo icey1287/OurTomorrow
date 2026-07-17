@@ -111,21 +111,22 @@ Compose 额外需要 PostgreSQL、Restic/S3、端口和镜像 tag 变量，见 `
 
 ## 4. 常用命令
 
-| 命令                | 作用                                                       |
-| ------------------- | ---------------------------------------------------------- |
-| `pnpm dev`          | 并行启动 Web 与 API 开发进程                               |
-| `pnpm build`        | 构建所有 workspace                                         |
-| `pnpm test`         | 运行各 workspace 测试                                      |
-| `pnpm test:unit`    | 单元测试基线                                               |
-| `pnpm test:e2e`     | Playwright 双角色端到端测试                                |
-| `pnpm lint`         | 当前以严格 TypeScript/Vue 检查为基础                       |
-| `pnpm typecheck`    | 全 workspace 类型检查                                      |
-| `pnpm format`       | Prettier 写入格式                                          |
-| `pnpm format:check` | CI 格式验证                                                |
-| `pnpm db:generate`  | 生成 Prisma Client                                         |
-| `pnpm db:migrate`   | 本地创建/应用 Prisma migration                             |
-| `pnpm db:seed`      | 可选开发夹具；固定身份本身由 `/identity/select` 幂等初始化 |
-| `pnpm db:studio`    | 本地数据库检查；禁止直接改生产                             |
+| 命令                | 作用                                                        |
+| ------------------- | ----------------------------------------------------------- |
+| `pnpm dev`          | 并行启动 Web 与 API 开发进程                                |
+| `pnpm build`        | 构建所有 workspace                                          |
+| `pnpm test`         | 运行各 workspace 测试                                       |
+| `pnpm test:unit`    | 单元测试基线                                                |
+| `pnpm test:openapi` | 正式构建 API，启动临时进程并验证 OpenAPI JSON 与阶段 3 路径 |
+| `pnpm test:e2e`     | Playwright 双角色端到端测试                                 |
+| `pnpm lint`         | 当前以严格 TypeScript/Vue 检查为基础                        |
+| `pnpm typecheck`    | 全 workspace 类型检查                                       |
+| `pnpm format`       | Prettier 写入格式                                           |
+| `pnpm format:check` | CI 格式验证                                                 |
+| `pnpm db:generate`  | 生成 Prisma Client                                          |
+| `pnpm db:migrate`   | 本地创建/应用 Prisma migration                              |
+| `pnpm db:seed`      | 可选开发夹具；固定身份本身由 `/identity/select` 幂等初始化  |
+| `pnpm db:studio`    | 本地数据库检查；禁止直接改生产                              |
 
 提交前最小门槛：
 
@@ -410,6 +411,22 @@ Playwright 使用两个独立浏览器 context，分别选择“我是男生”�
 
 E2E 同时覆盖 320 px 移动视口、桌面、深色、键盘关键路径和减少动效。不要只依赖截图；对权限和状态查询 API/DOM 语义断言。
 
+阶段 3 起，涉及日记、心情和定时任务的 Playwright 用例只允许重置显式指定的隔离数据库。数据库名必须包含 `test` 或 `e2e`，并同时设置 `E2E_RESET_DATABASE=true`：
+
+```bash
+docker compose -p our-tomorrow-integration-test \
+  -f apps/api/test/compose.postgres.yaml up -d
+
+DATABASE_URL='postgresql://our_tomorrow:integration-test-password@127.0.0.1:55432/our_tomorrow_integration_test?schema=public' \
+  pnpm --filter @our-tomorrow/api exec prisma migrate deploy --schema prisma/schema.prisma
+
+E2E_DATABASE_URL='postgresql://our_tomorrow:integration-test-password@127.0.0.1:55432/our_tomorrow_integration_test?schema=public' \
+E2E_RESET_DATABASE=true \
+  pnpm test:e2e
+```
+
+设置 `E2E_DATABASE_URL` 时 Playwright 不复用已经运行的本地 API/Web，而是在独立端口启动 API、Web 和持久 worker，避免误连其他服务或普通开发数据库。
+
 ### 14.4 恢复测试
 
 备份和恢复是产品测试，不是可选运维。按 `restore-runbook.md` 恢复数据库/媒体，分别选择 boy 和 girl 并确认进入同一空间后抽查内容，记录实际 RPO/RTO。
@@ -423,7 +440,7 @@ E2E 同时覆盖 320 px 移动视口、桌面、深色、键盘关键路径和�
 3. PostgreSQL 16 上生成 Prisma Client、应用 migrations 和 API 测试；
 4. Compose model、Caddy 配置和 API/Web/backup 镜像构建。
 
-后续阶段加入：OpenAPI drift、角色/内容策略集成、双角色 Playwright、媒体恶意样本、依赖/镜像扫描和恢复演练状态检查。CI 日志不得输出 `.env`、数据库 URL 密码、测试日记正文、媒体或导出包。
+当前 CI 在 workspace build 后运行 `pnpm test:openapi`，用正式构建产物启动 API 并读取 `/api/v1/openapi.json`，防止装饰器元数据、Swagger 初始化或阶段 3 路径回归。后续阶段继续加入生成客户端 drift、双角色 Playwright、媒体恶意样本、依赖/镜像扫描和恢复演练状态检查。CI 日志不得输出 `.env`、数据库 URL 密码、测试日记正文、媒体或导出包。
 
 ## 16. Code review 清单
 

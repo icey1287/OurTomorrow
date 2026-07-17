@@ -20,13 +20,13 @@ export class TodayResponseDto {
   relationship!: TodayRelationshipDto;
 
   @ApiProperty({ nullable: true, type: Object })
-  partnerStatus!: null;
+  partnerStatus!: object | null;
 
   @ApiProperty({ nullable: true, type: Object })
-  latestNote!: null;
+  latestNote!: object | null;
 
-  @ApiProperty({ nullable: true, type: Object })
-  dailyEntryStatus!: null;
+  @ApiProperty({ type: Object })
+  dailyEntryStatus!: object;
 
   @ApiProperty({ nullable: true, type: Object })
   nextAnniversary!: null;

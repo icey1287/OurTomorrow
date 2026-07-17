@@ -266,6 +266,8 @@ enum ScheduledEventStatus {
 
 enum OutboxEventStatus {
   PENDING
+  RUNNING
+  RETRYING
   PUBLISHED
   FAILED
 }
@@ -421,6 +423,7 @@ model Notification {
 model ScheduledEvent {
   id          String               @id @default(uuid()) @db.Uuid
   coupleId    String?              @map("couple_id") @db.Uuid
+  dedupeKey   String?              @unique @map("dedupe_key") @db.VarChar(180)
   type        ScheduledEventType
   payload     Json                 @default("{}")
   runAt       DateTime             @map("run_at") @db.Timestamptz(3)
@@ -428,6 +431,7 @@ model ScheduledEvent {
   attempts    Int                  @default(0)
   maxAttempts Int                  @default(5) @map("max_attempts")
   lockedAt    DateTime?            @map("locked_at") @db.Timestamptz(3)
+  lockedUntil DateTime?            @map("locked_until") @db.Timestamptz(3)
   lockedBy    String?              @map("locked_by") @db.VarChar(120)
   lastError   String?              @map("last_error") @db.Text
   createdAt   DateTime             @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -442,13 +446,18 @@ model ScheduledEvent {
 model OutboxEvent {
   id            String            @id @default(uuid()) @db.Uuid
   coupleId      String?           @map("couple_id") @db.Uuid
+  dedupeKey     String?           @unique @map("dedupe_key") @db.VarChar(180)
   aggregateType String            @map("aggregate_type") @db.VarChar(80)
   aggregateId   String            @map("aggregate_id") @db.Uuid
   eventType     String            @map("event_type") @db.VarChar(120)
   payload       Json              @default("{}")
   status        OutboxEventStatus @default(PENDING)
   attempts      Int               @default(0)
+  maxAttempts   Int               @default(5) @map("max_attempts")
   availableAt   DateTime          @default(now()) @map("available_at") @db.Timestamptz(3)
+  lockedAt      DateTime?         @map("locked_at") @db.Timestamptz(3)
+  lockedUntil   DateTime?         @map("locked_until") @db.Timestamptz(3)
+  lockedBy      String?           @map("locked_by") @db.VarChar(120)
   publishedAt   DateTime?         @map("published_at") @db.Timestamptz(3)
   lastError     String?           @map("last_error") @db.Text
   createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -456,6 +465,7 @@ model OutboxEvent {
 
   @@index([status, availableAt])
   @@index([aggregateType, aggregateId])
+  @@index([coupleId, publishedAt, id])
   @@map("outbox_events")
 }
 
@@ -832,6 +842,7 @@ model Note {
   isPinned             Boolean        @default(false) @map("is_pinned")
   keepAfterViewed      Boolean        @default(true) @map("keep_after_viewed")
   showAt               DateTime?      @map("show_at") @db.Timestamptz(3)
+  visibleAt            DateTime?      @map("visible_at") @db.Timestamptz(3)
   expiresAt            DateTime?      @map("expires_at") @db.Timestamptz(3)
   viewedAt             DateTime?      @map("viewed_at") @db.Timestamptz(3)
   archivedAt           DateTime?      @map("archived_at") @db.Timestamptz(3)

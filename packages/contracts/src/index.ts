@@ -270,14 +270,266 @@ export interface CompleteUploadRequest {
   uploadId: string;
 }
 
+export type CurrentStatusKind =
+  | "BUSY"
+  | "COMMUTING"
+  | "RESTING"
+  | "TIRED"
+  | "HAPPY"
+  | "NEED_HUG"
+  | "TALK_LATER"
+  | "HOME"
+  | "MISS_YOU"
+  | "CUSTOM";
+
+export interface CurrentStatusSummary {
+  id: string;
+  version: number;
+  author: UserSummary;
+  kind: CurrentStatusKind;
+  message: string | null;
+  mood: string | null;
+  scene: string | null;
+  needsResponse: boolean;
+  startsAt: string;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CurrentStatusesResponse {
+  serverNow: string;
+  mine: CurrentStatusSummary | null;
+  partner: CurrentStatusSummary | null;
+}
+
+export interface UpsertCurrentStatusRequest {
+  kind: CurrentStatusKind;
+  message?: string | null;
+  mood?: string | null;
+  scene?: string | null;
+  needsResponse?: boolean;
+  expiresAt: string;
+  version?: number;
+}
+
+export type NoteType =
+  | "LOVE"
+  | "REMINDER"
+  | "THANKS"
+  | "APOLOGY"
+  | "TALK_LATER"
+  | "DO_TOGETHER"
+  | "SURPRISE";
+
+export type NoteStatus =
+  "DRAFT" | "SCHEDULED" | "VISIBLE" | "VIEWED" | "ARCHIVED" | "EXPIRED";
+
+export interface ScheduledNotePlaceholder {
+  id: string;
+  status: "SCHEDULED";
+  author: UserSummary;
+  showAt: string;
+  isPlaceholder: true;
+}
+
+export interface VisibleNoteView {
+  id: string;
+  version: number;
+  status: NoteStatus;
+  author: UserSummary;
+  recipient: UserSummary;
+  type: NoteType;
+  content: string;
+  color: string | null;
+  icon: string | null;
+  position: number;
+  isPinned: boolean;
+  keepAfterViewed: boolean;
+  showAt: string | null;
+  visibleAt: string | null;
+  expiresAt: string | null;
+  viewedAt: string | null;
+  archivedAt: string | null;
+  sourceStatusId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  isPlaceholder: false;
+  canEdit: boolean;
+  canDelete: boolean;
+  reactions: ReactionSummary[];
+}
+
+export type NoteView = ScheduledNotePlaceholder | VisibleNoteView;
+
+export interface NoteListResponse {
+  serverNow: string;
+  items: NoteView[];
+}
+
+export interface CreateNoteRequest {
+  type: NoteType;
+  content: string;
+  color?: string | null;
+  icon?: string | null;
+  isPinned?: boolean;
+  keepAfterViewed?: boolean;
+  showAt?: string | null;
+  expiresAt?: string | null;
+  publish?: boolean;
+}
+
+export interface UpdateNoteRequest extends Partial<CreateNoteRequest> {
+  version: number;
+}
+
+export interface ReorderNotesRequest {
+  items: Array<{
+    id: string;
+    version: number;
+    position: number;
+    isPinned?: boolean;
+  }>;
+}
+
+export interface NoteReactionRequest {
+  emoji: string;
+}
+
+export type DailyEntryStatus =
+  | "DRAFT"
+  | "EDITING"
+  | "SUBMITTED"
+  | "WAITING_FOR_PARTNER"
+  | "BOTH_SUBMITTED"
+  | "REVEALED";
+
+export interface DailyPromptSummary {
+  id: string;
+  text: string;
+}
+
+export interface DailyEntryMineView {
+  version: number;
+  status: DailyEntryStatus;
+  answer: string;
+  postscript: string | null;
+  submittedAt: string | null;
+  revealedAt: string | null;
+}
+
+export type DailyEntryPartnerState =
+  | { submitted: boolean }
+  | {
+      submitted: true;
+      answer: string;
+      postscript: string | null;
+      submittedAt: string;
+      revealedAt: string;
+    };
+
+export interface DailyEntryTodayResponse {
+  date: string;
+  timezone: string;
+  prompt: DailyPromptSummary;
+  status: DailyEntryStatus;
+  mine: DailyEntryMineView | null;
+  partner: DailyEntryPartnerState;
+}
+
+export interface SaveDailyEntryRequest {
+  answer: string;
+  version?: number;
+}
+
+export interface SubmitDailyEntryRequest {
+  version: number;
+}
+
+export interface UpdateDailyEntryPostscriptRequest {
+  version: number;
+  postscript: string;
+}
+
+export interface DailyEntryCalendarDay {
+  date: string;
+  status: DailyEntryStatus;
+  mineSubmitted: boolean;
+  partnerSubmitted: boolean;
+  revealed: boolean;
+}
+
+export interface DailyEntryCalendarResponse {
+  month: string;
+  timezone: string;
+  days: DailyEntryCalendarDay[];
+}
+
+export interface MoodEntrySummary {
+  id: string;
+  version: number;
+  author: UserSummary;
+  entryDate: string;
+  mood: string;
+  note: string | null;
+  visibleToPartner: boolean;
+  wantsResponse: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UpsertMoodRequest {
+  mood: string;
+  note?: string | null;
+  visibleToPartner?: boolean;
+  wantsResponse?: boolean;
+  version?: number;
+}
+
+export interface MoodMonthResponse {
+  month: string;
+  mine: MoodEntrySummary[];
+  partner: MoodEntrySummary[];
+}
+
+export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED";
+
+export interface NotificationView {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  payload: Record<string, unknown>;
+  status: NotificationStatus;
+  createdAt: string;
+  readAt: string | null;
+  archivedAt: string | null;
+}
+
+export interface NotificationListResponse {
+  items: NotificationView[];
+  nextCursor: string | null;
+}
+
+export interface NotificationUnreadCountResponse {
+  count: number;
+}
+
+export interface RealtimeEvent {
+  id: string;
+  type: string;
+  resourceId?: string;
+  occurredAt: string;
+}
+
 export interface TodayResponse {
   serverNow: string;
   localDate: string;
   greeting: string;
   relationship: TodayRelationship;
-  partnerStatus: null;
-  latestNote: null;
-  dailyEntryStatus: null;
+  partnerStatus: CurrentStatusSummary | null;
+  latestNote: NoteView | null;
+  dailyEntryStatus: DailyEntryTodayResponse;
   nextAnniversary: null;
   randomMemory: MemoryCardSummary | null;
   activeWish: null;
@@ -304,17 +556,6 @@ export type CapsuleStatus =
   | "UNLOCKED"
   | "OPENED"
   | "CONVERTED_TO_MEMORY";
-
-export type NoteStatus =
-  "DRAFT" | "SCHEDULED" | "VISIBLE" | "VIEWED" | "ARCHIVED" | "EXPIRED";
-
-export type DailyEntryStatus =
-  | "DRAFT"
-  | "EDITING"
-  | "SUBMITTED"
-  | "WAITING_FOR_PARTNER"
-  | "BOTH_SUBMITTED"
-  | "REVEALED";
 
 export interface LiveHealthResponse {
   status: "ok";

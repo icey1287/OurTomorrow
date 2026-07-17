@@ -7,6 +7,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "/api/v1").replace(
 
 const IDENTITY_HEADER = "X-Our-Tomorrow-Role";
 let identityRole: IdentityRole | null = null;
+let identityEpoch = 0;
 
 const ERROR_MESSAGES: Record<string, string> = {
   VALIDATION_FAILED: "请检查填写的内容后再试。",
@@ -17,6 +18,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   IDEMPOTENCY_CONFLICT: "这次操作与刚才的请求不一致，请重新开始。",
   DEPENDENCY_UNAVAILABLE: "服务依赖暂时不可用，请稍后再试。",
   INTERNAL_ERROR: "服务暂时没有回应，请稍后再试。",
+  IDENTITY_CHANGED: "身份已切换，这次响应已忽略。",
 };
 
 export class ApiClientError extends Error {
@@ -48,6 +50,7 @@ export class ApiClientError extends Error {
 }
 
 export function setApiIdentityRole(role: IdentityRole | null) {
+  if (identityRole !== role) identityEpoch += 1;
   identityRole = role;
 }
 
@@ -88,8 +91,26 @@ export interface ApiRequestInit extends RequestInit {
   includeIdentity?: boolean;
 }
 
+async function assertIdentityUnchanged(
+  includeIdentity: boolean,
+  requestIdentityEpoch: number,
+  response?: Response,
+): Promise<void> {
+  if (!includeIdentity || requestIdentityEpoch === identityEpoch) return;
+  try {
+    await response?.body?.cancel();
+  } catch {
+    // The response is intentionally discarded after an identity switch.
+  }
+  throw new ApiClientError("身份已切换，这次响应已忽略。", {
+    status: 409,
+    code: "IDENTITY_CHANGED",
+  });
+}
+
 async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   const { includeIdentity = true, ...fetchInit } = init;
+  const requestIdentityEpoch = identityEpoch;
   const headers = new Headers(fetchInit.headers);
 
   headers.set("Accept", "application/json");
@@ -117,15 +138,25 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
     });
   }
 
+  await assertIdentityUnchanged(
+    includeIdentity,
+    requestIdentityEpoch,
+    response,
+  );
+
   if (!response.ok) {
-    throw await parseError(response);
+    const error = await parseError(response);
+    await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
+    throw error;
   }
 
   if (response.status === 204) {
     return undefined as T;
   }
 
-  return (await response.json()) as T;
+  const payload = (await response.json()) as T;
+  await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
+  return payload;
 }
 
 async function requestBlob(
@@ -133,6 +164,7 @@ async function requestBlob(
   init: ApiRequestInit = {},
 ): Promise<Blob> {
   const { includeIdentity = true, ...fetchInit } = init;
+  const requestIdentityEpoch = identityEpoch;
   const headers = new Headers(fetchInit.headers);
   if (includeIdentity && identityRole) {
     headers.set(IDENTITY_HEADER, identityRole);
@@ -152,8 +184,20 @@ async function requestBlob(
     });
   }
 
-  if (!response.ok) throw await parseError(response);
-  return response.blob();
+  await assertIdentityUnchanged(
+    includeIdentity,
+    requestIdentityEpoch,
+    response,
+  );
+
+  if (!response.ok) {
+    const error = await parseError(response);
+    await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
+    throw error;
+  }
+  const blob = await response.blob();
+  await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
+  return blob;
 }
 
 function jsonBody(payload: unknown): string {

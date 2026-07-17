@@ -7,10 +7,16 @@ import { AppConfigModule } from "./config/config.module";
 import { PrismaModule } from "./database/prisma.module";
 import { HealthModule } from "./health/health.module";
 import { CouplesModule } from "./couples/couples.module";
+import { DailyEntriesModule } from "./daily-entries/daily-entries.module";
 import { IdentityModule } from "./identity/identity.module";
 import { MediaModule } from "./media/media.module";
 import { MemoriesModule } from "./memories/memories.module";
+import { MoodsModule } from "./moods/moods.module";
+import { NotesModule } from "./notes/notes.module";
+import { NotificationsModule } from "./notifications/notifications.module";
 import { PlacesModule } from "./places/places.module";
+import { RealtimeModule } from "./realtime/realtime.module";
+import { StatusesModule } from "./statuses/statuses.module";
 import { TagsModule } from "./tags/tags.module";
 import { TodayModule } from "./today/today.module";
 import { UsersModule } from "./users/users.module";
@@ -24,10 +30,16 @@ import { UsersModule } from "./users/users.module";
     IdentityModule,
     CouplesModule,
     UsersModule,
+    StatusesModule,
+    MoodsModule,
+    DailyEntriesModule,
+    NotesModule,
+    NotificationsModule,
     MediaModule,
     TagsModule,
     PlacesModule,
     MemoriesModule,
+    RealtimeModule,
     TodayModule,
     HealthModule,
   ],

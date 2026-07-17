@@ -1,5 +1,21 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const localApiPort = process.env.E2E_API_PORT ?? "3103";
+const reuseExistingLocalServer = process.env.E2E_DATABASE_URL
+  ? false
+  : !process.env.CI;
+const localServerEnvironment = {
+  ...(process.env.E2E_DATABASE_URL
+    ? { DATABASE_URL: process.env.E2E_DATABASE_URL }
+    : {}),
+  API_PORT: localApiPort,
+  PUBLIC_APP_URL: "http://localhost:5173",
+  VITE_DEV_API_TARGET: `http://127.0.0.1:${localApiPort}`,
+  WEB_ORIGIN: "http://localhost:5173",
+  WORKER_BATCH_SIZE: "100",
+  WORKER_POLL_INTERVAL_MS: "250",
+};
+
 export default defineConfig({
   testDir: "./tests/e2e",
   fullyParallel: false,
@@ -16,10 +32,30 @@ export default defineConfig({
   ],
   webServer: process.env.E2E_BASE_URL
     ? undefined
-    : {
-        command: "pnpm dev",
-        url: "http://localhost:5173",
-        reuseExistingServer: !process.env.CI,
-        timeout: 120_000,
-      },
+    : [
+        {
+          command: "pnpm --filter @our-tomorrow/api dev",
+          env: localServerEnvironment,
+          name: "API",
+          url: `http://127.0.0.1:${localApiPort}/api/v1/health/live`,
+          reuseExistingServer: reuseExistingLocalServer,
+          timeout: 120_000,
+        },
+        {
+          command: "pnpm --filter @our-tomorrow/web dev",
+          env: localServerEnvironment,
+          name: "Web",
+          url: "http://localhost:5173",
+          reuseExistingServer: reuseExistingLocalServer,
+          timeout: 120_000,
+        },
+        {
+          command: "pnpm --filter @our-tomorrow/api dev:worker",
+          env: localServerEnvironment,
+          name: "Persistent worker",
+          stdout: "pipe",
+          wait: { stdout: /Scheduler worker started/ },
+          timeout: 120_000,
+        },
+      ],
 });

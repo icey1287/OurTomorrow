@@ -37,6 +37,7 @@ pnpm dev
 pnpm dev
 pnpm build
 pnpm test
+pnpm test:openapi
 pnpm lint
 pnpm typecheck
 pnpm db:migrate

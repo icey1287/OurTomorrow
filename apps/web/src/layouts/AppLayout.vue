@@ -14,6 +14,7 @@ import {
 import { computed, ref, watch } from "vue";
 import { RouterLink, RouterView, useRouter } from "vue-router";
 
+import NotificationCenter from "@/features/notifications/NotificationCenter.vue";
 import BrandMark from "@/shared/components/BrandMark.vue";
 import CreatePanel, {
   type CreateSelection,
@@ -129,6 +130,8 @@ async function handleCreate(selection: CreateSelection) {
       </div>
 
       <div class="mt-auto space-y-2 pt-5">
+        <NotificationCenter variant="sidebar" />
+
         <RouterLink
           to="/settings"
           class="flex items-center gap-3 rounded-2xl px-3.5 py-3 text-sm font-medium text-ink-500 transition hover:bg-white/65 hover:text-ink-950 dark:text-ink-400 dark:hover:bg-white/[0.06] dark:hover:text-white"
@@ -174,13 +177,16 @@ async function handleCreate(selection: CreateSelection) {
         >
           {{ coupleName }}
         </p>
-        <RouterLink
-          to="/settings"
-          class="grid size-10 place-items-center rounded-xl text-ink-500 transition hover:bg-white/70 hover:text-ink-950 dark:hover:bg-white/[0.06] dark:hover:text-white"
-          aria-label="打开设置"
-        >
-          <Settings class="size-5" />
-        </RouterLink>
+        <div class="flex items-center">
+          <NotificationCenter />
+          <RouterLink
+            to="/settings"
+            class="grid size-10 place-items-center rounded-xl text-ink-500 transition hover:bg-white/70 hover:text-ink-950 dark:hover:bg-white/[0.06] dark:hover:text-white"
+            aria-label="打开设置"
+          >
+            <Settings class="size-5" />
+          </RouterLink>
+        </div>
       </header>
 
       <RouterView />

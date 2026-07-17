@@ -111,4 +111,90 @@ describe("api client", () => {
     const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(new Headers(init.headers).get("X-Our-Tomorrow-Role")).toBe("boy");
   });
+
+  it("discards a private response that arrives after the identity changes", async () => {
+    let resolveFetch!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve;
+          }),
+      ),
+    );
+    setApiIdentityRole("boy");
+
+    const pending = apiClient.get<{ answer: string }>("/daily-entries/today");
+    await Promise.resolve();
+    setApiIdentityRole("girl");
+    resolveFetch(
+      new Response(JSON.stringify({ answer: "男生的私密答案" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const error = await pending.catch((caught) => caught);
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect((error as ApiClientError).code).toBe("IDENTITY_CHANGED");
+    expect(JSON.stringify(error)).not.toContain("男生的私密答案");
+  });
+
+  it("discards a successful mutation response that arrives after the identity changes", async () => {
+    let resolveFetch!: (response: Response) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolveFetch = resolve;
+          }),
+      ),
+    );
+    setApiIdentityRole("boy");
+
+    const pending = apiClient.put<{ note: string }>("/moods/today", {
+      mood: "安心",
+      note: "男生刚保存的私密心情",
+      visibleToPartner: false,
+    });
+    await Promise.resolve();
+    setApiIdentityRole("girl");
+    resolveFetch(
+      new Response(JSON.stringify({ note: "男生刚保存的私密心情" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    const error = await pending.catch((caught) => caught);
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect((error as ApiClientError).code).toBe("IDENTITY_CHANGED");
+    expect(JSON.stringify(error)).not.toContain("男生刚保存的私密心情");
+  });
+
+  it("checks the identity again after asynchronously reading a response body", async () => {
+    setApiIdentityRole("boy");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        body: null,
+        json: vi.fn(async () => {
+          setApiIdentityRole("girl");
+          return { answer: "读取期间到达的旧身份正文" };
+        }),
+      } as unknown as Response),
+    );
+
+    const error = await apiClient
+      .get<{ answer: string }>("/daily-entries/today")
+      .catch((caught) => caught);
+
+    expect(error).toBeInstanceOf(ApiClientError);
+    expect((error as ApiClientError).code).toBe("IDENTITY_CHANGED");
+    expect(JSON.stringify(error)).not.toContain("读取期间到达的旧身份正文");
+  });
 });
