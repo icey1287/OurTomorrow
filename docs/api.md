@@ -327,14 +327,15 @@ type ReadyHealth = {
 
 ### 7.2 标签与地点
 
-| 方法         | 路径          | 说明                           |
-| ------------ | ------------- | ------------------------------ |
-| GET/POST     | `/tags`       | 获取/创建空间内标签            |
-| PATCH/DELETE | `/tags/:id`   | 重命名或软删除；删除不删除回忆 |
-| GET/POST     | `/places`     | 获取/创建用户主动提供的地点    |
-| PATCH/DELETE | `/places/:id` | 更新或软删除地点               |
+| 方法         | 路径             | 说明                                        |
+| ------------ | ---------------- | ------------------------------------------- |
+| GET/POST     | `/tags`          | 获取/创建空间内标签                         |
+| PATCH/DELETE | `/tags/:id`      | 重命名或软删除；删除不删除回忆              |
+| GET          | `/places/search` | 使用高德 Web 服务搜索地点并返回地址与经纬度 |
+| GET/POST     | `/places`        | 获取/创建用户主动提供的地点                 |
+| PATCH/DELETE | `/places/:id`    | 更新或软删除地点                            |
 
-地点的经纬度可选；API 不接收持续位置轨迹。阶段 6 的地图仍复用这些显式地点。
+`GET /places/search?query=上海迪士尼&limit=8` 只接受 2～80 个字符的主动搜索词；请求日志不记录 query，服务端高德 Key 不返回浏览器。地点的经纬度可选；API 不接收持续位置轨迹。阶段 6 的地图仍复用这些显式地点。
 
 ### 7.3 随机回忆
 
@@ -576,6 +577,7 @@ CalmLetter 到期只进入 `AVAILABLE`，不会自动返回或推送正文。收
 | 回忆盲盒      | POST  | `/memory-resurfaces/:id/dismiss`      | 幂等忽略当天盲盒；忽略后不返回回忆                                 |
 | 第一次博物馆  | GET   | `/memories/first-times`               | PUBLISHED、未删除、非未来、`isFirstTime=true`；游标分页            |
 | 足迹/未来地图 | GET   | `/places/map`                         | 历史/未来双状态；只用主动地点，无定位或第三方地图/瓦片             |
+| 足迹/未来地图 | GET   | `/places/search`                      | 高德地点候选；自动回填地址与经纬度；Key 仅服务端持有               |
 | 足迹/未来地图 | PATCH | `/places/:id/status`                  | 按 version 更新 `historyState`/`futureState`                       |
 | 冷静信箱      | GET   | `/calm-letters`                       | 元数据列表，不查询正文                                             |
 | 冷静信箱      | GET   | `/calm-letters/:id`                   | 作者或 OPENED 收件人可得正文                                       |

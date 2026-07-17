@@ -89,6 +89,7 @@ services:
     restart: unless-stopped
     environment:
       <<: *api-environment
+      AMAP_WEB_SERVICE_KEY: ${AMAP_WEB_SERVICE_KEY:-}
     volumes:
       - media_data:/data/media
       - backup_state:/var/lib/backup-status:ro

@@ -48,6 +48,14 @@ export function validationFailed(message: string): ApiException {
   return new ApiException(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", message);
 }
 
+export function externalServiceUnavailable(message: string): ApiException {
+  return new ApiException(
+    HttpStatus.SERVICE_UNAVAILABLE,
+    "EXTERNAL_SERVICE_UNAVAILABLE",
+    message,
+  );
+}
+
 export function stateConflict(details?: ApiErrorDetails): ApiException {
   return new ApiException(
     HttpStatus.CONFLICT,

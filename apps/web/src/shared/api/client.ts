@@ -17,6 +17,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   STATE_CONFLICT: "内容已在另一处更新，请刷新后重试。",
   IDEMPOTENCY_CONFLICT: "这次操作与刚才的请求不一致，请重新开始。",
   DEPENDENCY_UNAVAILABLE: "服务依赖暂时不可用，请稍后再试。",
+  EXTERNAL_SERVICE_UNAVAILABLE: "地点搜索暂时不可用，也可以继续手动填写。",
   INTERNAL_ERROR: "服务暂时没有回应，请稍后再试。",
   IDENTITY_CHANGED: "身份已切换，这次响应已忽略。",
 };

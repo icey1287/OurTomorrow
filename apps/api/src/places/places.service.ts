@@ -26,9 +26,14 @@ import {
 } from "../memories/memory.presentation";
 import type {
   CreatePlaceDto,
+  PlaceSearchQueryDto,
   UpdatePlaceDto,
   UpdatePlaceStatusDto,
 } from "./dto/place.dto";
+import {
+  AmapPlaceSearchService,
+  type PlaceSearchResponse,
+} from "./amap-place-search.service";
 import {
   completePlaceState,
   patchPlaceState,
@@ -136,6 +141,8 @@ export class PlacesService {
     private readonly identities: IdentityService,
     @Inject(Clock)
     private readonly clock: Clock,
+    @Inject(AmapPlaceSearchService)
+    private readonly placeSearch: AmapPlaceSearchService,
   ) {}
 
   async list(role: IdentityRole): Promise<PlaceSummary[]> {
@@ -146,6 +153,17 @@ export class PlacesService {
       select: placeSelect,
     });
     return places.map(toPlaceSummary);
+  }
+
+  async search(
+    role: IdentityRole,
+    query: PlaceSearchQueryDto,
+  ): Promise<PlaceSearchResponse> {
+    await this.identities.current(role);
+    return this.placeSearch.search(query.query, {
+      ...(query.region === undefined ? {} : { region: query.region }),
+      ...(query.limit === undefined ? {} : { limit: query.limit }),
+    });
   }
 
   async create(role: IdentityRole, dto: CreatePlaceDto): Promise<PlaceSummary> {

@@ -3,6 +3,7 @@ import type {
   CreateMemoryRequest,
   MediaAssetSummary,
   MemoryDetail,
+  PlaceSearchSuggestion,
   PlaceSummary,
   TagSummary,
 } from "@our-tomorrow/contracts";
@@ -29,6 +30,7 @@ import {
   imageFileError,
   toDateTimeLocal,
 } from "@/features/remember/remember-utils";
+import PlaceSearchField from "@/features/maps/PlaceSearchField.vue";
 import { apiFieldErrors, ApiClientError } from "@/shared/api/client";
 import { stageTwoApi } from "@/shared/api/stage-two";
 import BaseButton from "@/shared/components/BaseButton.vue";
@@ -36,7 +38,6 @@ import BaseButton from "@/shared/components/BaseButton.vue";
 const props = defineProps<{
   memory: MemoryDetail | null;
   tags: TagSummary[];
-  places: PlaceSummary[];
   timezone: string;
 }>();
 
@@ -80,9 +81,10 @@ const uploadLabel = ref<string | null>(null);
 const requestError = ref<string | null>(null);
 const fieldErrors = ref<Record<string, string>>({});
 const showNewTag = ref(false);
-const showNewPlace = ref(false);
 const newTagName = ref("");
 const newPlaceName = ref("");
+const newPlaceSelection = ref<PlaceSearchSuggestion | null>(null);
+const linkedPlaceName = ref("");
 const creatingTag = ref(false);
 const creatingPlace = ref(false);
 const createdSharedMetadata = ref(false);
@@ -109,6 +111,8 @@ function reset() {
     : freshHappenedAt();
   originalHappenedAtInput.value = form.happenedAt;
   form.placeId = memory?.place?.id ?? "";
+  linkedPlaceName.value = memory?.place?.name ?? "";
+  newPlaceName.value = linkedPlaceName.value;
   form.mood = memory?.mood ?? "";
   form.isFirstTime = memory?.isFirstTime ?? false;
   form.firstTimeLabel = memory?.firstTimeLabel ?? "";
@@ -121,6 +125,7 @@ function reset() {
   uploadLabel.value = null;
   pendingMediaBinding.value = null;
   createdSharedMetadata.value = false;
+  newPlaceSelection.value = null;
 }
 
 watch(() => props.memory, reset, { immediate: true });
@@ -129,11 +134,27 @@ watch(
   (status) => {
     if (status !== "DRAFT") return;
     showNewTag.value = false;
-    showNewPlace.value = false;
     newTagName.value = "";
     newPlaceName.value = "";
+    newPlaceSelection.value = null;
   },
 );
+
+watch(newPlaceName, (value) => {
+  if (newPlaceSelection.value && value !== newPlaceSelection.value.name) {
+    newPlaceSelection.value = null;
+  }
+  if (form.placeId && value !== linkedPlaceName.value) {
+    form.placeId = "";
+    linkedPlaceName.value = "";
+  }
+});
+
+function selectPlaceSuggestion(place: PlaceSearchSuggestion) {
+  form.placeId = "";
+  linkedPlaceName.value = "";
+  newPlaceSelection.value = place;
+}
 
 function toggleTag(id: string) {
   form.tagIds = form.tagIds.includes(id)
@@ -469,6 +490,22 @@ async function createPlace() {
   try {
     const place = await stageTwoApi.createPlace({
       name,
+      ...(newPlaceSelection.value
+        ? {
+            address:
+              [
+                newPlaceSelection.value.district,
+                newPlaceSelection.value.address,
+              ]
+                .filter(
+                  (value, index, values): value is string =>
+                    Boolean(value) && values.indexOf(value) === index,
+                )
+                .join(" · ") || null,
+            latitude: newPlaceSelection.value.latitude,
+            longitude: newPlaceSelection.value.longitude,
+          }
+        : {}),
       status: form.isFirstTime ? "FIRST_TIME" : "VISITED",
       firstVisitedAt: form.isFirstTime
         ? fromDateTimeLocal(form.happenedAt, props.timezone)
@@ -478,8 +515,9 @@ async function createPlace() {
     createdSharedMetadata.value = true;
     emit("placeCreated", place);
     form.placeId = place.id;
-    newPlaceName.value = "";
-    showNewPlace.value = false;
+    linkedPlaceName.value = place.name;
+    newPlaceName.value = place.name;
+    newPlaceSelection.value = null;
   } catch (error) {
     requestError.value =
       error instanceof Error ? error.message : "地点没有创建成功。";
@@ -618,53 +656,48 @@ async function createPlace() {
 
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <div class="mb-2 flex items-center justify-between gap-3">
-                <label
-                  class="text-sm font-semibold text-ink-700 dark:text-ink-200"
-                  for="memory-place"
-                >
-                  <MapPin class="mr-1 inline size-4" /> 地点
-                </label>
-                <button
-                  v-if="form.status !== 'DRAFT'"
-                  type="button"
-                  class="text-xs font-semibold text-present-700 dark:text-present-300"
-                  @click="showNewPlace = !showNewPlace"
-                >
-                  + 快速创建
-                </button>
-              </div>
-              <select
-                id="memory-place"
-                v-model="form.placeId"
-                class="field-input"
+              <label
+                class="mb-2 block text-sm font-semibold text-ink-700 dark:text-ink-200"
+                for="memory-place"
               >
-                <option value="">不关联地点</option>
-                <option
-                  v-for="place in places"
-                  :key="place.id"
-                  :value="place.id"
-                >
-                  {{ place.name }}
-                </option>
-              </select>
-              <div v-if="showNewPlace" class="mt-3 flex gap-2">
-                <input
+                <MapPin class="mr-1 inline size-4" /> 地点
+                <span class="font-normal text-ink-400">（选填）</span>
+              </label>
+              <div class="flex items-start gap-2">
+                <PlaceSearchField
                   v-model="newPlaceName"
-                  class="field-input min-w-0 py-2.5"
-                  maxlength="160"
-                  placeholder="地点名称"
-                  @keydown.enter.prevent="createPlace"
+                  input-id="memory-place"
+                  class="min-w-0 flex-1"
+                  placeholder="搜索地点或地址"
+                  :disabled="creatingPlace || form.status === 'DRAFT'"
+                  @select="selectPlaceSuggestion"
                 />
                 <BaseButton
                   size="sm"
                   :loading="creatingPlace"
-                  :disabled="!newPlaceName.trim()"
+                  :disabled="
+                    !newPlaceName.trim() ||
+                    Boolean(form.placeId) ||
+                    form.status === 'DRAFT'
+                  "
+                  aria-label="确认关联地点"
                   @click="createPlace"
                 >
                   <Check class="size-4" />
                 </BaseButton>
               </div>
+              <p
+                v-if="form.placeId"
+                class="mt-2 text-xs text-present-700 dark:text-present-300"
+              >
+                已关联到这段回忆，清空输入即可移除。
+              </p>
+              <p
+                v-else-if="newPlaceSelection"
+                class="mt-2 text-xs text-ink-400"
+              >
+                已找到坐标，点击右侧确认后会出现在足迹地图上。
+              </p>
             </div>
 
             <div>

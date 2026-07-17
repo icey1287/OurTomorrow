@@ -42,6 +42,30 @@ function nullableTrim(value: unknown): unknown {
   return value === null ? null : trim(value);
 }
 
+export class PlaceSearchQueryDto {
+  @ApiProperty({ minLength: 2, maxLength: 80 })
+  @Transform(({ value }) => trim(value))
+  @IsString()
+  @MinLength(2)
+  @MaxLength(80)
+  query!: string;
+
+  @ApiPropertyOptional({ maxLength: 80 })
+  @Transform(({ value }) => trim(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  region?: string;
+
+  @ApiPropertyOptional({ minimum: 1, maximum: 10, default: 8 })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10)
+  limit?: number;
+}
+
 export class CreatePlaceDto {
   @ApiProperty({ maxLength: 160 })
   @Transform(({ value }) => trim(value))

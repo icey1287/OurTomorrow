@@ -103,6 +103,19 @@ export interface PlaceSummary {
   updatedAt: string;
 }
 
+export interface PlaceSearchSuggestion {
+  id: string;
+  name: string;
+  address: string | null;
+  district: string | null;
+  latitude: number;
+  longitude: number;
+}
+
+export interface PlaceSearchResponse {
+  items: PlaceSearchSuggestion[];
+}
+
 export interface MediaAssetSummary {
   id: string;
   originalName: string;

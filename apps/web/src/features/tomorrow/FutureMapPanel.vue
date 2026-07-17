@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import type { PlaceFutureState, PlaceMapItem } from "@our-tomorrow/contracts";
+import type {
+  PlaceFutureState,
+  PlaceMapItem,
+  PlaceSearchSuggestion,
+} from "@our-tomorrow/contracts";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
 import {
   CalendarCheck2,
@@ -15,6 +19,7 @@ import {
 import { computed, reactive, ref, watch } from "vue";
 
 import PlaceMapRelations from "@/features/maps/PlaceMapRelations.vue";
+import PlaceSearchField from "@/features/maps/PlaceSearchField.vue";
 import WorldPlaceMap from "@/features/maps/WorldPlaceMap.vue";
 import { ApiClientError } from "@/shared/api/client";
 import { stageSixMapsApi } from "@/shared/api/stage-six-maps";
@@ -176,6 +181,20 @@ function parsedCoordinates(): {
   return { latitude, longitude };
 }
 
+function selectSearchPlace(place: PlaceSearchSuggestion) {
+  placeForm.name = place.name;
+  placeForm.address =
+    [place.district, place.address]
+      .filter(
+        (value, index, values): value is string =>
+          Boolean(value) && values.indexOf(value) === index,
+      )
+      .join(" · ") || "";
+  placeForm.latitude = String(place.latitude);
+  placeForm.longitude = String(place.longitude);
+  editorError.value = null;
+}
+
 async function savePlace() {
   const startRole = identity.role;
   if (!startRole || editorPending.value) return;
@@ -332,7 +351,7 @@ async function updateFuture(
               {{ editingPlace ? "补充地点信息" : "主动添加一个下一站" }}
             </h3>
             <p class="mt-1 text-xs leading-5 text-ink-500 dark:text-ink-400">
-              坐标完全由你填写；不会读取设备定位，也不会调用外部地图。
+              输入地点后选择最合适的结果，地址和坐标会自动填好。
             </p>
           </div>
           <button
@@ -345,16 +364,17 @@ async function updateFuture(
           </button>
         </div>
         <div class="mt-4 grid gap-4 sm:grid-cols-2">
-          <label class="text-sm font-medium text-ink-700 dark:text-ink-200">
-            地点名称
-            <input
+          <div class="text-sm font-medium text-ink-700 dark:text-ink-200">
+            <label for="future-place-name">地点名称</label>
+            <PlaceSearchField
+              input-id="future-place-name"
               v-model="placeForm.name"
-              required
-              maxlength="160"
-              class="mt-1.5 w-full rounded-2xl border border-ink-200 bg-white/85 px-3.5 py-2.5 text-ink-950 outline-none transition focus:border-future-400 focus:ring-2 focus:ring-future-200 dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:focus:border-future-500 dark:focus:ring-future-900"
-              placeholder="例如：雷克雅未克"
+              class="mt-1.5"
+              placeholder="例如：上海迪士尼"
+              :disabled="editorPending"
+              @select="selectSearchPlace"
             />
-          </label>
+          </div>
           <label class="text-sm font-medium text-ink-700 dark:text-ink-200">
             地址（可选）
             <input

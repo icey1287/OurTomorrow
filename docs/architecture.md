@@ -113,7 +113,7 @@ PostgreSQL / media adapter / outbox
 
 - TouchEvent 命令只接受固定 `kind`，不接受 `message`。发送者维度的 Serializable 事务同时检查 30 秒冷却与滚动一小时 12 次上限；Outbox 只携带固定事件类型，离线 Notification payload 只增加同一个固定 `kind`。
 - MemoryResurface 以 `(coupleId, localDate)` 唯一约束保证两种角色共享每日同一盲盒。创建、打开与忽略都由服务端状态控制；未打开或已忽略的响应不映射关联 Memory。
-- Place 将历史轴 `historyState` 与未来轴 `futureState` 分开保存，旧 `status` 只是兼容投影。愿望/计划完成与地点迁移处于同一事务；地图只投影显式经纬度和等价列表，不连接定位服务或第三方瓦片。
+- Place 将历史轴 `historyState` 与未来轴 `futureState` 分开保存，旧 `status` 只是兼容投影。愿望/计划完成与地点迁移处于同一事务；地图只投影显式经纬度和等价列表，不连接定位服务或第三方瓦片。地点搜索由 API 代理高德 Web 服务，浏览器不持有 Key。
 - CalmLetter 的元数据与正文分开查询。到期只把状态推进为 AVAILABLE，收件人显式 open 成功后才允许正文查询；解锁、通知和审计都不复制正文。
 - AnnualReview 的统计只读取共同公开来源。READY 可以重新进入 GENERATING 并重算，同时保留双方 contribution；PUBLISHED 后不再重算或编辑。年度选图查询和写入都限制为对应年份 PUBLISHED Memory 的 READY 图片。
 - 阶段 6 数据加入既有导出聚合，但沿用内容可见性：Touch 只有 kind，CalmLetter 收件正文要求 OPENED，未打开盲盒隐藏 memoryId，年度媒体仍经过统一可读性查询。

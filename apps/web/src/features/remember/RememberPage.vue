@@ -658,7 +658,6 @@ function handleConflict() {
       v-if="editorOpen"
       :memory="editingMemory"
       :tags="tags"
-      :places="places"
       :timezone="timezone"
       @close="editorOpen = false"
       @saved="handleSaved"

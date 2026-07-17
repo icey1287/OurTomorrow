@@ -92,6 +92,7 @@ Compose 会先运行 `migrate`，再启动 `api`/`worker`，Web 由 Nginx 提供
 | 变量                       | 作用                        | 本地提示                | 生产要求                          |
 | -------------------------- | --------------------------- | ----------------------- | --------------------------------- |
 | `NODE_ENV`                 | development/test/production | `development`           | `production`                      |
+| `AMAP_WEB_SERVICE_KEY`     | 高德地点搜索与地址转坐标    | 仅写入 `apps/api/.env`  | 只注入 API，不进入 Web 包         |
 | `API_PORT`                 | Nest 端口                   | `3000`                  | 容器内 3000                       |
 | `DATABASE_URL`             | Prisma PostgreSQL URL       | localhost Compose DB    | URL encode 密码；不公开数据库端口 |
 | `WEB_ORIGIN`               | 唯一允许的 Web Origin       | `http://localhost:5173` | 与实际 HTTPS 同源一致             |
@@ -257,7 +258,7 @@ docker compose -f infra/compose.yaml build api web backup
 - Touch 请求不含自由文本；服务端以 Serializable 事务执行发送者 30 秒冷却和滚动一小时 12 次上限。在线事件和离线通知只传固定 kind。
 - CalmLetter 到期只进入 AVAILABLE；收件人显式 open 前，列表、详情、通知、实时事件和导出都不能出现正文。
 - MemoryResurface 依赖 `(coupleId, localDate)` 唯一约束；boy/girl 必须读取同一盲盒，open/dismiss 并发仍只有一个最终状态。`/memories/first-times` 只返回 PUBLISHED、非未来、未删除回忆。
-- Place 同时维护历史/未来状态；地图没有定位权限、第三方 SDK 或瓦片网络请求，并提供键盘可用的等价列表。完成愿望/计划时地点迁移和业务状态处于同一事务。
+- Place 同时维护历史/未来状态；地图没有定位权限、第三方 SDK 或瓦片网络请求，并提供键盘可用的等价列表。用户主动输入地点时，API 使用高德 Web 服务返回候选地址与经纬度，Key 只保存在服务端。完成愿望/计划时地点迁移和业务状态处于同一事务。
 - AnnualReview 的 READY 状态允许再次 request 并重算统计，PUBLISHED 后冻结；`media-options` 和更新校验只接受对应年份 PUBLISHED 回忆中的 READY 图片。
 - PWA 只缓存 shell/manifest/icon/hashed assets。切换角色或应用进入后台时清理私密内存状态；前台恢复要重新读取当前角色后才移除隐私幕。抱抱到达浮层可在设置中关闭。
 - 导出新增地点双状态、TouchEvent、CalmLetter、MemoryResurface 和 AnnualReview，并继续按当前角色可见性裁剪正文、memoryId 与媒体 ID。

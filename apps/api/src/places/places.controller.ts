@@ -28,9 +28,11 @@ import type { PlaceSummary } from "../memories/memory.presentation";
 import {
   CreatePlaceDto,
   DeletePlaceQueryDto,
+  PlaceSearchQueryDto,
   UpdatePlaceDto,
   UpdatePlaceStatusDto,
 } from "./dto/place.dto";
+import type { PlaceSearchResponse } from "./amap-place-search.service";
 import { type PlaceMapResponse, PlacesService } from "./places.service";
 
 const uuidPipe = new ParseUUIDPipe({ version: "4" });
@@ -47,6 +49,16 @@ export class PlacesController {
     @Inject(PlacesService)
     private readonly places: PlacesService,
   ) {}
+
+  @Get("search")
+  @ApiOkResponse({ description: "Amap place search suggestions" })
+  search(
+    @CurrentIdentityRole() role: IdentityRole,
+    @Query(createValidationPipe(PlaceSearchQueryDto))
+    query: PlaceSearchQueryDto,
+  ): Promise<PlaceSearchResponse> {
+    return this.places.search(role, query);
+  }
 
   @Get("map")
   @ApiOkResponse({
