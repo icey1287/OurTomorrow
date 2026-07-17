@@ -112,7 +112,7 @@ function moodMutationError(error: unknown, action: string) {
     (error.code === "STATE_CONFLICT" || error.code === "PRECONDITION_REQUIRED")
   ) {
     void moodsQuery.refetch();
-    return `今日心情刚刚在另一处发生变化，已刷新服务端版本；请确认后重新${action}。`;
+    return `今日心情刚刚在另一处发生变化，已经重新整理；请确认后再${action}。`;
   }
   return error instanceof Error ? error.message : `今日心情没有${action}成功。`;
 }
@@ -390,7 +390,7 @@ async function sendReply() {
         </template>
         <template v-else-if="moodsQuery.isError.value">
           <p class="mt-5 text-sm leading-6 text-ink-500 dark:text-ink-400">
-            对方的心情暂时也无法读取，重新加载后会一起恢复。
+            对方的心情暂时也看不到，重新加载后会一起恢复。
           </p>
         </template>
         <template v-else-if="partner">

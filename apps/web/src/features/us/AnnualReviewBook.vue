@@ -114,7 +114,7 @@ async function generate() {
   errorMessage.value = null;
   try {
     await annualReviewApi.request(selectedYear.value);
-    notice.value = "年度回忆书已经交给后台整理。";
+    notice.value = "正在整理这一年的回忆书。";
     await queryClient.invalidateQueries({ queryKey: ["annual-reviews"] });
   } catch (error) {
     errorMessage.value =
@@ -137,7 +137,7 @@ async function save() {
       message: form.message.trim() || null,
       nextYearLetter: form.nextYearLetter.trim() || null,
     });
-    notice.value = "你们的年度选择已经保存。";
+    notice.value = "我们的年度选择已经保存。";
     await queryClient.invalidateQueries({ queryKey: ["annual-reviews"] });
   } catch (error) {
     errorMessage.value =
@@ -174,7 +174,7 @@ async function publish() {
 }
 
 function contributionTitle(contribution: AnnualReviewContributionView) {
-  return contribution.role === "boy" ? "男生选出的这一年" : "女生选出的这一年";
+  return contribution.role === "boy" ? "甲选出的这一年" : "乙选出的这一年";
 }
 </script>
 
@@ -196,7 +196,7 @@ function contributionTitle(contribution: AnnualReviewContributionView) {
             <SectionHeading
               id="annual-review-title"
               title="年度回忆书"
-              description="只汇总共同公开的回忆、地点、愿望与标签，不读取私人心情、日记、胶囊或冷静信正文。"
+              description="只整理我们共同可见的回忆、地点、愿望和标签；私人心情、日记、胶囊与冷静信不会放进来。"
             />
           </div>
           <div class="flex items-center gap-2">
@@ -244,7 +244,7 @@ function contributionTitle(contribution: AnnualReviewContributionView) {
             {{ selectedYear }} 年还没有一本回忆书
           </p>
           <p class="mx-auto mt-2 max-w-lg text-sm leading-6 text-ink-400">
-            后台会按共同空间时区整理这一年的公开回忆、足迹、完成愿望和标签。
+            会把这一年的回忆、足迹、完成的愿望和常用标签慢慢整理成册。
           </p>
           <BaseButton
             class="mt-5"

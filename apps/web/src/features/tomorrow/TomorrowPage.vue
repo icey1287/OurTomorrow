@@ -46,7 +46,7 @@ function consumeCreate(type: TomorrowCreateType) {
     <PageHeader
       eyebrow="Tomorrow · 尚未发生的未来"
       title="把期待写下来，让它有一天真的发生。"
-      description="愿望、计划、纪念日和时间胶囊都遵循服务端状态与关系时区；一件未来完成后，可以完整地回到记录。"
+      description="愿望、计划、纪念日和时间胶囊都收在这里；实现过的未来，也会回到我们的回忆里。"
     >
       <template #actions>
         <BaseButton size="sm" @click="requestCreate('wish')">

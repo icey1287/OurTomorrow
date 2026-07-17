@@ -17,7 +17,7 @@ import { RouterLink } from "vue-router";
       这一页还没有被写下
     </h1>
     <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
-      没关系，沿着熟悉的路回去，你们的故事仍在那里。
+      没关系，沿着熟悉的路回去，我们的故事仍在那里。
     </p>
     <RouterLink
       to="/today"

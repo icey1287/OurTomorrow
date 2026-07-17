@@ -262,7 +262,7 @@ async function updateFuture(
     if (identity.role !== startRole) return;
     statusError.value =
       error instanceof ApiClientError && error.code === "STATE_CONFLICT"
-        ? "地点刚刚发生变化，已重新读取；请确认后再试。"
+        ? "地点刚刚发生变化，已经刷新；请确认后再试。"
         : error instanceof Error
           ? error.message
           : "未来地点没有更新成功。";
@@ -415,7 +415,7 @@ async function updateFuture(
         state="error"
         title="未来地图暂时没有打开"
         :message="queryError"
-        action-label="重新读取"
+        action-label="重试"
         @action="mapQuery.refetch()"
       />
       <AsyncState

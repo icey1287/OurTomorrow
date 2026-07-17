@@ -164,7 +164,7 @@ function actionMessage(error: unknown, action: string) {
   ) {
     void detailQuery.refetch();
     void capsulesQuery.refetch();
-    return `胶囊状态刚刚发生变化，已重新读取服务端结果；请确认后再${action}。`;
+    return `胶囊刚刚在另一处发生变化，已经重新整理；请确认后再${action}。`;
   }
   return error instanceof Error ? error.message : `胶囊没有${action}成功。`;
 }
@@ -333,7 +333,7 @@ async function runAction(
       action === "seal"
         ? "胶囊已经封存，正文从现在起不可修改。"
         : action === "condition"
-          ? "条件已交给服务器核对，胶囊状态已经更新。"
+          ? "开启条件已经重新确认。"
           : action === "confirm"
             ? "你的开启确认已经记录。"
             : action === "open"
@@ -356,7 +356,7 @@ async function runAction(
   <section aria-labelledby="capsule-board-heading">
     <SectionHeading
       title="时间胶囊"
-      description="封存前可以慢慢写；封存后只由服务端决定何时可以确认、打开和转换。"
+      description="封存前可以慢慢写；封存后，就等约定的时刻来临。"
     >
       <BaseButton size="sm" variant="secondary" @click="openCreate">
         <Plus class="size-4" />新胶囊
@@ -385,7 +385,7 @@ async function runAction(
       class="mt-4"
       state="empty"
       title="把需要时间的话，先温柔收好。"
-      message="未到开启条件时，API 不返回正文和附件信息。"
+      message="在约定的时刻到来以前，内容会一直好好封存。"
       action-label="写第一枚胶囊"
       @action="openCreate"
     />
@@ -507,7 +507,9 @@ async function runAction(
               {{ selected.confirmedMemberIds.length }} 人确认 ·
               {{ selected.openedMemberIds.length }} 人打开
             </p>
-            <p class="mt-1 text-xs text-ink-400">这些状态全部来自 API。</p>
+            <p class="mt-1 text-xs text-ink-400">
+              等我们都准备好，再一起继续。
+            </p>
           </div>
         </div>
 
@@ -523,11 +525,10 @@ async function runAction(
             <h3
               class="mt-4 font-display text-lg font-semibold text-ink-950 dark:text-white"
             >
-              正文仍由服务端保管
+              内容还在封存中
             </h3>
             <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              当前响应的 `bodyAvailable` 为
-              false，因此页面不会渲染正文、长度、附件名或缩略图，也不会根据浏览器时间尝试提前开启。
+              到了约定的时间并亲自打开后，写下的话和照片才会出现。
             </p>
           </div>
         </div>

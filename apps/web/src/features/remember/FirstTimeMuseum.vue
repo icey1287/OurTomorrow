@@ -57,7 +57,7 @@ defineEmits<{
       <AsyncState
         v-else-if="!memories.length"
         state="empty"
-        title="第一件藏品还在等你们写下"
+        title="第一件藏品还在等我们写下"
         message="创建或编辑回忆时标记为“第一次”，它就会来到这里。"
         action-label="写下一个第一次"
         @action="$emit('create')"

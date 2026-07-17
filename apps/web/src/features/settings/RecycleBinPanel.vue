@@ -91,7 +91,7 @@ async function requestPurge(item: RecycleBinItem) {
   if (
     activeAction.value ||
     !window.confirm(
-      `申请永久删除这条${resourceCopy[item.resourceType]}吗？系统仍会等到保留期结束后再物理清理。`,
+      `确定永久删除这条${resourceCopy[item.resourceType]}吗？保留期结束后将无法找回。`,
     )
   ) {
     return;
@@ -121,7 +121,7 @@ async function requestPurge(item: RecycleBinItem) {
       /></span>
       <SectionHeading
         title="回收站"
-        description="删除内容先保留 30 天。恢复会还原必要的状态、关联和定时任务，不会只把 deletedAt 清空。"
+        description="删除的内容会先保留 30 天，反悔时还能放回原来的位置。"
       >
         <BaseButton
           size="sm"
@@ -184,7 +184,7 @@ async function requestPurge(item: RecycleBinItem) {
               <span
                 v-if="item.visibility === 'OWNER_ONLY'"
                 class="rounded-full bg-future-50 px-2.5 py-1 text-[11px] font-semibold text-future-700 dark:bg-future-950/40 dark:text-future-200"
-                >仅当前身份</span
+                >只有我</span
               >
               <span
                 v-if="item.status === 'PURGE_PENDING'"
@@ -196,8 +196,7 @@ async function requestPurge(item: RecycleBinItem) {
               删除于 {{ formatTime(item.deletedAt) }}
             </p>
             <p class="mt-1 text-xs leading-5 text-ink-400">
-              保留至 {{ formatTime(item.retentionUntil) }} · 资源
-              {{ item.resourceId.slice(0, 8) }}…
+              保留至 {{ formatTime(item.retentionUntil) }}
             </p>
           </div>
           <div class="flex flex-wrap gap-2">

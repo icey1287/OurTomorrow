@@ -68,7 +68,7 @@ function greetingForHour(hour: number): string {
   if (hour < 11) return "早上好，今天也一起认真生活。";
   if (hour < 14) return "中午好，记得好好吃饭。";
   if (hour < 18) return "下午好，慢慢走向共同的明天。";
-  return "晚上好，欢迎回到你们的明天。";
+  return "晚上好，欢迎回到我们的明天。";
 }
 
 function safeCapsuleSummary(capsule: CapsuleSummary): CapsuleSummary {

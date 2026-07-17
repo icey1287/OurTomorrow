@@ -7,7 +7,6 @@ import {
   Heart,
   Pencil,
   UserRound,
-  UsersRound,
   X,
 } from "lucide-vue-next";
 import { computed, reactive, ref, watch } from "vue";
@@ -94,13 +93,13 @@ function closeEditor() {
 
 function validate() {
   const nextErrors: FieldErrors<RelationshipField> = {};
-  const nameError = validateRequiredText(form.name, "空间名称", 120);
+  const nameError = validateRequiredText(form.name, "这里的名字", 120);
   if (nameError) nextErrors.name = nameError;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(form.startDate)) {
     nextErrors.startDate = "请选择恋爱开始日期。";
   }
   if (!form.timezone.trim()) {
-    nextErrors.timezone = "请填写共同空间时区。";
+    nextErrors.timezone = "请选择我们所在的时区。";
   } else if (!isValidTimezone(form.timezone.trim())) {
     nextErrors.timezone = "请输入有效的 IANA 时区。";
   }
@@ -128,7 +127,7 @@ async function saveRelationship() {
     });
     await queryClient.invalidateQueries({ queryKey: ["today"] });
     editing.value = false;
-    savedMessage.value = "共同资料已保存。";
+    savedMessage.value = "我们的资料已保存。";
   } catch (error) {
     if (error instanceof ApiClientError) {
       errors.value = { ...errors.value, ...apiFieldErrors(error) };
@@ -139,7 +138,7 @@ async function saveRelationship() {
             ? "有些内容需要修改，请查看表单提示。"
             : error.message;
     } else {
-      requestError.value = "共同资料没有保存成功，请稍后再试。";
+      requestError.value = "我们的资料没有保存成功，请稍后再试。";
     }
   } finally {
     saving.value = false;
@@ -168,7 +167,7 @@ watch(
     <PageHeader
       eyebrow="Us · 两个人共同创作"
       title="我们，是所有时间线的主角。"
-      description="这里记录共同关系资料，不比较谁记录得更多、谁付出得更多。"
+      description="这里写下关于甲和乙的事，不比较谁记录得更多、谁付出得更多。"
     >
       <template #actions>
         <BaseButton
@@ -178,7 +177,7 @@ watch(
           @click="openEditor"
         >
           <Pencil class="size-4" />
-          编辑共同资料
+          编辑我们的资料
         </BaseButton>
       </template>
     </PageHeader>
@@ -241,7 +240,7 @@ watch(
           <p
             class="mt-2 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400 dark:text-ink-500"
           >
-            服务器计算的共同天数
+            在一起的日子
           </p>
         </div>
       </div>
@@ -256,8 +255,8 @@ watch(
         <div class="flex items-start justify-between gap-4">
           <SectionHeading
             id="relationship-editor-title"
-            title="编辑共同资料"
-            description="日期与时区会影响服务器计算的共同天数。"
+            title="编辑我们的资料"
+            description="从哪一天开始，会决定这里记下的恋爱天数。"
           />
           <button
             type="button"
@@ -276,7 +275,7 @@ watch(
         >
           <div class="grid gap-4 sm:grid-cols-2">
             <div>
-              <label class="field-label" for="us-space-name">空间名称</label>
+              <label class="field-label" for="us-space-name">这里的名字</label>
               <input
                 id="us-space-name"
                 v-model="form.name"
@@ -319,7 +318,7 @@ watch(
             </div>
           </div>
           <div>
-            <label class="field-label" for="us-timezone">共同空间时区</label>
+            <label class="field-label" for="us-timezone">我们所在的时区</label>
             <input
               id="us-timezone"
               v-model="form.timezone"
@@ -382,7 +381,7 @@ watch(
               >取消</BaseButton
             >
             <BaseButton type="submit" :loading="saving"
-              ><Check class="size-4" />保存共同资料</BaseButton
+              ><Check class="size-4" />保存我们的资料</BaseButton
             >
           </div>
         </form>
@@ -391,10 +390,7 @@ watch(
 
     <section class="mt-8 grid gap-5 lg:grid-cols-[1fr_0.8fr]">
       <SurfaceCard>
-        <SectionHeading
-          title="空间成员"
-          description="男生与女生两个固定身份共同使用这个空间。"
-        />
+        <SectionHeading title="我们两个人" description="这里一直只有甲和乙。" />
         <div class="mt-5 grid gap-3 sm:grid-cols-2">
           <article
             v-for="(member, index) in members"
@@ -409,7 +405,7 @@ watch(
               >
               <div class="min-w-0">
                 <p class="truncate font-semibold text-ink-950 dark:text-white">
-                  {{ memberName(member, "成员") }}
+                  {{ memberName(member, "另一半") }}
                 </p>
                 <p class="mt-1 truncate text-xs text-ink-400 dark:text-ink-500">
                   {{ member.role === "boy" ? "男生" : "女生" }} ·
@@ -428,21 +424,16 @@ watch(
             ><CalendarHeart class="size-5"
           /></span>
           <div>
-            <p class="eyebrow text-memory-700 dark:text-memory-300">关系坐标</p>
+            <p class="eyebrow text-memory-700 dark:text-memory-300">
+              故事开始的那天
+            </p>
             <p class="mt-2 text-lg font-semibold text-ink-950 dark:text-white">
               {{ relationship?.startDate }}
             </p>
             <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              以 {{ relationship?.timezone }} 为共同空间时区。
+              从这一天起，我们的日子被一天天认真数着。
             </p>
           </div>
-        </div>
-        <div class="quiet-divider my-5" />
-        <div
-          class="flex items-start gap-3 text-sm leading-6 text-ink-500 dark:text-ink-400"
-        >
-          <UsersRound class="mt-0.5 size-4 shrink-0" />
-          <p>回忆数量、愿望与地点统计会在对应内容模块接入后由真实数据汇总。</p>
         </div>
       </SurfaceCard>
     </section>
@@ -455,7 +446,7 @@ watch(
       role="status"
     >
       <UserRound class="mt-0.5 size-3.5 shrink-0" />
-      共同资料仍可使用；服务器共同天数暂时无法刷新。
+      在一起的天数暂时没有更新，稍后再来看看。
     </p>
   </main>
 </template>

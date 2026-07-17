@@ -696,7 +696,7 @@ async function createPlace() {
                 v-else-if="createdSharedMetadata"
                 class="mt-2 text-xs leading-5 text-ink-400"
               >
-                本次新建的标签或地点已经进入共同空间，因此不能再改为私密草稿。
+                这次新建的标签或地点已经和回忆关联，因此不能再改为私密草稿。
               </p>
             </div>
           </div>
@@ -792,8 +792,8 @@ async function createPlace() {
                   >私密照片</span
                 >
                 <p class="mt-1 text-xs text-ink-400">
-                  JPEG、PNG 或 WebP；每张不超过 15 MB。服务端会重编码并清理
-                  EXIF。
+                  JPEG、PNG 或 WebP；每张不超过 15
+                  MB。上传后会清理照片里的定位等附加信息。
                 </p>
               </div>
               <label

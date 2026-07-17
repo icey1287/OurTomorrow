@@ -338,7 +338,7 @@ async function deleteAnniversary() {
       class="mt-4"
       state="empty"
       title="为下一次值得期待的日子，留一个倒数。"
-      message="日期按你们空间的时区计算，闰日也有明确规则。"
+      message="把值得记住的日子写下来，每一年都会如约倒数。"
       action-label="添加第一个重要日子"
       @action="openCreate"
     />
@@ -432,9 +432,7 @@ async function deleteAnniversary() {
             <p class="mt-1 text-sm text-ink-500 dark:text-ink-400">
               {{ selected.daysUntil === null ? "不再重复" : "天" }}
             </p>
-            <p class="mt-4 text-xs text-ink-400">
-              服务端按 {{ timezone }} 计算
-            </p>
+            <p class="mt-4 text-xs text-ink-400">按我们记录的时区倒数</p>
           </div>
           <div
             class="rounded-3xl border border-ink-100 p-5 dark:border-white/10"

@@ -46,7 +46,7 @@ async function select(role: IdentityRole) {
         请选择你是谁
       </h1>
       <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
-        这个选择只保存在当前浏览器，刷新后会自动恢复。
+        这台设备会记住你的选择，下次打开不用再选。
       </p>
     </div>
 
@@ -55,22 +55,22 @@ async function select(role: IdentityRole) {
         class="!min-h-36 !flex-col !rounded-3xl !bg-memory-500 !text-white hover:!bg-memory-600 dark:!bg-memory-500 dark:!text-white dark:hover:!bg-memory-400"
         :loading="selecting === 'boy'"
         :disabled="Boolean(selecting)"
-        aria-label="选择我是男生"
+        aria-label="选择我是甲"
         @click="select('boy')"
       >
         <Mars class="size-8" aria-hidden="true" />
-        <span class="text-lg">我是男生</span>
+        <span class="text-lg">我是甲</span>
       </BaseButton>
 
       <BaseButton
         class="!min-h-36 !flex-col !rounded-3xl !bg-present-500 !text-white hover:!bg-present-600 dark:!bg-present-500 dark:!text-white dark:hover:!bg-present-400"
         :loading="selecting === 'girl'"
         :disabled="Boolean(selecting)"
-        aria-label="选择我是女生"
+        aria-label="选择我是乙"
         @click="select('girl')"
       >
         <Venus class="size-8" aria-hidden="true" />
-        <span class="text-lg">我是女生</span>
+        <span class="text-lg">我是乙</span>
       </BaseButton>
     </div>
 

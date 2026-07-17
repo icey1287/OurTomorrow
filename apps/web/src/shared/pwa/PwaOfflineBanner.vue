@@ -13,6 +13,6 @@ const pwa = usePwa();
     role="status"
   >
     <WifiOff class="size-3.5" />
-    当前离线；私密内容不会从缓存展示，恢复网络后会自动重新连接。
+    现在没有网络，恢复连接后再回来看看。
   </div>
 </template>

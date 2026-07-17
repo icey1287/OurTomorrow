@@ -18,10 +18,10 @@ async function install() {
   const outcome = await pwa.install();
   notice.value =
     outcome === "accepted"
-      ? "安装请求已经交给系统。"
+      ? "已经开始安装明天。"
       : outcome === "dismissed"
         ? "这次没有安装，之后仍可再试。"
-        : "当前浏览器会在满足条件时显示安装入口。";
+        : "这台设备支持时，会出现安装入口。";
   installing.value = false;
 }
 </script>
@@ -36,7 +36,7 @@ async function install() {
       </span>
       <SectionHeading
         title="安装到这台设备"
-        description="PWA 只离线保存应用外壳。API、媒体、正文和导出始终实时从服务器读取，不进入离线缓存。"
+        description="安装后可以像普通 App 一样打开；没有网络时不会显示照片和私密正文。"
       />
     </div>
 
@@ -60,7 +60,7 @@ async function install() {
             }}
           </p>
           <p class="mt-1 text-xs leading-5 text-ink-400">
-            离线时可以打开界面，但任何私密数据都需要重新联网加载。
+            照片和私密内容只会在联网时出现。
           </p>
         </div>
       </div>

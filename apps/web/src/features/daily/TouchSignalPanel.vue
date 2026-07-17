@@ -120,7 +120,7 @@ async function send(kind: TouchEventKind, label: string) {
 
       <p class="mt-4 flex items-center gap-2 text-xs leading-5 text-ink-400">
         <Sparkles class="size-3.5 shrink-0" />
-        每次只送一个固定心意；服务端会温柔限制频率，避免它变成刷屏聊天。
+        每次送出一个小小心意；短时间内不能连续发送，刚好留一点余韵。
       </p>
       <p class="sr-only" aria-live="polite">
         {{ sendMutation.isPending.value ? "正在发送抱抱信号" : "" }}

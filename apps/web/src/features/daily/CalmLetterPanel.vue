@@ -120,7 +120,7 @@ function mutationMessage(error: unknown, action: string) {
   ) {
     void refreshRelated();
     return error.code === "CONTENT_LOCKED"
-      ? "还没到服务端保管时间，正文依然锁着。"
+      ? "还没到约定的时间，这封信依然锁着。"
       : `信件状态刚刚改变，已刷新后请再${action}。`;
   }
   return error instanceof Error ? error.message : `这封信没有${action}成功。`;
@@ -149,7 +149,7 @@ async function createLetter() {
     selectedId.value = created.id;
     actionMessage.value =
       created.status === "LOCKED"
-        ? "信已经交给服务端安静保管，到时间前对方读不到正文。"
+        ? "信已经安静收好，到时间前对方读不到正文。"
         : "信已经送达；对方仍需亲自点开，正文才会出现。";
     await refreshRelated();
   } catch (error) {
@@ -190,7 +190,7 @@ function selectLetter(id: string) {
         <span
           class="inline-flex items-center gap-2 rounded-full bg-future-100 px-3 py-1.5 text-xs font-semibold text-future-800 dark:bg-future-900/45 dark:text-future-200"
         >
-          <LockKeyhole class="size-3.5" />服务端守时
+          <LockKeyhole class="size-3.5" />按时开启
         </span>
       </div>
 
@@ -223,7 +223,7 @@ function selectLetter(id: string) {
                 写一封先不急着回答的信
               </p>
               <p class="mt-1 text-xs text-ink-400">
-                草稿只停留在当前页面，不写入本地缓存。
+                离开页面前记得写完，草稿不会自动保存。
               </p>
             </div>
           </div>
@@ -372,7 +372,7 @@ function selectLetter(id: string) {
               class="min-h-56 rounded-2xl bg-ink-50/75 p-4 dark:bg-ink-950/45"
             >
               <p v-if="!selectedSummary" class="text-sm text-ink-400">
-                选择一封信查看状态。只有规则允许时，详情接口才会读取正文。
+                选择一封信，看看它到了哪一个阶段。
               </p>
               <template v-else>
                 <div class="flex items-start justify-between gap-3">
@@ -403,7 +403,7 @@ function selectLetter(id: string) {
                   v-if="detailQuery.isPending.value"
                   class="mt-4"
                   state="loading"
-                  title="正在读取允许公开的部分…"
+                  title="正在打开这封信…"
                 />
                 <p
                   v-else-if="detailQuery.isError.value"
@@ -424,12 +424,12 @@ function selectLetter(id: string) {
                 </p>
                 <div v-else class="mt-4 text-sm leading-6 text-ink-400">
                   <p v-if="selectedSummary.status === 'LOCKED'">
-                    正文仍在保管中。即使修改浏览器时间，也不会提前出现。
+                    这封信还在安静等候，到了约定时间才会出现。
                   </p>
                   <p v-else-if="selectedSummary.canOpen">
-                    时间已经到了；只有你点击下面的按钮后，服务端才会返回正文。
+                    时间已经到了，亲自点开后就能读到正文。
                   </p>
-                  <p v-else>这封信当前没有可读取的正文。</p>
+                  <p v-else>这封信暂时没有可以打开的正文。</p>
                 </div>
 
                 <BaseButton

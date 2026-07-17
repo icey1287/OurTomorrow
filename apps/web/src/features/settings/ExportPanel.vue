@@ -99,9 +99,7 @@ async function createExport() {
     );
     confirmed.value = false;
     notice.value =
-      job.status === "READY"
-        ? "导出已经准备好，可以下载。"
-        : "导出请求已经保存。";
+      job.status === "READY" ? "导出已经准备好，可以下载。" : "正在准备导出。";
     await queryClient.invalidateQueries({
       queryKey: ["exports", identity.role],
     });
@@ -169,7 +167,7 @@ async function remove(job: ExportJobView) {
       /></span>
       <SectionHeading
         title="完整数据导出"
-        description="ZIP 包含版本化数据和当前身份有权读取的原始媒体；不会包含内部存储键、部署秘密或对方尚未揭晓的正文。"
+        description="把你能查看的回忆、照片和资料打包下载；对方尚未揭晓的内容不会被带出。"
       >
         <BaseButton
           size="sm"
@@ -193,7 +191,7 @@ async function remove(job: ExportJobView) {
             导出文件本身没有额外密码
           </p>
           <p class="mt-1 text-xs leading-5 text-ink-500 dark:text-ink-400">
-            这是两个人使用的私密项目。下载后请自行放进受保护的设备或加密备份位置。
+            下载后请把它放在只有自己能打开的设备或加密位置。
           </p>
         </div>
       </div>
@@ -211,7 +209,7 @@ async function remove(job: ExportJobView) {
           class="flex items-start gap-3 rounded-xl border border-ink-200 bg-white/70 px-4 py-3 text-sm text-ink-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-ink-300"
         >
           <input v-model="confirmed" class="mt-1" type="checkbox" />
-          <span>我确认现在要为当前身份生成一份私密数据导出。</span>
+          <span>我确认现在要下载一份自己可以查看的私密资料。</span>
         </label>
         <BaseButton
           :loading="creating"
@@ -285,7 +283,7 @@ async function remove(job: ExportJobView) {
       </article>
     </div>
     <p v-else class="mt-5 text-sm leading-6 text-ink-400">
-      当前身份还没有创建过导出。
+      你还没有创建过导出。
     </p>
   </SurfaceCard>
 </template>

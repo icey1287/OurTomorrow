@@ -165,12 +165,12 @@ export function firstTimeSentence(
     memory.firstTimeLabel?.trim().replace(/^第一次\s*/, "") ?? "";
   const titled = memory.title.trim().replace(/^第一次\s*/, "");
   const subject = labelled || titled || "留下这段故事";
-  return `你们第一次${subject}，是在 ${formatMemoryDate(memory.happenedAt, false, timeZone)}。`;
+  return `我们第一次${subject}，是在 ${formatMemoryDate(memory.happenedAt, false, timeZone)}。`;
 }
 
 const MEMORY_RESURFACE_REASON_TEXT: Record<MemoryResurfaceReason, string> = {
-  ON_THIS_DAY: "同一天的旧时光，今天又绕回了你们身边。",
-  FIRST_UPLOAD: "这是最早被你们收藏起来的影像故事。",
+  ON_THIS_DAY: "同一天的旧时光，今天又绕回了我们身边。",
+  FIRST_UPLOAD: "这是最早被我们收藏起来的影像故事。",
   PLACE: "一个共同地点，把这段故事重新带了回来。",
   SEASON: "相似的季节里，过去正轻轻回应今天。",
   COMPLETE_PERSPECTIVES: "这段故事里，刚好保存着两个人的完整视角。",

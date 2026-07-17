@@ -109,7 +109,7 @@ async function reloadAfterConflict() {
   conflictDetected.value = false;
   actionError.value = null;
   await refresh();
-  actionMessage.value = "已载入最新版本，你刚才的视角输入仍然保留。";
+  actionMessage.value = "内容已经更新，你刚才写下的文字仍然保留。";
 }
 
 async function refresh() {
@@ -135,7 +135,7 @@ async function savePerspective(submit: boolean) {
       mood: perspectiveMood.value.trim() || null,
     });
     if (submit) {
-      if (!saved.version) throw new Error("视角版本缺失，请重新打开后再试。");
+      if (!saved.version) throw new Error("保存没有完成，请重新打开后再试。");
       await stageTwoApi.submitPerspective(props.memoryId, {
         version: saved.version,
       });

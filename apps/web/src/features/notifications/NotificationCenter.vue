@@ -474,7 +474,7 @@ onBeforeUnmount(() => {
                   正在取回提醒…
                 </p>
                 <p class="mt-2 text-sm text-ink-500 dark:text-ink-400">
-                  只加载当前身份收到的站内通知。
+                  这里只显示属于这个身份的通知。
                 </p>
               </div>
             </div>
@@ -664,7 +664,7 @@ onBeforeUnmount(() => {
             class="flex shrink-0 items-start gap-2 border-t border-ink-200/70 bg-white/45 px-5 py-3 text-[11px] leading-5 text-ink-500 dark:border-white/10 dark:bg-white/[0.025] dark:text-ink-400 sm:px-6"
           >
             <ShieldCheck class="mt-0.5 size-3.5 shrink-0 text-present-600" />
-            通知中心只展示服务端生成的隐私安全文案，不读取通知载荷里的私密正文。
+            通知里只放简短提醒，不会直接展示私密正文。
           </footer>
         </section>
       </div>

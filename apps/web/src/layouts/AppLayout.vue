@@ -54,7 +54,7 @@ const userName = computed(
   () =>
     identity.user?.nicknameInRelationship ??
     identity.user?.displayName ??
-    "我们的空间",
+    "明天",
 );
 const coupleName = computed(() => identity.couple?.name ?? "我们的明天");
 const initials = computed(() => userName.value.trim().slice(0, 1) || "甲");

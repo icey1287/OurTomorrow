@@ -93,7 +93,7 @@ async function updateHistory(historyState: PlaceHistoryState) {
     if (identity.role !== startRole) return;
     statusError.value =
       error instanceof ApiClientError && error.code === "STATE_CONFLICT"
-        ? "地点刚刚发生变化，已重新读取；请确认后再试。"
+        ? "地点刚刚发生变化，已经刷新；请确认后再试。"
         : error instanceof Error
           ? error.message
           : "地点状态没有更新成功。";
@@ -115,7 +115,7 @@ async function updateHistory(historyState: PlaceHistoryState) {
         <p
           class="text-xs font-bold uppercase tracking-[0.18em] text-memory-600 dark:text-memory-300"
         >
-          Footprints · 主动记录，不追踪定位
+          Footprints · 我们走过的路
         </p>
         <h2
           id="footprint-map-heading"
@@ -126,7 +126,7 @@ async function updateHistory(historyState: PlaceHistoryState) {
         <p
           class="mt-2 max-w-2xl text-sm leading-6 text-ink-500 dark:text-ink-400"
         >
-          只展示你们主动填写的坐标。地图不会请求当前位置，也不会把地点发送给第三方服务。
+          把一起去过、住过的地方留在地图上，慢慢连成我们的足迹。
         </p>
       </div>
       <span
@@ -148,7 +148,7 @@ async function updateHistory(historyState: PlaceHistoryState) {
         state="error"
         title="共同足迹暂时没有打开"
         :message="queryError"
-        action-label="重新读取"
+        action-label="重试"
         @action="mapQuery.refetch()"
       />
       <AsyncState

@@ -98,7 +98,6 @@ const capsule = computed(() => {
                 anniversary.nextOccurrenceLocalDate || anniversary.date,
               )
             }}
-            · 由服务器按 {{ timezone }} 计算
           </p>
         </div>
         <div v-else class="mt-10">
@@ -130,7 +129,7 @@ const capsule = computed(() => {
           /></span>
           <span
             class="inline-flex items-center gap-1.5 rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-500 dark:bg-white/[0.06] dark:text-ink-400"
-            ><CalendarClock class="size-3" />服务端解锁</span
+            ><CalendarClock class="size-3" />到时开启</span
           >
         </div>
         <template v-if="capsule">
@@ -143,7 +142,7 @@ const capsule = computed(() => {
           <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
             {{
               formatInstant(capsule.dueAt || capsule.unlockAt, timezone)
-            }}。当前可操作状态直接来自 API。
+            }}，到了约定的时刻就可以继续。
           </p>
           <div class="mt-4 flex flex-wrap gap-2 text-[11px] font-semibold">
             <span
@@ -159,7 +158,7 @@ const capsule = computed(() => {
             <span
               v-if="!capsule.bodyAvailable"
               class="inline-flex items-center gap-1 rounded-full bg-ink-100 px-2.5 py-1 text-ink-500 dark:bg-white/[0.07] dark:text-ink-300"
-              ><LockKeyhole class="size-3" />正文未返回</span
+              ><LockKeyhole class="size-3" />内容仍封存</span
             >
           </div>
         </template>
@@ -171,7 +170,7 @@ const capsule = computed(() => {
             把现在的话，交给未来。
           </h2>
           <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
-            封存后正文不可修改，未打开前 API 也不会返回内容。
+            封存以后不能再修改，到了约定的那一天再一起打开。
           </p>
         </template>
       </div>

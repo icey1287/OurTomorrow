@@ -414,7 +414,7 @@ function submit() {
       class="flex items-start gap-3 rounded-2xl bg-ink-50 px-4 py-3 text-xs leading-6 text-ink-500 dark:bg-white/[0.04] dark:text-ink-400"
     >
       <LockKeyhole class="mt-1 size-4 shrink-0" />
-      封存后正文不可修改。未打开前，界面不会根据浏览器时间自行展示正文或启用打开按钮。
+      封存后不能再修改，到了约定的时刻才会出现打开按钮。
     </div>
 
     <p

@@ -338,7 +338,7 @@ function timingPayload() {
   if (form.timing === "scheduled") {
     if (!showAt) throw new Error("请选择便利贴揭晓时间。");
     if (new Date(showAt).valueOf() <= now.valueOf() + 30_000) {
-      throw new Error("揭晓时间需要晚于现在。所有定时显示都由服务器执行。");
+      throw new Error("揭晓时间需要晚于现在。");
     }
   }
 
@@ -399,7 +399,7 @@ async function saveNote(publish: boolean) {
     resetForm();
     actionMessage.value = publish
       ? wasScheduled
-        ? "便利贴已交给服务器保管，到设定时间才会向对方揭晓。"
+        ? "便利贴已经收好，到设定时间才会向对方揭晓。"
         : "便利贴已经送到对方的墙上。"
       : "便利贴已保存为只有你能看到的草稿。";
   } catch (error) {
@@ -475,7 +475,7 @@ async function toggleReaction(note: NoteView, emoji: string) {
       <SectionHeading
         id="notes-heading"
         title="留给你 · 便利贴墙"
-        description="定时显示和失效都由服务器控制；未来惊喜的正文不会提前发送给对方。"
+        description="现在送达，或挑一个未来的时刻，让一句话刚好出现。"
       >
         <BaseButton size="sm" @click="openNewNote">
           <Plus class="size-4" />新纸条
@@ -581,7 +581,7 @@ async function toggleReaction(note: NoteView, emoji: string) {
                 一份内容尚未揭晓
               </h3>
               <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
-                服务器只告诉当前浏览器揭晓时间，没有发送正文、颜色或图标。
+                到了写下的时间，这份小惊喜才会出现。
               </p>
               <p
                 class="mt-auto pt-5 text-xs font-semibold text-future-700 dark:text-future-300"
@@ -634,7 +634,7 @@ async function toggleReaction(note: NoteView, emoji: string) {
                   <Clock3 class="mr-1 inline size-3.5" />{{
                     formatInstant(note.showAt, timezone)
                   }}
-                  由服务器揭晓
+                  准时揭晓
                 </p>
                 <p v-if="note.expiresAt">
                   <Clock3 class="mr-1 inline size-3.5" />{{
@@ -1057,7 +1057,7 @@ async function toggleReaction(note: NoteView, emoji: string) {
                   >定时揭晓</span
                 >
                 <span class="mt-1 block text-xs leading-5 text-ink-400"
-                  >由服务器到点显示，不依赖这个浏览器</span
+                  >到了这个时间，再让对方看到</span
                 >
               </span>
             </label>
@@ -1078,7 +1078,7 @@ async function toggleReaction(note: NoteView, emoji: string) {
               class="mt-3 flex items-start gap-2 rounded-2xl bg-future-100/80 px-4 py-3 text-xs leading-5 text-future-800 dark:bg-future-900/35 dark:text-future-200"
             >
               <LockKeyhole class="mt-0.5 size-4 shrink-0" />
-              隐藏惊喜在揭晓前只向对方返回一个带时间的占位符；正文不会提前下发。
+              揭晓以前，对方只会看到约定的时间，不会提前看到正文。
             </p>
           </div>
         </fieldset>
@@ -1153,7 +1153,7 @@ async function toggleReaction(note: NoteView, emoji: string) {
           </BaseButton>
           <BaseButton type="submit" :loading="saveMutation.isPending.value">
             <Send class="size-4" />{{
-              form.timing === "scheduled" ? "交给服务器定时送达" : "发送给对方"
+              form.timing === "scheduled" ? "定时送达" : "发送给对方"
             }}
           </BaseButton>
         </div>

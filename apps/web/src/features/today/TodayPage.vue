@@ -6,7 +6,6 @@ import {
   Clock3,
   Heart,
   MessageCircleHeart,
-  ShieldCheck,
   StickyNote,
   Sunrise,
 } from "lucide-vue-next";
@@ -160,8 +159,8 @@ watch(
     <AsyncState
       v-if="todayQuery.isPending.value"
       state="loading"
-      title="正在打开你们的今日…"
-      message="关系日期和问候会按共同空间时区从服务器确认。"
+      title="正在打开今天…"
+      message="把属于今天的片刻轻轻放好。"
     />
 
     <AsyncState
@@ -177,7 +176,7 @@ watch(
       <PageHeader
         eyebrow="Today · 时间交汇处"
         :title="today.greeting"
-        :description="`${localDateLabel}。关系日期与乙数由服务器按 ${relationship.timezone} 计算。`"
+        :description="localDateLabel"
       />
 
       <section class="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
@@ -209,7 +208,7 @@ watch(
               <span
                 class="rounded-full border border-white/70 bg-white/55 px-3 py-1.5 text-xs font-semibold text-ink-600 backdrop-blur dark:border-white/10 dark:bg-white/[0.06] dark:text-ink-300"
               >
-                {{ relationship.timezone }} · {{ serverTimeLabel }}
+                今天 · {{ serverTimeLabel }}
               </span>
             </div>
 
@@ -266,9 +265,7 @@ watch(
                   · 心情：{{ today.partnerStatus.mood }}</span
                 >
               </template>
-              <template v-else>
-                这里只显示服务器判定仍然有效的状态，不会挂着几天前的近况。
-              </template>
+              <template v-else> 今天还没有留下近况，晚一点再来看看。 </template>
             </p>
           </div>
           <RouterLink
@@ -301,7 +298,7 @@ watch(
               从共同故事里重新遇见过去
             </h2>
             <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              这里会承接回忆时间线与服务器选出的随机回忆。
+              这里会收好过去的片段，也会偶尔带一段回忆回来。
             </p>
           </SurfaceCard>
         </RouterLink>
@@ -351,7 +348,7 @@ watch(
               把共同期待写进未来
             </h2>
             <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              愿望、计划与胶囊会在到达正确状态后出现在今日。
+              愿望、计划和胶囊，会在合适的时刻来到今天。
             </p>
           </SurfaceCard>
         </RouterLink>
@@ -360,7 +357,7 @@ watch(
       <section class="mt-8">
         <SectionHeading
           title="今天值得留意"
-          description="首页只呈现服务器确认可见的内容；尚无内容时保持安静。"
+          description="今天想说的、想起的和期待的，都在这里慢慢相遇。"
         />
         <div class="mt-4 grid gap-4 lg:grid-cols-2">
           <RouterLink
@@ -396,7 +393,7 @@ watch(
                   >
                     {{
                       today.randomMemory.excerpt ||
-                      "这段共同故事，今天又轻轻回到了你们面前。"
+                      "这段共同故事，今天又轻轻回到了我们面前。"
                     }}
                   </p>
                 </div>
@@ -462,28 +459,6 @@ watch(
               </div>
             </SurfaceCard>
           </RouterLink>
-
-          <SurfaceCard>
-            <div class="flex items-start gap-4">
-              <span
-                class="grid size-11 shrink-0 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-900/45 dark:text-memory-200"
-                ><ShieldCheck class="size-5"
-              /></span>
-              <div class="min-w-0 flex-1">
-                <h3 class="font-semibold text-ink-950 dark:text-white">
-                  来自服务器的共同时间
-                </h3>
-                <p
-                  class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400"
-                >
-                  本页生成于
-                  {{
-                    serverTimeLabel
-                  }}，浏览器时间不会改变关系天数或受限内容状态。
-                </p>
-              </div>
-            </div>
-          </SurfaceCard>
         </div>
       </section>
     </template>

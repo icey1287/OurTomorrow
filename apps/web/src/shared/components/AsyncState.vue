@@ -19,7 +19,7 @@ const copy = computed(() => {
   if (props.state === "loading") {
     return {
       title: props.title ?? "正在轻轻打开…",
-      message: props.message ?? "把属于你们的内容准备好。",
+      message: props.message ?? "把属于我们的内容准备好。",
     };
   }
 
@@ -32,7 +32,7 @@ const copy = computed(() => {
 
   return {
     title: props.title ?? "这里还很安静",
-    message: props.message ?? "第一段故事，会从你们写下的那一刻开始。",
+    message: props.message ?? "第一段故事，会从我们写下的那一刻开始。",
   };
 });
 </script>

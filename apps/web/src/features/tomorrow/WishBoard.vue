@@ -204,7 +204,7 @@ function conflictMessage(error: unknown, action: string) {
     void queryClient.invalidateQueries({
       queryKey: ["wishes", identity.role],
     });
-    return `愿望刚刚在另一处发生变化，已读取最新状态；请确认后再${action}。`;
+    return `愿望刚刚在另一处发生变化，已经重新整理；请确认后再${action}。`;
   }
   return error instanceof Error ? error.message : `愿望没有${action}成功。`;
 }
@@ -532,7 +532,7 @@ async function runWishAction(
           {{
             wish.expectation ||
             wish.description ||
-            "这件未来还等着你们慢慢补全。"
+            "这件未来还等着我们慢慢补全。"
           }}
         </p>
         <div

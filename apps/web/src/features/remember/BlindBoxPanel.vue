@@ -113,7 +113,7 @@ watch(
       v-if="todayQuery.isPending.value"
       class="mt-5 text-sm leading-6 text-ink-500 dark:text-ink-400"
     >
-      正在按你们的共同日期准备今天这一盒…
+      正在按我们的共同日期准备今天这一盒…
     </p>
 
     <div v-else-if="todayQuery.isError.value" class="mt-5">
@@ -150,7 +150,7 @@ watch(
           <p class="mt-3 text-sm font-semibold text-ink-700 dark:text-ink-200">
             今天的盲盒已经轻轻合上
           </p>
-          <p class="mt-1 text-xs text-ink-400">明天会按共同空间时区再见。</p>
+          <p class="mt-1 text-xs text-ink-400">明天再来，会有新的一盒。</p>
         </div>
       </div>
     </div>
@@ -170,12 +170,12 @@ watch(
             <LockKeyhole class="size-7" />
           </span>
           <p class="mt-4 text-sm font-semibold text-ink-800 dark:text-white">
-            同一盒，正在等你们亲手打开
+            同一盒，正在等我们亲手打开
           </p>
           <p
             class="mx-auto mt-2 max-w-xs text-xs leading-5 text-ink-600 dark:text-ink-300"
           >
-            {{ reasonText }} 打开前不会返回标题、封面、地点或正文。
+            {{ reasonText }} 打开前不会透露标题、封面、地点或正文。
           </p>
         </div>
       </div>

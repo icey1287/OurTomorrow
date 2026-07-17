@@ -44,10 +44,10 @@ const backupCopy = computed(() => {
 });
 const workerLabel = computed(() => {
   const value = status.value?.worker.status;
-  if (value === "HEALTHY") return "Worker 正常";
-  if (value === "STALE") return "Worker 心跳过期";
-  if (value === "STOPPED") return "Worker 已停止";
-  return "Worker 状态未知";
+  if (value === "HEALTHY") return "自动提醒正常";
+  if (value === "STALE") return "自动提醒稍有延迟";
+  if (value === "STOPPED") return "自动提醒暂时停下";
+  return "自动提醒状态未知";
 });
 
 function formatTime(value: string | null | undefined) {
@@ -80,8 +80,8 @@ function formatBytes(value: string | null | undefined) {
         ><ShieldCheck class="size-4"
       /></span>
       <SectionHeading
-        title="数据与运行状态"
-        description="这里只展示非敏感健康信息，不返回备份仓库、文件路径或部署凭据。"
+        title="数据安全"
+        description="看看备份、照片存储和自动提醒是否都安稳运行。"
       >
         <BaseButton
           size="sm"
@@ -121,7 +121,7 @@ function formatBytes(value: string | null | undefined) {
           最近成功：{{ formatTime(status?.backup.lastSuccessAt) }}
         </p>
         <p class="mt-1 text-xs leading-5 text-ink-400">
-          允许最大间隔
+          最长可间隔
           {{ Math.round((status?.backup.maxAgeSeconds ?? 0) / 3600) }}
           小时
         </p>
@@ -144,13 +144,13 @@ function formatBytes(value: string | null | undefined) {
       >
         <Activity class="size-5 text-future-600 dark:text-future-300" />
         <p class="mt-4 text-sm font-semibold text-ink-900 dark:text-white">
-          {{ workerLabel }} · 持久任务
+          {{ workerLabel }} · 待处理
           {{ status?.queues.scheduledPending ?? 0 }}
-          · 失败
+          · 异常
           {{ status?.queues.scheduledFailed ?? 0 }}
         </p>
         <p class="mt-1 text-xs leading-5 text-ink-400">
-          实时事件 {{ status?.queues.outboxPending ?? 0 }} · 失败
+          待同步消息 {{ status?.queues.outboxPending ?? 0 }} · 异常
           {{ status?.queues.outboxFailed ?? 0 }}
         </p>
       </article>

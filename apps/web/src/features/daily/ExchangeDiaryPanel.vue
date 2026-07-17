@@ -117,7 +117,7 @@ function diaryMutationError(error: unknown, action: string) {
     ].includes(error.code)
   ) {
     void diaryQuery.refetch();
-    return `日记状态刚刚发生变化，已重新读取服务端版本；你的本地文字仍保留，请确认后再${action}。`;
+    return `日记刚刚在另一处发生变化，已经重新整理；你写的文字还在，请确认后再${action}。`;
   }
   return error instanceof Error ? error.message : `日记没有${action}成功。`;
 }
@@ -333,7 +333,7 @@ async function savePostscript() {
               </div>
               <p class="flex items-start gap-2 text-xs leading-5 text-ink-400">
                 <LockKeyhole class="mt-0.5 size-3.5 shrink-0" />
-                提交后不能修改正文；只有两个人都提交，服务端才会读取并同时返回彼此答案。
+                提交后不能修改；只有我们都提交，彼此的答案才会一起出现。
               </p>
             </div>
 
@@ -358,7 +358,7 @@ async function savePostscript() {
               <p
                 class="mx-auto mt-2 max-w-lg text-sm leading-6 text-ink-500 dark:text-ink-400"
               >
-                你的正文已经锁定。等待期间只显示“是否提交”，不会读取或下发任何一方的答案。
+                你的答案已经收好。等待期间只会告诉彼此是否提交，不会提前展示答案。
               </p>
               <div
                 class="mt-5 rounded-2xl bg-white/70 p-4 text-left dark:bg-white/[0.05]"

@@ -137,7 +137,7 @@ const actions: Record<TimeDimension, ActionOption[]> = {
     {
       type: "exchange-diary",
       label: "交换日记",
-      description: "回答今天只属于你们的问题",
+      description: "回答今天只属于我们的问题",
       icon: MessageSquareHeart,
     },
   ],

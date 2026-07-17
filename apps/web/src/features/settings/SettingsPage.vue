@@ -58,19 +58,21 @@ const switchingRole = ref<IdentityRole | null>(null);
 const refreshingIdentity = ref(false);
 const identityActionError = ref<string | null>(null);
 
-const currentRoleLabel = computed(() =>
-  identity.role === "boy"
-    ? "男生"
-    : identity.role === "girl"
-      ? "女生"
-      : "未选择",
-);
+function roleName(role: IdentityRole | null) {
+  if (!role) return "未选择";
+  const member = identity.couple?.members.find((item) => item.role === role);
+  return (
+    member?.nicknameInRelationship ??
+    member?.displayName ??
+    (role === "boy" ? "甲" : "乙")
+  );
+}
+
+const currentRoleLabel = computed(() => roleName(identity.role));
 const nextRole = computed<IdentityRole>(() =>
   identity.role === "boy" ? "girl" : "boy",
 );
-const nextRoleLabel = computed(() =>
-  nextRole.value === "boy" ? "男生" : "女生",
-);
+const nextRoleLabel = computed(() => roleName(nextRole.value));
 
 const themeOptions: Array<{
   id: ThemePreference;
@@ -221,9 +223,9 @@ watch(
 <template>
   <main class="page-shell">
     <PageHeader
-      eyebrow="Settings · 当前浏览器"
-      title="管理身份、资料与共同外观。"
-      description="身份选择保存在当前浏览器；共同资料仍由服务器保存。"
+      eyebrow="Settings · 我们的偏好"
+      title="把明天调成我们喜欢的样子。"
+      description="在这里换身份、改称呼，也调整我们都能看到的外观。"
     />
 
     <div
@@ -352,15 +354,15 @@ watch(
               ><UsersRound class="size-4"
             /></span>
             <SectionHeading
-              title="共同空间"
-              description="关系名称、签名、开始日期和时区由两个人共享。"
+              title="我们的资料"
+              description="名字、签名和故事开始的日期都可以在这里查看。"
             />
           </div>
           <dl
             class="mt-5 space-y-3 rounded-2xl bg-ink-50/70 p-4 text-sm dark:bg-white/[0.03]"
           >
             <div class="flex justify-between gap-4">
-              <dt class="text-ink-400">空间</dt>
+              <dt class="text-ink-400">名字</dt>
               <dd
                 class="text-right font-semibold text-ink-800 dark:text-ink-100"
               >
@@ -383,7 +385,7 @@ watch(
           <RouterLink
             to="/us?edit=relationship"
             class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-memory-700 transition hover:bg-memory-50 dark:text-memory-300 dark:hover:bg-memory-950/30"
-            ><Pencil class="size-4" />编辑共同关系资料</RouterLink
+            ><Pencil class="size-4" />编辑我们的资料</RouterLink
           >
         </SurfaceCard>
 
@@ -394,8 +396,8 @@ watch(
               ><BadgeCheck class="size-4"
             /></span>
             <SectionHeading
-              title="本机身份"
-              description="请求通过角色请求头识别当前是两个人中的哪一位。"
+              title="现在是谁在用"
+              description="这台设备会记住当前选择，平时不用反复确认。"
             />
           </div>
           <div
@@ -408,12 +410,12 @@ watch(
               />
               <div>
                 <p class="text-sm font-semibold text-ink-900 dark:text-white">
-                  当前是{{ currentRoleLabel }}
+                  现在是 {{ currentRoleLabel }}
                 </p>
                 <p
                   class="mt-1 text-xs leading-5 text-ink-400 dark:text-ink-500"
                 >
-                  刷新页面会从 localStorage 自动恢复。
+                  下次打开时仍会保持这个身份。
                 </p>
               </div>
             </div>
@@ -436,11 +438,11 @@ watch(
               variant="ghost"
               :disabled="Boolean(switchingRole)"
               @click="clearCachedIdentity"
-              ><Trash2 class="size-4" />清除本机身份缓存</BaseButton
+              ><Trash2 class="size-4" />重新选择身份</BaseButton
             >
           </div>
           <p class="mt-3 text-xs leading-5 text-ink-400 dark:text-ink-500">
-            清除缓存不会删除服务器上的共同资料，下次进入时只需重新选择身份。
+            重新选择不会删掉任何回忆、纸条或照片。
           </p>
         </SurfaceCard>
 
@@ -458,7 +460,7 @@ watch(
             /></span>
             <SectionHeading
               title="共同主题"
-              description="主题保存到情侣空间，两个人会看到同一选择。"
+              description="选好以后，我们两个人都会看到同一种样子。"
             />
           </div>
           <div class="mt-5 grid gap-3 sm:grid-cols-3">
@@ -516,7 +518,7 @@ watch(
                 <p
                   class="mt-1 text-xs leading-5 text-ink-400 dark:text-ink-500"
                 >
-                  这是无障碍设备偏好，只保存在当前浏览器。
+                  这个选择只影响现在使用的设备。
                 </p>
               </div>
             </div>
@@ -554,7 +556,7 @@ watch(
                 <p
                   class="mt-1 max-w-xl text-xs leading-5 text-ink-400 dark:text-ink-500"
                 >
-                  控制抱抱、想你等信号到达时的页面浮层。只保存在当前浏览器，关闭后也不会改变站内通知记录。
+                  决定抱抱、想你等心意到达时，要不要立刻在页面上出现。
                 </p>
               </div>
             </div>
@@ -592,8 +594,8 @@ watch(
 
         <SurfaceCard>
           <SectionHeading
-            title="两位固定成员"
-            description="男生与女生两个身份始终对应同一个情侣空间。"
+            title="我们两个人"
+            description="这里一直只有甲和乙。"
           />
           <div class="mt-5 grid gap-3 sm:grid-cols-2">
             <article

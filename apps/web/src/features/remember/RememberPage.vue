@@ -617,7 +617,7 @@ function handleConflict() {
             /></span>
             <div>
               <p class="text-sm font-semibold text-ink-900 dark:text-white">
-                照片按身份私密读取
+                私密照片只对上传的人可见
               </p>
               <p class="mt-0.5 text-xs text-ink-400">
                 重新编码 · 清理 EXIF · 私有缩略图
@@ -637,7 +637,7 @@ function handleConflict() {
             </p>
           </div>
           <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
-            这里只保存你们主动写下的地点，不采集持续位置轨迹。
+            这里只保存我们主动写下的地点，不会记录一路上的位置变化。
           </p>
         </SurfaceCard>
       </aside>

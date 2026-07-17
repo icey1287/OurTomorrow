@@ -116,7 +116,7 @@ async function saveStatus() {
       ...(mine.value ? { version: mine.value.version } : {}),
     });
     composerOpen.value = false;
-    actionMessage.value = "此刻状态已更新，会在设定时间后由服务器自动结束。";
+    actionMessage.value = "此刻状态已更新，到了设定时间会自动结束。";
   } catch (error) {
     actionError.value = mutationError(error, "更新");
   }

@@ -193,7 +193,7 @@ test("two identities carry a wish into memory and cannot read a locked capsule e
 
     const capsuleDialog = boy.getByRole("dialog", { name: capsuleTitle });
     await capsuleDialog.getByRole("button", { name: "封存胶囊" }).click();
-    await expect(capsuleDialog.getByText("正文仍由服务端保管")).toBeVisible();
+    await expect(capsuleDialog.getByText("内容还在封存中")).toBeVisible();
     await expect(
       capsuleDialog.getByText(capsuleSecret, { exact: true }),
     ).toBeHidden();
@@ -222,7 +222,7 @@ test("two identities carry a wish into memory and cannot read a locked capsule e
       name: capsuleTitle,
     });
     await expect(
-      partnerCapsuleDialog.getByText("正文仍由服务端保管"),
+      partnerCapsuleDialog.getByText("内容还在封存中"),
     ).toBeVisible();
     await expect(
       partnerCapsuleDialog.getByText(capsuleSecret, { exact: true }),
