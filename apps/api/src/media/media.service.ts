@@ -1,6 +1,12 @@
 import { HttpStatus, Inject, Injectable, Logger } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
-import { MediaKind, MediaStatus, Prisma } from "@prisma/client";
+import {
+  MediaKind,
+  MediaStatus,
+  Prisma,
+  RecycleBinResourceType,
+  RecycleBinVisibility,
+} from "@prisma/client";
 import { createHash, randomUUID } from "node:crypto";
 import { constants, promises as fileSystem } from "node:fs";
 import type { FileHandle } from "node:fs/promises";
@@ -18,6 +24,7 @@ import type { Environment } from "../config/env.schema";
 import { PrismaService } from "../database/prisma.service";
 import type { IdentityRole } from "../identity/identity.constants";
 import { IdentityService } from "../identity/identity.service";
+import { createRecycleBinItem } from "../recycle-bin/recycle-bin.persistence";
 import type {
   MediaAssetSummaryDto,
   PresignUploadDto,
@@ -434,6 +441,7 @@ export class MediaService {
         );
       }
 
+      const deletedAt = this.clock.now();
       const deleted = await transaction.mediaAsset.updateMany({
         where: {
           id: media.id,
@@ -444,10 +452,20 @@ export class MediaService {
         },
         data: {
           status: MediaStatus.DELETED,
-          deletedAt: this.clock.now(),
+          deletedAt,
         },
       });
       if (deleted.count !== 1) throw stateConflict();
+      await createRecycleBinItem(transaction, {
+        coupleId: identity.couple.id,
+        resourceType: RecycleBinResourceType.MEDIA,
+        resourceId: media.id,
+        deletedById: identity.user.id,
+        deletedAt,
+        restoreData: { status: media.status },
+        visibility: RecycleBinVisibility.OWNER_ONLY,
+        ownerId: identity.user.id,
+      });
     });
   }
 

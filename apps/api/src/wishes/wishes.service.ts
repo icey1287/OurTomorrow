@@ -3,6 +3,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import {
   PlanStatus,
   Prisma,
+  RecycleBinResourceType,
   WishStatus,
   type ScheduledEventStatus,
 } from "@prisma/client";
@@ -20,6 +21,10 @@ import {
   type IdentityResponse,
 } from "../identity/identity.service";
 import { readableMediaAssetWhere } from "../media/media-access";
+import {
+  createRecycleBinItem,
+  nullableInstant,
+} from "../recycle-bin/recycle-bin.persistence";
 import {
   cancelScheduledEvent,
   createPrivateNotification,
@@ -76,6 +81,8 @@ type WishActionRecord = {
     version: number;
     status: PlanStatus;
     reminderAt: Date | null;
+    completedAt: Date | null;
+    cancelledAt: Date | null;
     deletedAt: Date | null;
   } | null;
 };
@@ -87,6 +94,7 @@ type WishDatabase = Pick<
   | "outboxEvent"
   | "place"
   | "plan"
+  | "recycleBinItem"
   | "scheduledEvent"
   | "wish"
   | "wishMedia"
@@ -408,6 +416,26 @@ export class WishesService {
           REMINDER_CANCELLABLE_STATUSES,
         );
       }
+      await createRecycleBinItem(transaction, {
+        coupleId: actor.couple.id,
+        resourceType: RecycleBinResourceType.WISH,
+        resourceId: wishId,
+        deletedById: actor.user.id,
+        deletedAt: now,
+        restoreData: {
+          status: current.status,
+          plan:
+            current.plan === null || current.plan.deletedAt !== null
+              ? null
+              : {
+                  id: current.plan.id,
+                  status: current.plan.status,
+                  reminderAt: nullableInstant(current.plan.reminderAt),
+                  completedAt: nullableInstant(current.plan.completedAt),
+                  cancelledAt: nullableInstant(current.plan.cancelledAt),
+                },
+        },
+      });
       await this.publishMutation(transaction, actor, partner.id, {
         wishId,
         version: version + 1,
@@ -868,6 +896,8 @@ export class WishesService {
             version: true,
             status: true,
             reminderAt: true,
+            completedAt: true,
+            cancelledAt: true,
             deletedAt: true,
           },
         },

@@ -5,6 +5,8 @@ import {
   MemoryStatus,
   Prisma,
   ReactionTargetType,
+  RecycleBinResourceType,
+  RecycleBinVisibility,
 } from "@prisma/client";
 import { Clock } from "../common/clock/clock";
 import {
@@ -20,6 +22,7 @@ import {
   type IdentityResponse,
 } from "../identity/identity.service";
 import { readableMediaAssetWhere } from "../media/media-access";
+import { createRecycleBinItem } from "../recycle-bin/recycle-bin.persistence";
 import type {
   BindMemoryMediaDto,
   CreateMemoryCommentDto,
@@ -766,6 +769,20 @@ export class MemoriesService {
             deletedAt: { from: null, to: deletedAt.toISOString() },
           }),
         },
+      });
+      await createRecycleBinItem(transaction, {
+        coupleId: actor.couple.id,
+        resourceType: RecycleBinResourceType.MEMORY,
+        resourceId: memoryId,
+        deletedById: actor.user.id,
+        deletedAt,
+        restoreData: { status: before.status },
+        ...(before.status === MemoryStatus.DRAFT
+          ? {
+              visibility: RecycleBinVisibility.OWNER_ONLY,
+              ownerId: actor.user.id,
+            }
+          : {}),
       });
     });
   }

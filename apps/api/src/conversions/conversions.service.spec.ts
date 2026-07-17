@@ -194,6 +194,7 @@ function setup(tx = transaction()) {
   const memories = {
     get: vi.fn().mockResolvedValue(memoryDetail),
   } as unknown as MemoriesService;
+  const audit = { record: vi.fn().mockResolvedValue(undefined) };
   const service = new ConversionsService(
     {} as PrismaService,
     identity,
@@ -201,8 +202,9 @@ function setup(tx = transaction()) {
     idempotency,
     memoryCreation,
     memories,
+    audit,
   );
-  return { service, idempotency, memoryCreation, memories, tx };
+  return { service, idempotency, memoryCreation, memories, audit, tx };
 }
 
 function statusCode(error: unknown): number | undefined {
@@ -211,7 +213,7 @@ function statusCode(error: unknown): number | undefined {
 
 describe("ConversionsService", () => {
   it("converts an owned active note to a wish and archives it atomically", async () => {
-    const { service, tx } = setup();
+    const { service, audit, tx } = setup();
 
     const response = await service.convertNote(
       "boy",
@@ -256,6 +258,22 @@ describe("ConversionsService", () => {
         create: expect.objectContaining({ eventType: "conversion.completed" }),
       }),
     );
+    expect(audit.record).toHaveBeenCalledWith(
+      {
+        action: "NOTE_CONVERTED_TO_WISH",
+        actorId: BOY_ID,
+        coupleId: COUPLE_ID,
+        resourceType: "NOTE",
+        resourceId: NOTE_ID,
+        metadata: {
+          resourceId: NOTE_ID,
+          status: NoteStatus.ARCHIVED,
+          version: 3,
+        },
+      },
+      tx,
+    );
+    expect(JSON.stringify(audit.record.mock.calls)).not.toContain("一起去看海");
   });
 
   it("does not allow a foreign place to be attached by note conversion", async () => {
@@ -314,7 +332,7 @@ describe("ConversionsService", () => {
     );
     const tx = transaction();
     tx.contentConversion.findUnique.mockResolvedValue(existing);
-    const { service } = setup(tx);
+    const { service, audit } = setup(tx);
 
     await expect(
       service.convertNote(
@@ -334,6 +352,7 @@ describe("ConversionsService", () => {
     ).rejects.toSatisfy((error: unknown) => statusCode(error) === 409);
     expect(tx.note.findFirst).toHaveBeenCalledTimes(2);
     expect(tx.wish.create).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
   });
 
   it("does not let the other identity replay an author's note conversion", async () => {
@@ -361,7 +380,7 @@ describe("ConversionsService", () => {
   });
 
   it("converts only a completed wish and moves it to CONVERTED_TO_MEMORY", async () => {
-    const { service, memoryCreation, memories, tx } = setup();
+    const { service, memoryCreation, memories, audit, tx } = setup();
 
     const response = await service.convertWishToMemory(
       "boy",
@@ -394,6 +413,22 @@ describe("ConversionsService", () => {
       }),
     );
     expect(memories.get).toHaveBeenCalledWith("boy", MEMORY_ID);
+    expect(audit.record).toHaveBeenCalledWith(
+      {
+        action: "WISH_CONVERTED_TO_MEMORY",
+        actorId: BOY_ID,
+        coupleId: COUPLE_ID,
+        resourceType: "WISH",
+        resourceId: WISH_ID,
+        metadata: {
+          resourceId: WISH_ID,
+          status: WishStatus.CONVERTED_TO_MEMORY,
+          version: 5,
+        },
+      },
+      tx,
+    );
+    expect(JSON.stringify(audit.record.mock.calls)).not.toContain("终于看到啦");
   });
 
   it("rejects stale or unfinished wishes before creating a memory", async () => {
@@ -427,7 +462,7 @@ describe("ConversionsService", () => {
   });
 
   it("converts an explicitly opened capsule without loading body before authorization", async () => {
-    const { service, memoryCreation, tx } = setup();
+    const { service, memoryCreation, audit, tx } = setup();
 
     const response = await service.convertCapsuleToMemory(
       "boy",
@@ -459,6 +494,24 @@ describe("ConversionsService", () => {
           status: CapsuleStatus.CONVERTED_TO_MEMORY,
         }),
       }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      {
+        action: "CAPSULE_CONVERTED_TO_MEMORY",
+        actorId: BOY_ID,
+        coupleId: COUPLE_ID,
+        resourceType: "CAPSULE",
+        resourceId: CAPSULE_ID,
+        metadata: {
+          resourceId: CAPSULE_ID,
+          status: CapsuleStatus.CONVERTED_TO_MEMORY,
+          version: 6,
+        },
+      },
+      tx,
+    );
+    expect(JSON.stringify(audit.record.mock.calls)).not.toContain(
+      "也一起看很多日落",
     );
   });
 

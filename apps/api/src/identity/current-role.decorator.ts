@@ -6,10 +6,11 @@ import { IDENTITY_ROLES, type IdentityRole } from "./identity.constants";
 export const IDENTITY_ROLE_HEADER = "X-Our-Tomorrow-Role";
 
 export function parseIdentityRole(value: unknown): IdentityRole {
-  const normalized =
-    typeof value === "string" ? value.trim().toLowerCase() : "";
-  if ((IDENTITY_ROLES as readonly string[]).includes(normalized)) {
-    return normalized as IdentityRole;
+  if (
+    typeof value === "string" &&
+    (IDENTITY_ROLES as readonly string[]).includes(value)
+  ) {
+    return value as IdentityRole;
   }
   throw identityRequired();
 }

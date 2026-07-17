@@ -1,5 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
+import { Prisma, RecycleBinResourceType } from "@prisma/client";
 import {
   resourceNotFound,
   stateConflict,
@@ -8,6 +8,7 @@ import {
 import { PrismaService } from "../database/prisma.service";
 import type { IdentityRole } from "../identity/identity.constants";
 import { IdentityService } from "../identity/identity.service";
+import { createRecycleBinItem } from "../recycle-bin/recycle-bin.persistence";
 import {
   type PlaceSummary,
   toPlaceSummary,
@@ -166,6 +167,7 @@ export class PlacesService {
         select: { version: true },
       });
       if (!existing) throw resourceNotFound();
+      const deletedAt = new Date();
       const changed = await transaction.place.updateMany({
         where: {
           id: placeId,
@@ -173,9 +175,17 @@ export class PlacesService {
           deletedAt: null,
           version: version ?? existing.version,
         },
-        data: { deletedAt: new Date(), version: { increment: 1 } },
+        data: { deletedAt, version: { increment: 1 } },
       });
       if (changed.count !== 1) throw stateConflict();
+      await createRecycleBinItem(transaction, {
+        coupleId: actor.couple.id,
+        resourceType: RecycleBinResourceType.PLACE,
+        resourceId: placeId,
+        deletedById: actor.user.id,
+        deletedAt,
+        restoreData: {},
+      });
     });
   }
 

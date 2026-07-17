@@ -80,6 +80,10 @@ function fixedClock(now = NOW): Clock {
   } as unknown as Clock;
 }
 
+function auditService() {
+  return { record: vi.fn().mockResolvedValue(undefined) };
+}
+
 function capsule(
   overrides: Partial<CapsuleMetadataRecord> = {},
 ): CapsuleMetadataRecord {
@@ -176,6 +180,7 @@ describe("CapsulesService privacy", () => {
       { capsule: { findFirst } } as unknown as PrismaService,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     const result = await service.get("girl", CAPSULE_ID);
@@ -205,6 +210,7 @@ describe("CapsulesService privacy", () => {
       { capsule: { findFirst } } as unknown as PrismaService,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     const result = await service.get("girl", CAPSULE_ID);
@@ -226,6 +232,7 @@ describe("CapsulesService privacy", () => {
       { capsule: { findFirst } } as unknown as PrismaService,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     await expect(service.get("girl", CAPSULE_ID)).rejects.toSatisfy(
@@ -240,6 +247,7 @@ describe("CapsulesService privacy", () => {
       { capsule: { findFirst } } as unknown as PrismaService,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     await expect(service.get("boy", CAPSULE_ID)).rejects.toSatisfy(
@@ -278,6 +286,7 @@ describe("CapsulesService privacy", () => {
       prisma,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     await expect(
@@ -332,6 +341,7 @@ describe("CapsulesService privacy", () => {
       } as unknown as PrismaService,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     await service.update("boy", CAPSULE_ID, {
@@ -411,10 +421,12 @@ describe("CapsulesService sealing and due transitions", () => {
       $transaction: vi.fn((operation) => operation(transaction)),
       capsule: { findFirst: vi.fn().mockResolvedValue(locked) },
     } as unknown as PrismaService;
+    const audit = auditService();
     const service = new CapsulesService(
       prisma,
       identityService(),
       fixedClock(),
+      audit,
     );
 
     const result = await service.seal("boy", CAPSULE_ID, 1);
@@ -446,6 +458,22 @@ describe("CapsulesService sealing and due transitions", () => {
     });
     expect(emitted).not.toContain("绝密正文");
     expect(emitted).not.toContain(MEDIA_ID);
+    expect(audit.record).toHaveBeenCalledWith(
+      {
+        action: "CAPSULE_SEALED",
+        actorId: BOY_ID,
+        coupleId: COUPLE_ID,
+        resourceType: "CAPSULE",
+        resourceId: CAPSULE_ID,
+        metadata: {
+          resourceId: CAPSULE_ID,
+          status: CapsuleStatus.LOCKED,
+          version: 2,
+        },
+      },
+      transaction,
+    );
+    expect(JSON.stringify(audit.record.mock.calls)).not.toContain("绝密正文");
     expect(result.status).toBe(CapsuleStatus.LOCKED);
     expect(result).not.toHaveProperty("messages");
   });
@@ -481,6 +509,7 @@ describe("CapsulesService sealing and due transitions", () => {
       } as unknown as PrismaService,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     await expect(service.seal("boy", CAPSULE_ID, 1)).rejects.toSatisfy(
@@ -530,6 +559,7 @@ describe("CapsulesService sealing and due transitions", () => {
       } as unknown as PrismaService,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     await service.markDue(CAPSULE_ID);
@@ -670,6 +700,7 @@ describe("CapsulesService confirmations and explicit opening", () => {
       prisma,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     const first = await service.confirmOpen("boy", CAPSULE_ID, 3);
@@ -743,10 +774,12 @@ describe("CapsulesService confirmations and explicit opening", () => {
       $transaction: vi.fn((operation) => operation(transaction)),
       capsule: capsuleStore,
     } as unknown as PrismaService;
+    const audit = auditService();
     const service = new CapsulesService(
       prisma,
       identityService(),
       fixedClock(),
+      audit,
     );
 
     const first = await service.open("boy", CAPSULE_ID, 4);
@@ -760,6 +793,23 @@ describe("CapsulesService confirmations and explicit opening", () => {
     expect(second.openedMemberIds).toEqual([BOY_ID, GIRL_ID]);
     expect(second.messages?.[0]?.content).toBe("这是不能提前泄露的正文");
     expect(capsuleStore.updateMany).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenCalledTimes(2);
+    expect(audit.record).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        action: "CAPSULE_OPENED",
+        resourceId: CAPSULE_ID,
+        metadata: {
+          resourceId: CAPSULE_ID,
+          status: CapsuleStatus.OPENED,
+          version: 5,
+        },
+      }),
+      transaction,
+    );
+    expect(JSON.stringify(audit.record.mock.calls)).not.toContain(
+      "这是不能提前泄露的正文",
+    );
     expect(capsuleStore.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         select: capsuleContentSelect,
@@ -816,6 +866,7 @@ describe("CapsulesService confirmations and explicit opening", () => {
       prisma,
       identityService(),
       fixedClock(),
+      auditService(),
     );
 
     const result = await service.open("girl", CAPSULE_ID, 6);

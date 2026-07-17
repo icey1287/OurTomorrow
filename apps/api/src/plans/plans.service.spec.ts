@@ -137,6 +137,9 @@ function transaction() {
     outboxEvent: {
       upsert: vi.fn().mockResolvedValue({ id: OUTBOX_ID }),
     },
+    recycleBinItem: {
+      create: vi.fn().mockResolvedValue({ id: PLAN_ID }),
+    },
   };
 }
 
@@ -624,6 +627,14 @@ describe("PlansService", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           dedupeKey: `plan:${PLAN_ID}:reminder`,
+        }),
+      }),
+    );
+    expect(tx.recycleBinItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          resourceType: "PLAN",
+          resourceId: PLAN_ID,
         }),
       }),
     );

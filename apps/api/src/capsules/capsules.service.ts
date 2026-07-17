@@ -5,10 +5,13 @@ import {
   CapsuleType,
   CapsuleUnlockRule,
   Prisma,
+  RecycleBinResourceType,
+  RecycleBinVisibility,
   type AnniversaryLeapDayRule,
   type AnniversaryRepeat,
   type WishStatus,
 } from "@prisma/client";
+import { AuditService } from "../common/audit/audit.service";
 import { Clock } from "../common/clock/clock";
 import {
   actionForbidden,
@@ -28,6 +31,7 @@ import {
   type IdentityResponse,
 } from "../identity/identity.service";
 import { readableMediaAssetWhere } from "../media/media-access";
+import { createRecycleBinItem } from "../recycle-bin/recycle-bin.persistence";
 import {
   cancelScheduledEvent,
   createPrivateNotification,
@@ -52,6 +56,7 @@ import type { CreateCapsuleDto, UpdateCapsuleDto } from "./dto/capsule.dto";
 type CapsuleDatabase = Pick<
   Prisma.TransactionClient,
   | "anniversary"
+  | "auditLog"
   | "capsule"
   | "capsuleMedia"
   | "capsuleMessage"
@@ -60,6 +65,7 @@ type CapsuleDatabase = Pick<
   | "mediaAsset"
   | "notification"
   | "outboxEvent"
+  | "recycleBinItem"
   | "scheduledEvent"
   | "wish"
 >;
@@ -253,6 +259,8 @@ export class CapsulesService {
     private readonly identities: IdentityService,
     @Inject(Clock)
     private readonly clock: Clock,
+    @Inject(AuditService)
+    private readonly audit: Pick<AuditService, "record">,
   ) {}
 
   async list(role: IdentityRole): Promise<CapsuleSummary[]> {
@@ -546,6 +554,16 @@ export class CapsulesService {
       });
       if (changed.count !== 1) throw stateConflict();
       await cancelScheduledEvent(transaction, capsuleDueEventKey(capsuleId));
+      await createRecycleBinItem(transaction, {
+        coupleId: actor.couple.id,
+        resourceType: RecycleBinResourceType.CAPSULE,
+        resourceId: capsuleId,
+        deletedById: actor.user.id,
+        deletedAt: now,
+        restoreData: { status: current.status },
+        visibility: RecycleBinVisibility.OWNER_ONLY,
+        ownerId: actor.user.id,
+      });
       await this.publishActorMutation(transaction, actor, current, {
         eventType: "capsule.deleted",
         notificationType: "CAPSULE_DELETED",
@@ -671,6 +689,21 @@ export class CapsulesService {
         dedupeKey: `capsule:${capsuleId}:v${version + 1}:sealed`,
         now,
       });
+      await this.audit.record(
+        {
+          action: "CAPSULE_SEALED",
+          actorId: actor.user.id,
+          coupleId: actor.couple.id,
+          resourceType: "CAPSULE",
+          resourceId: capsuleId,
+          metadata: {
+            resourceId: capsuleId,
+            status: CapsuleStatus.LOCKED,
+            version: version + 1,
+          },
+        },
+        transaction,
+      );
     });
     return this.detailForActor(actor, capsuleId);
   }
@@ -882,6 +915,29 @@ export class CapsulesService {
         dedupeKey: `capsule:${capsuleId}:opened:${actor.user.id}`,
         now,
       });
+      const openedStatus =
+        current.status === CapsuleStatus.UNLOCKED
+          ? CapsuleStatus.OPENED
+          : current.status;
+      const openedVersion =
+        current.status === CapsuleStatus.UNLOCKED
+          ? current.version + 1
+          : current.version;
+      await this.audit.record(
+        {
+          action: "CAPSULE_OPENED",
+          actorId: actor.user.id,
+          coupleId: actor.couple.id,
+          resourceType: "CAPSULE",
+          resourceId: capsuleId,
+          metadata: {
+            resourceId: capsuleId,
+            status: openedStatus,
+            version: openedVersion,
+          },
+        },
+        transaction,
+      );
     });
     return this.detailForActor(actor, capsuleId);
   }

@@ -22,6 +22,7 @@ import { Clock } from "../common/clock/clock";
 import type { Environment } from "../config/env.schema";
 import { PrismaService } from "../database/prisma.service";
 import { PlansService } from "../plans/plans.service";
+import { RecycleBinService } from "../recycle-bin/recycle-bin.service";
 import {
   createPrivateNotification,
   enqueueOutboxEvent,
@@ -37,6 +38,7 @@ const SUPPORTED_TYPES = [
   "ANNIVERSARY_REMINDER",
   "CAPSULE_DUE",
   "OUTBOX_RETRY",
+  "RECYCLE_BIN_PURGE",
 ] satisfies ScheduledEventType[];
 
 const scheduledEventSelect = Prisma.validator<Prisma.ScheduledEventSelect>()({
@@ -127,6 +129,9 @@ export class SchedulerWorkerService implements OnApplicationShutdown {
     @Optional()
     @Inject(CapsulesService)
     private readonly capsules?: CapsulesService,
+    @Optional()
+    @Inject(RecycleBinService)
+    private readonly recycleBin?: RecycleBinService,
   ) {}
 
   start(): void {
@@ -282,6 +287,14 @@ export class SchedulerWorkerService implements OnApplicationShutdown {
         return;
       case "OUTBOX_RETRY":
         await this.publishOutbox(requiredString(payload, "outboxEventId"), now);
+        return;
+      case "RECYCLE_BIN_PURGE":
+        if (!this.recycleBin)
+          throw new Error("RecycleBinService is unavailable");
+        await this.recycleBin.purge(
+          requiredString(payload, "recycleBinItemId"),
+          now,
+        );
         return;
       default:
         throw new Error(`Unsupported scheduled event type: ${event.type}`);

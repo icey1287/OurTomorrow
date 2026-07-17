@@ -19,6 +19,9 @@ import {
 import { computed, reactive, ref, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 
+import DataStatusPanel from "@/features/settings/DataStatusPanel.vue";
+import ExportPanel from "@/features/settings/ExportPanel.vue";
+import RecycleBinPanel from "@/features/settings/RecycleBinPanel.vue";
 import { apiFieldErrors, ApiClientError } from "@/shared/api/client";
 import BaseButton from "@/shared/components/BaseButton.vue";
 import PageHeader from "@/shared/components/PageHeader.vue";
@@ -334,6 +337,8 @@ watch(
           </form>
         </SurfaceCard>
 
+        <DataStatusPanel />
+
         <SurfaceCard>
           <div class="flex items-start gap-3">
             <span
@@ -432,6 +437,10 @@ watch(
             清除缓存不会删除服务器上的共同资料，下次进入时只需重新选择身份。
           </p>
         </SurfaceCard>
+
+        <ExportPanel />
+
+        <RecycleBinPanel />
       </div>
 
       <div class="space-y-5">

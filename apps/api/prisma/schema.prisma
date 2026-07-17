@@ -272,6 +272,7 @@ enum ScheduledEventType {
   ANNUAL_REVIEW
   BACKUP_CHECK
   OUTBOX_RETRY
+  RECYCLE_BIN_PURGE
 }
 
 enum ScheduledEventStatus {
@@ -302,6 +303,31 @@ enum ExportJobStatus {
 enum ExportFormat {
   JSON
   ZIP
+}
+
+enum RecycleBinResourceType {
+  MEMORY
+  NOTE
+  WISH
+  PLAN
+  ANNIVERSARY
+  CAPSULE
+  PLACE
+  TAG
+  MEDIA
+}
+
+enum RecycleBinItemStatus {
+  AVAILABLE
+  RESTORED
+  PURGE_PENDING
+  PURGING
+  PURGED
+}
+
+enum RecycleBinVisibility {
+  SHARED
+  OWNER_ONLY
 }
 
 model User {
@@ -350,6 +376,7 @@ model User {
   capsuleMessages      CapsuleMessage[]
   capsuleOpenRecords   CapsuleOpenRecord[]
   contentConversions   ContentConversion[]
+  deletedRecycleItems  RecycleBinItem[]           @relation("RecycleBinDeletedBy")
 
   @@index([status, deletedAt])
   @@map("users")
@@ -398,6 +425,7 @@ model Couple {
   anniversaryReminders AnniversaryReminder[]
   capsules             Capsule[]
   contentConversions   ContentConversion[]
+  recycleBinItems      RecycleBinItem[]
 
   @@index([status, deletedAt])
   @@map("couples")
@@ -569,6 +597,37 @@ model IdempotencyRecord {
   @@index([expiresAt])
   @@index([coupleId, createdAt(sort: Desc)])
   @@map("idempotency_records")
+}
+
+model RecycleBinItem {
+  id                 String                 @id @default(uuid()) @db.Uuid
+  coupleId           String                 @map("couple_id") @db.Uuid
+  resourceType       RecycleBinResourceType @map("resource_type")
+  resourceId         String                 @map("resource_id") @db.Uuid
+  status             RecycleBinItemStatus   @default(AVAILABLE)
+  visibility         RecycleBinVisibility   @default(SHARED)
+  ownerId            String?                @map("owner_id") @db.Uuid
+  deletedById        String                 @map("deleted_by") @db.Uuid
+  restoreData        Json                   @map("restore_data")
+  deletedAt          DateTime               @map("deleted_at") @db.Timestamptz(3)
+  retentionUntil     DateTime               @map("retention_until") @db.Timestamptz(3)
+  restoredAt         DateTime?              @map("restored_at") @db.Timestamptz(3)
+  restoredById       String?                @map("restored_by") @db.Uuid
+  purgeRequestedAt   DateTime?              @map("purge_requested_at") @db.Timestamptz(3)
+  purgeRequestedById String?                @map("purge_requested_by") @db.Uuid
+  purgeAfter         DateTime?              @map("purge_after") @db.Timestamptz(3)
+  purgedAt           DateTime?              @map("purged_at") @db.Timestamptz(3)
+  createdAt          DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime               @updatedAt @map("updated_at") @db.Timestamptz(3)
+  couple             Couple                 @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  deletedBy          User                   @relation("RecycleBinDeletedBy", fields: [deletedById], references: [id], onDelete: Restrict)
+
+  @@index([coupleId, status, deletedAt(sort: Desc), id(sort: Desc)])
+  @@index([coupleId, resourceType, status, deletedAt(sort: Desc)])
+  @@index([coupleId, ownerId, status, deletedAt(sort: Desc)])
+  @@index([resourceType, resourceId, status])
+  @@index([status, retentionUntil])
+  @@map("recycle_bin_items")
 }
 
 model MediaAsset {

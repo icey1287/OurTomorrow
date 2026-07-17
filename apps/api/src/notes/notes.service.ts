@@ -3,6 +3,8 @@ import {
   NoteStatus,
   Prisma,
   ReactionTargetType,
+  RecycleBinResourceType,
+  RecycleBinVisibility,
   type NoteType,
 } from "@prisma/client";
 import { Clock } from "../common/clock/clock";
@@ -22,6 +24,10 @@ import type {
   ReactionRecord,
   ReactionSummary,
 } from "../memories/memory.presentation";
+import {
+  createRecycleBinItem,
+  nullableInstant,
+} from "../recycle-bin/recycle-bin.persistence";
 import {
   cancelScheduledEvent,
   createPrivateNotification,
@@ -71,7 +77,12 @@ export const noteSelect = Prisma.validator<Prisma.NoteSelect>()({
 
 type NoteDatabase = Pick<
   Prisma.TransactionClient,
-  "note" | "notification" | "outboxEvent" | "reaction" | "scheduledEvent"
+  | "note"
+  | "notification"
+  | "outboxEvent"
+  | "reaction"
+  | "recycleBinItem"
+  | "scheduledEvent"
 >;
 
 export type NotesResponse = {
@@ -471,6 +482,30 @@ export class NotesService {
           dedupeKey: `note:${noteId}:archived:v${version + 1}`,
           resourceType: "NOTE",
           resourceId: noteId,
+        });
+      }
+      if (isAuthor) {
+        await createRecycleBinItem(transaction, {
+          coupleId: actor.couple.id,
+          resourceType: RecycleBinResourceType.NOTE,
+          resourceId: noteId,
+          deletedById: actor.user.id,
+          deletedAt: now,
+          restoreData: {
+            status: existing.status,
+            archivedAt: nullableInstant(existing.archivedAt),
+            showAt: nullableInstant(existing.showAt),
+            visibleAt: nullableInstant(existing.visibleAt),
+            expiresAt: nullableInstant(existing.expiresAt),
+            viewedAt: nullableInstant(existing.viewedAt),
+          },
+          ...(existing.status === NoteStatus.DRAFT ||
+          existing.status === NoteStatus.SCHEDULED
+            ? {
+                visibility: RecycleBinVisibility.OWNER_ONLY,
+                ownerId: actor.user.id,
+              }
+            : {}),
         });
       }
       await enqueueOutboxEvent(transaction, {

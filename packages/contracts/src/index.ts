@@ -891,6 +891,104 @@ export interface TodayUpcomingResponse {
   capsules: CapsuleSummary[];
 }
 
+export type RecycleBinResourceType =
+  | "MEMORY"
+  | "NOTE"
+  | "WISH"
+  | "PLAN"
+  | "ANNIVERSARY"
+  | "CAPSULE"
+  | "PLACE"
+  | "TAG"
+  | "MEDIA";
+
+export type RecycleBinItemStatus = "AVAILABLE" | "PURGE_PENDING";
+export type RecycleBinVisibility = "SHARED" | "OWNER_ONLY";
+
+export interface RecycleBinItem {
+  id: string;
+  resourceType: RecycleBinResourceType;
+  resourceId: string;
+  status: RecycleBinItemStatus;
+  visibility: RecycleBinVisibility;
+  deletedBy: UserSummary;
+  deletedAt: string;
+  retentionUntil: string;
+  purgeRequestedAt: string | null;
+  purgeAfter: string | null;
+  canRestore: true;
+}
+
+export interface RecycleBinResponse {
+  items: RecycleBinItem[];
+  meta: {
+    nextCursor: string | null;
+    hasMore: boolean;
+  };
+}
+
+export interface RecycleBinRestoreResult {
+  id: string;
+  resourceType: RecycleBinResourceType;
+  resourceId: string;
+  restoredAt: string;
+}
+
+export type ExportJobStatus =
+  "QUEUED" | "RUNNING" | "READY" | "FAILED" | "EXPIRED";
+
+export type ExportFormat = "ZIP" | "JSON";
+
+export interface ExportJobView {
+  id: string;
+  status: ExportJobStatus;
+  format: ExportFormat;
+  checksumSha256: string | null;
+  fileSize: number | null;
+  downloadAvailable: boolean;
+  failureMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
+
+export interface DataStatusResponse {
+  serverNow: string;
+  backup: {
+    status: "HEALTHY" | "STALE" | "UNKNOWN";
+    lastSuccessAt: string | null;
+    maxAgeSeconds: number;
+  };
+  worker: {
+    status: "HEALTHY" | "STALE" | "STOPPED" | "UNKNOWN";
+    lastHeartbeatAt: string | null;
+    maxAgeSeconds: number;
+  };
+  queues: {
+    scheduledPending: number;
+    scheduledFailed: number;
+    scheduledOldestDueAt: string | null;
+    outboxPending: number;
+    outboxFailed: number;
+    outboxOldestAvailableAt: string | null;
+  };
+  storage: {
+    available: boolean;
+    freeBytes: string | null;
+  };
+  exports: {
+    enabled: true;
+    formatVersion: 1;
+    retentionDays: number;
+  };
+  recycleBin: {
+    enabled: true;
+    retentionDays: number;
+    purgeCoolingOffDays: number;
+  };
+}
+
 export interface LiveHealthResponse {
   status: "ok";
   version: string;

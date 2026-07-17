@@ -29,6 +29,7 @@
     "@nestjs/swagger": "^11.0.3",
     "@nestjs/websockets": "^11.1.28",
     "@prisma/client": "^6.4.1",
+    "archiver": "^8.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "helmet": "^8.0.0",
@@ -41,6 +42,7 @@
   "devDependencies": {
     "@nestjs/cli": "^11.0.5",
     "@nestjs/testing": "^11.0.11",
+    "@types/archiver": "^8.0.0",
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.4",
     "prisma": "^6.4.1",

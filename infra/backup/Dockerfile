@@ -1,6 +1,6 @@
 FROM postgres:16-alpine
 
-RUN apk add --no-cache bash coreutils restic tzdata \
+RUN apk add --no-cache bash coreutils jq restic tzdata util-linux \
     && mkdir -p /var/lib/backup /backups
 
 COPY infra/backup/backup.sh /usr/local/bin/backup.sh

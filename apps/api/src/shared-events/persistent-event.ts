@@ -9,6 +9,8 @@ type EventDatabase = Pick<
   "notification" | "outboxEvent" | "scheduledEvent"
 >;
 
+type ScheduleDatabase = Pick<Prisma.TransactionClient, "scheduledEvent">;
+
 export type ScheduledEventInput = {
   coupleId?: string | null;
   dedupeKey: string;
@@ -46,7 +48,7 @@ const PRIVATE_NOTIFICATION_TITLE = "明天有新动态";
 const PRIVATE_NOTIFICATION_BODY = "你收到了一条来自明天的新消息。";
 
 export async function upsertScheduledEvent(
-  database: EventDatabase,
+  database: ScheduleDatabase,
   input: ScheduledEventInput,
 ): Promise<void> {
   await database.scheduledEvent.upsert({
@@ -82,7 +84,7 @@ export async function upsertScheduledEvent(
 }
 
 export async function cancelScheduledEvent(
-  database: EventDatabase,
+  database: ScheduleDatabase,
   dedupeKey: string,
   statuses: ScheduledEventStatus[] = ["PENDING", "RETRYING"],
 ): Promise<void> {

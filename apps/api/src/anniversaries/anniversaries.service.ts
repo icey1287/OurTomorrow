@@ -6,6 +6,7 @@ import {
   MemoryStatus,
   Prisma,
   ReactionTargetType,
+  RecycleBinResourceType,
   ScheduledEventStatus,
 } from "@prisma/client";
 import { Temporal } from "@js-temporal/polyfill";
@@ -28,6 +29,7 @@ import {
   type IdentityResponse,
 } from "../identity/identity.service";
 import { readableMediaAssetWhere } from "../media/media-access";
+import { createRecycleBinItem } from "../recycle-bin/recycle-bin.persistence";
 import { memoryCardSelect } from "../memories/memories.service";
 import {
   type MemoryCardRecord,
@@ -70,6 +72,7 @@ type AnniversaryDatabase = Pick<
   | "mediaAsset"
   | "notification"
   | "outboxEvent"
+  | "recycleBinItem"
   | "scheduledEvent"
 >;
 
@@ -445,6 +448,28 @@ export class AnniversariesService {
       if (existing.version !== version) {
         throw stateConflict({ currentVersion: existing.version });
       }
+      const reminderIds = new Set(
+        existing.reminders.map((reminder) => reminder.id),
+      );
+      const reminderEvents = (
+        await transaction.scheduledEvent.findMany({
+          where: {
+            coupleId: actor.couple.id,
+            type: "ANNIVERSARY_REMINDER",
+            status: { in: [...ACTIVE_EVENT_STATUSES] },
+          },
+          orderBy: [{ runAt: "asc" }, { id: "asc" }],
+          select: {
+            dedupeKey: true,
+            payload: true,
+            runAt: true,
+            maxAttempts: true,
+          },
+        })
+      ).filter((event) => {
+        const reminderId = reminderIdFromPayload(event.payload);
+        return reminderId !== null && reminderIds.has(reminderId);
+      });
       const changed = await transaction.anniversary.updateMany({
         where: {
           id: anniversaryId,
@@ -458,6 +483,21 @@ export class AnniversariesService {
       for (const reminder of existing.reminders) {
         await this.cancelReminderEvents(transaction, reminder.id);
       }
+      await createRecycleBinItem(transaction, {
+        coupleId: actor.couple.id,
+        resourceType: RecycleBinResourceType.ANNIVERSARY,
+        resourceId: anniversaryId,
+        deletedById: actor.user.id,
+        deletedAt: now,
+        restoreData: {
+          scheduledEvents: reminderEvents.map((event) => ({
+            dedupeKey: event.dedupeKey,
+            payload: event.payload as Prisma.InputJsonObject,
+            runAt: event.runAt.toISOString(),
+            maxAttempts: event.maxAttempts,
+          })),
+        },
+      });
       await createPrivateNotification(transaction, {
         coupleId: actor.couple.id,
         recipientId: recipient.id,

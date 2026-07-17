@@ -62,6 +62,26 @@ export const environmentSchema = z
       .min(60)
       .max(3_600)
       .default(900),
+    BACKUP_STATUS_PATH: z.string().default(""),
+    BACKUP_MAX_AGE_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(300)
+      .max(31 * 24 * 60 * 60)
+      .default(36 * 60 * 60),
+    WORKER_HEARTBEAT_PATH: z.string().default(""),
+    WORKER_HEARTBEAT_INTERVAL_MS: z.coerce
+      .number()
+      .int()
+      .min(1_000)
+      .max(60_000)
+      .default(5_000),
+    WORKER_HEARTBEAT_MAX_AGE_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(10)
+      .max(3_600)
+      .default(60),
     WORKER_POLL_INTERVAL_MS: z.coerce
       .number()
       .int()

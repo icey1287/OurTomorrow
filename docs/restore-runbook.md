@@ -11,6 +11,7 @@
 - 保留：14 个日备份、8 个周备份、12 个月备份。
 - 内容：PostgreSQL custom-format dump、校验和、格式元数据和 `/media`。
 - 加密：Restic；密码来自 `BACKUP_ENCRYPTION_KEY`/容器内 `RESTIC_PASSWORD`。
+- 完整性：每次成功快照都回读 snapshot，并在标记健康前执行 `restic check`；可用 `RESTIC_CHECK_READ_DATA_SUBSET` 轮转抽查数据包。
 - 建议服务目标：RPO 不超过 24 小时，RTO 4 小时。当前没有 WAL/PITR，因此不能承诺分钟级 RPO。
 
 本手册用于：
@@ -41,18 +42,35 @@
 /media/**
 ```
 
-当前 `metadata.json` 格式为：
+当前 `metadata.json` 格式版本为 2。它不保存数据库 URL、仓库地址、密码或私人正文，核心结构为：
 
 ```json
 {
   "format": "our-tomorrow-backup",
-  "version": 1,
+  "version": 2,
+  "backupId": "<timestamp-host-pid>",
+  "trigger": "automated | manual | pre-migration",
+  "releaseId": "<release id>",
   "startedAt": "<UTC timestamp>",
-  "postgresMajor": 16
+  "application": {
+    "gitCommit": "<commit>",
+    "imageTag": "<immutable tag>"
+  },
+  "database": {
+    "postgresMajor": 16,
+    "dumpSha256": "<sha256>",
+    "completedPrismaMigrations": 1,
+    "latestPrismaMigration": "<migration name>"
+  },
+  "media": {
+    "fileCount": 1,
+    "bytes": 1,
+    "excluded": ["quarantine", "exports"]
+  }
 }
 ```
 
-它暂不记录应用镜像或 Prisma migration 版本。因此每次部署记录必须把“镜像 tag、Git commit、迁移版本、迁移前 snapshot ID”保存在运维日志中。恢复时先使用与快照匹配的代码版本，再按 expand/contract 迁移到目标版本。
+`/var/lib/backup/last-success.json` 另外保存 snapshot ID、release ID、触发类型、完成时间和仓库检查结果；API 只能通过只读 `backup_state` 挂载读取非敏感成功时间戳。发布记录仍必须保存镜像 tag、Git commit、迁移前 snapshot ID 和人工验收证据。恢复时先使用与快照匹配的代码版本，再按 expand/contract 迁移到目标版本。
 
 Restic 排除 `/media/quarantine` 和 `/media/exports`：隔离上传和临时导出包不属于可恢复用户资产；所有 `READY` 且已绑定的媒体必须位于其他媒体路径。
 
@@ -62,7 +80,7 @@ Restic 排除 `/media/quarantine` 和 `/media/exports`：隔离上传和临时�
 
 ```bash
 docker compose --env-file infra/.env -f infra/compose.yaml ps
-docker compose --env-file infra/.env -f infra/compose.yaml exec -T backup restic snapshots --tag automated
+docker compose --env-file infra/.env -f infra/compose.yaml exec -T backup restic snapshots --tag our-tomorrow
 docker compose --env-file infra/.env -f infra/compose.yaml exec -T backup restic check
 docker compose --env-file infra/.env -f infra/compose.yaml exec -T backup /usr/local/bin/backup-healthcheck.sh
 ```
@@ -76,31 +94,54 @@ docker compose --env-file infra/.env -f infra/compose.yaml logs --since 48h back
 期望：
 
 - 最近 36 小时内至少一个 `backup completed at ...`；
-- `restic snapshots` 中存在带 `automated` tag 的近期快照；
+- `restic snapshots` 中存在带 `our-tomorrow` tag 的近期快照；
 - `restic check` 无 pack/index/data error；
 - backup 容器为 healthy；
 - 备份仓库和应用主机均有足够空间。
 
-仅在确认当前无备份任务运行时手动触发：
+手动触发使用统一包装脚本，它会执行生产 preflight、内核 `flock` 互斥、仓库检查和 snapshot 回读：
 
 ```bash
-docker compose --env-file infra/.env -f infra/compose.yaml exec -T backup /usr/local/bin/backup.sh
+infra/scripts/backup-now.sh \
+  --env-file infra/.env \
+  --release-id manual-20260717 \
+  --reason quarterly-check
 ```
 
-脚本使用目录锁；并发触发会安全跳过。数据库迁移前必须手动触发一次、记录新 snapshot ID，并等待完成后再迁移。
+数据库迁移应由 `deploy.sh` 以 `pre-migration` trigger 自动创建一次并记录 snapshot ID。不要直接绕过脚本执行迁移。每次备份的默认 `restic check` 检查仓库结构、索引和 pack 元数据；每月至少另做一次完整检查或按成本配置轮转 `--read-data-subset`。
 
 ## 5. 隔离恢复演练
 
 以下流程不会写生产 Compose project。示例使用 `our-tomorrow-drill-YYYYMMDD`、HTTP 端口 18080 和 HTTPS 端口 18443。演练机器应限制网络访问，并使用与快照匹配的独立代码 checkout。
 
-### 5.1 准备
+### 5.1 推荐的可执行演练
+
+完成演练专用环境文件后，先 dry-run 核对 project、端口、snapshot 和所有命令：
+
+```bash
+infra/scripts/restore-drill.sh \
+  --env-file infra/.env.restore \
+  --snapshot <exact-restic-snapshot-id> \
+  --project our-tomorrow-drill-20260717 \
+  --dry-run
+```
+
+正式演练去掉 `--dry-run`。脚本会拒绝 `infra/.env`、非 `our-tomorrow-drill-*` project、已存在 project、隐式 `latest`、非 localhost URL 和低端口；它只启动 PostgreSQL/API/Web/Caddy，不启动 worker/backup。流程包含 metadata 与 SHA-256、PostgreSQL restore、媒体复制、当前 migration、健康与安全头、无 Cookie、boy/girl 不同成员但同 Couple、核心表数量以及最多 10 个 READY 媒体路径抽查。成功证据写入 Git 忽略的 `infra/restore-drills/<project>.json`，默认随后删除演练容器与卷。
+
+仓库包含一份脱敏的阶段 5 离线演练证据：`infra/restore-drills/our-tomorrow-offline-20260717080357-7995.json`。它完成了隔离 custom-format `pg_dump → pg_restore`、10 项迁移、固定双角色/同 Couple、媒体解码和锁定胶囊不泄露验证；因当时 Docker registry/BuildKit 异常，使用了本机 PostgreSQL 15 与私有目录媒体复制。该证据证明应用级恢复链路，但不能替代正式上线前要求的 PostgreSQL 16 + Restic 演练。
+
+需要人工检查 UI/图片时加 `--keep`，检查完成后再次核对 project 名，再执行本节清理命令。以下手工步骤同时是脚本审计说明和无法使用脚本时的受控备用流程。
+
+### 5.2 准备
 
 1. 从运维记录确定目标 snapshot 对应的 Git commit/镜像 tag。
 2. 在独立目录 checkout 该版本；不要切换正在运行的生产工作树。
 3. 复制 `infra/.env.example` 为 `infra/.env.restore`，填写**演练专用**数据库密码、备份凭据和端口：
 
 ```dotenv
-APP_SITE_ADDRESS=http://localhost:18080
+ACCESS_BOUNDARY=private-interface
+CADDY_BIND_ADDRESS=127.0.0.1
+APP_SITE_ADDRESS=http://localhost
 PUBLIC_APP_URL=http://localhost:18080
 WEB_ORIGIN=http://localhost:18080
 HTTP_PORT=18080
@@ -118,7 +159,8 @@ BACKUP_ENCRYPTION_KEY=<restic password>
 ```
 
 4. 不把 `infra/.env.restore` 提交 Git；演练后销毁。
-5. 构建能够读取 Restic 仓库的 backup 镜像：
+5. 默认 `RESTIC_REPOSITORY=/backups/restic` 配合 `BACKUP_REPOSITORY_SOURCE=backup_data` 时，是演练 project 自己的空卷，不能读取生产本地仓库；生产演练必须使用受监控的异地仓库或独立只读副本。本地夹具演练可以把 `BACKUP_REPOSITORY_SOURCE` 设置为 `/private/tmp` 下的全新绝对目录，结束后销毁。
+6. 构建能够读取 Restic 仓库的 backup 镜像：
 
 ```bash
 docker compose \
@@ -127,7 +169,7 @@ docker compose \
   build backup
 ```
 
-6. 设置变量：
+7. 设置变量：
 
 ```bash
 export DRILL_PROJECT="our-tomorrow-drill-$(date +%Y%m%d)"
@@ -143,21 +185,23 @@ test -n "$DRILL_DIR"
 test -n "$SNAPSHOT_ID"
 ```
 
-### 5.2 选择并提取快照
+### 5.3 选择并提取快照
 
 列出快照，不要盲目使用 `latest`：
 
 ```bash
 docker compose \
+  -p "$DRILL_PROJECT" \
   --env-file infra/.env.restore \
   -f infra/compose.yaml \
-  run --rm --no-deps backup restic snapshots --tag automated
+  run --rm --no-deps backup restic snapshots --tag our-tomorrow
 ```
 
 把指定 snapshot 恢复到主机临时目录。`--user root` 只用于让一次性容器写入演练目录，不改变运行服务用户：
 
 ```bash
 docker compose \
+  -p "$DRILL_PROJECT" \
   --env-file infra/.env.restore \
   -f infra/compose.yaml \
   run --rm --no-deps --user root \
@@ -185,7 +229,7 @@ test "$expected" = "$actual"
 
 检查 `metadata.json` 的 format/version/PostgreSQL major。major 不为 16 时不要直接继续，先准备兼容的 PostgreSQL 工具链。
 
-### 5.3 建立独立数据库并恢复
+### 5.4 建立独立数据库并恢复
 
 回到仓库根目录，先只启动独立 PostgreSQL：
 
@@ -240,7 +284,7 @@ docker compose \
 
 若目标阶段尚未创建某张表，按该快照的 migration 版本调整核对清单；不能把“表不存在”忽略为成功。
 
-### 5.4 恢复媒体卷
+### 5.5 恢复媒体卷
 
 先构建/取得与快照匹配的 API 镜像，再用一次性容器写入**演练 project** 的 `media_data` 卷：
 
@@ -267,7 +311,7 @@ docker compose \
 - 用图片解码工具抽查文件有效，不只检查路径；
 - 不应恢复 `/media/quarantine` 和 `/media/exports`。
 
-### 5.5 启动匹配版本并验证
+### 5.6 启动匹配版本并验证
 
 先不要启动 worker 和 backup。启动 `api`、`web`、`caddy`；`api` 会等待一次性 `migrate` 服务完成：
 
@@ -282,9 +326,9 @@ docker compose \
 健康检查：
 
 ```bash
-curl --fail --silent --show-error http://127.0.0.1:18080/api/v1/health/live
-curl --fail --silent --show-error http://127.0.0.1:18080/api/v1/health/ready
-curl --fail --silent --show-error http://127.0.0.1:18080/healthz
+curl --fail --silent --show-error http://localhost:18080/api/v1/health/live
+curl --fail --silent --show-error http://localhost:18080/api/v1/health/ready
+curl --fail --silent --show-error http://localhost:18080/healthz
 ```
 
 用浏览器在受控环境完成必须验证：
@@ -310,7 +354,7 @@ docker compose \
 
 验证任务幂等、失败重试和最老任务延迟后停止 worker。
 
-### 5.6 记录与清理
+### 5.7 记录与清理
 
 在清理前记录：
 
@@ -359,7 +403,7 @@ docker compose --env-file infra/.env -f infra/compose.yaml stop caddy web api wo
 从已知干净的机器读取异地仓库：
 
 ```bash
-docker compose --env-file infra/.env -f infra/compose.yaml run --rm --no-deps backup restic snapshots --tag automated
+docker compose --env-file infra/.env -f infra/compose.yaml run --rm --no-deps backup restic snapshots --tag our-tomorrow
 docker compose --env-file infra/.env -f infra/compose.yaml run --rm --no-deps backup restic check
 ```
 

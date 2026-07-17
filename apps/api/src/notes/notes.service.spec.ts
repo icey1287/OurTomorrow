@@ -439,6 +439,9 @@ describe("NotesService", () => {
       outboxEvent: {
         upsert: vi.fn().mockResolvedValue({ id: OUTBOX_ID }),
       },
+      recycleBinItem: {
+        create: vi.fn().mockResolvedValue({ id: NOTE_ID }),
+      },
       scheduledEvent: {
         upsert: vi.fn().mockResolvedValue({ id: "event" }),
         updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -455,6 +458,16 @@ describe("NotesService", () => {
     await deleteService.remove("boy", NOTE_ID, 1);
 
     expect(deleteTransaction.notification.upsert).not.toHaveBeenCalled();
+    expect(deleteTransaction.recycleBinItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          resourceType: "NOTE",
+          resourceId: NOTE_ID,
+          visibility: "OWNER_ONLY",
+          ownerId: BOY_ID,
+        }),
+      }),
+    );
     expect(
       deleteTransaction.outboxEvent.upsert.mock.calls[0]?.[0].create.payload,
     ).toMatchObject({

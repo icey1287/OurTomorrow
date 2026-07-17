@@ -55,6 +55,13 @@ const REQUIRED_OPERATIONS = {
   "/api/v1/capsules/{id}/confirm-open": ["post"],
   "/api/v1/capsules/{id}/open": ["post"],
   "/api/v1/capsules/{id}/convert-to-memory": ["post"],
+  "/api/v1/recycle-bin": ["get"],
+  "/api/v1/recycle-bin/{id}/restore": ["post"],
+  "/api/v1/recycle-bin/{id}": ["delete"],
+  "/api/v1/exports": ["get", "post"],
+  "/api/v1/exports/{id}": ["get", "delete"],
+  "/api/v1/exports/{id}/download": ["post"],
+  "/api/v1/settings/data-status": ["get"],
 };
 
 function reservePort() {

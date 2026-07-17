@@ -157,6 +157,8 @@ function actionWish(
             version: plan.version,
             status: plan.status,
             reminderAt: plan.reminderAt,
+            completedAt: plan.completedAt,
+            cancelledAt: plan.cancelledAt,
             deletedAt: plan.deletedAt,
           },
   };
@@ -209,6 +211,9 @@ function transaction(
     scheduledEvent: {
       upsert: vi.fn().mockResolvedValue({ id: OUTBOX_ID }),
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    },
+    recycleBinItem: {
+      create: vi.fn().mockResolvedValue({ id: WISH_ID }),
     },
     ...overrides,
   };
@@ -633,6 +638,14 @@ describe("WishesService", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           dedupeKey: `plan:${PLAN_ID}:reminder`,
+        }),
+      }),
+    );
+    expect(tx.recycleBinItem.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          resourceType: "WISH",
+          resourceId: WISH_ID,
         }),
       }),
     );

@@ -7,6 +7,7 @@ import {
   type ExceptionFilter,
 } from "@nestjs/common";
 import type { Request, Response } from "express";
+import { requestRouteTemplate } from "./structured-request-log.middleware";
 
 type ExceptionPayload = {
   code?: unknown;
@@ -30,6 +31,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const payload: ExceptionPayload =
       typeof raw === "object" && raw !== null ? raw : {};
     const requestId = request.requestId ?? "unknown";
+    const route = requestRouteTemplate(request);
     const defaultMessage =
       statusCode === 500
         ? "Internal server error"
@@ -44,11 +46,15 @@ export class HttpExceptionFilter implements ExceptionFilter {
           : `HTTP_${statusCode}`;
 
     if (!isHttpException || statusCode >= 500) {
-      const stack =
-        exception instanceof Error ? exception.stack : String(exception);
       this.logger.error(
-        `${request.method} ${request.originalUrl} requestId=${requestId}`,
-        stack,
+        JSON.stringify({
+          requestId,
+          method: request.method,
+          route,
+          status: statusCode,
+          errorType:
+            exception instanceof Error ? exception.name : typeof exception,
+        }),
       );
     }
 
@@ -58,7 +64,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message,
       requestId,
       timestamp: new Date().toISOString(),
-      path: request.originalUrl,
+      path: route,
     };
     if (payload.details !== undefined) body.details = payload.details;
     response.status(statusCode).json(body);

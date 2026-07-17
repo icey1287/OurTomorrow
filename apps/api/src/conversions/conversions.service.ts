@@ -17,6 +17,7 @@ import {
   canOpenCapsuleType,
   isCapsuleVisibleTo,
 } from "../capsules/capsule.presentation";
+import { AuditService } from "../common/audit/audit.service";
 import { Clock } from "../common/clock/clock";
 import {
   actionForbidden,
@@ -143,6 +144,8 @@ export class ConversionsService {
     private readonly memoryCreation: MemoryCreationService,
     @Inject(MemoriesService)
     private readonly memories: MemoriesService,
+    @Inject(AuditService)
+    private readonly audit: Pick<AuditService, "record">,
   ) {}
 
   async convertNote(
@@ -384,6 +387,21 @@ export class ConversionsService {
       "RUNNING",
     ]);
     await this.publishConversion(transaction, actor, conversion, now);
+    await this.audit.record(
+      {
+        action: `NOTE_CONVERTED_TO_${dto.targetType}`,
+        actorId: actor.user.id,
+        coupleId: actor.couple.id,
+        resourceType: "NOTE",
+        resourceId: note.id,
+        metadata: {
+          resourceId: note.id,
+          status: NoteStatus.ARCHIVED,
+          version: note.version + 1,
+        },
+      },
+      transaction,
+    );
     return {
       existing: false,
       body: toStoredConversion({
@@ -500,6 +518,21 @@ export class ConversionsService {
       },
     });
     await this.publishConversion(transaction, actor, conversion, now);
+    await this.audit.record(
+      {
+        action: "WISH_CONVERTED_TO_MEMORY",
+        actorId: actor.user.id,
+        coupleId: actor.couple.id,
+        resourceType: "WISH",
+        resourceId: wish.id,
+        metadata: {
+          resourceId: wish.id,
+          status: WishStatus.CONVERTED_TO_MEMORY,
+          version: dto.version + 1,
+        },
+      },
+      transaction,
+    );
     return {
       existing: false,
       body: toStoredConversion({
@@ -665,6 +698,21 @@ export class ConversionsService {
       },
     });
     await this.publishConversion(transaction, actor, conversion, now);
+    await this.audit.record(
+      {
+        action: "CAPSULE_CONVERTED_TO_MEMORY",
+        actorId: actor.user.id,
+        coupleId: actor.couple.id,
+        resourceType: "CAPSULE",
+        resourceId: capsule.id,
+        metadata: {
+          resourceId: capsule.id,
+          status: CapsuleStatus.CONVERTED_TO_MEMORY,
+          version: dto.version + 1,
+        },
+      },
+      transaction,
+    );
     return {
       existing: false,
       body: toStoredConversion({

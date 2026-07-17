@@ -154,6 +154,13 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
     return undefined as T;
   }
 
+  if (
+    response.status === 202 &&
+    !response.headers?.get?.("Content-Type")?.includes("application/json")
+  ) {
+    return undefined as T;
+  }
+
   const payload = (await response.json()) as T;
   await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
   return payload;
@@ -241,5 +248,20 @@ export const apiClient = {
   },
   blob(path: string, init?: ApiRequestInit) {
     return requestBlob(path, { ...init, method: "GET" });
+  },
+  postBlob(path: string, payload?: unknown, init?: ApiRequestInit) {
+    return requestBlob(path, {
+      ...init,
+      method: "POST",
+      ...(payload === undefined ? {} : { body: jsonBody(payload) }),
+      ...(payload === undefined
+        ? {}
+        : {
+            headers: {
+              "Content-Type": "application/json",
+              ...Object.fromEntries(new Headers(init?.headers).entries()),
+            },
+          }),
+    });
   },
 };

@@ -45,3 +45,19 @@ pnpm test:e2e
 ```
 
 产品、架构、安全与恢复说明位于 [`docs/`](docs/)；部署入口位于 [`infra/`](infra/)。
+
+## 私有上线
+
+应用内没有注册、密码、邀请码或 Session；`boy`/`girl` 只缓存角色选择，不是认证。生产入口必须绑定明确的私网/VPN 接口，或仅监听 loopback 并由只允许两人设备的上游访问代理转发，禁止直接 wildcard 公网暴露。
+
+```bash
+cp infra/.env.example infra/.env
+infra/scripts/preflight.sh --env-file infra/.env
+infra/scripts/deploy.sh \
+  --env-file infra/.env \
+  --image-tag <immutable-tag> \
+  --release-id <release-id> \
+  --dry-run
+```
+
+确认 dry-run、迁移前备份目标和维护窗口后，去掉 `--dry-run`。脚本按“健康数据服务 → 已校验 Restic 快照 → migration → 健康应用 → TLS/安全头/boy+girl 同 Couple smoke”执行，并保存发布记录。完整步骤、失败回滚与恢复演练见 [`docs/operations/`](docs/operations/) 和 [`docs/restore-runbook.md`](docs/restore-runbook.md)。

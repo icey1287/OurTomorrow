@@ -5,11 +5,20 @@ import { parseIdentityRole } from "./current-role.decorator";
 describe("parseIdentityRole", () => {
   it("accepts the two switchable fixed roles", () => {
     expect(parseIdentityRole("boy")).toBe("boy");
-    expect(parseIdentityRole(" GIRL ")).toBe("girl");
+    expect(parseIdentityRole("girl")).toBe("girl");
   });
 
-  it("uses the stable IDENTITY_REQUIRED error for missing or invalid headers", () => {
-    for (const value of [undefined, "", "partner", ["boy"]]) {
+  it("requires the exact lowercase role value", () => {
+    for (const value of [
+      undefined,
+      "",
+      "partner",
+      "BOY",
+      "Girl",
+      " boy",
+      "girl ",
+      ["boy"],
+    ]) {
       try {
         parseIdentityRole(value);
         throw new Error("expected identity role parsing to fail");

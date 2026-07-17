@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import {
   PlanStatus,
   Prisma,
+  RecycleBinResourceType,
   WishStatus,
   type ScheduledEventStatus,
 } from "@prisma/client";
@@ -24,6 +25,10 @@ import {
   enqueueOutboxEvent,
   upsertScheduledEvent,
 } from "../shared-events/persistent-event";
+import {
+  createRecycleBinItem,
+  nullableInstant,
+} from "../recycle-bin/recycle-bin.persistence";
 import type {
   CreatePlanDto,
   ListPlansQueryDto,
@@ -52,6 +57,7 @@ type PlanDatabase = Pick<
   | "outboxEvent"
   | "place"
   | "plan"
+  | "recycleBinItem"
   | "scheduledEvent"
   | "wish"
   | "wishUpdate"
@@ -495,6 +501,26 @@ export class PlansService {
       this.assertVersion(existing, version);
       const releaseLinkedWish =
         existing.wishId !== null && existing.status !== PlanStatus.COMPLETED;
+      const linkedWish =
+        releaseLinkedWish && existing.wishId !== null
+          ? await transaction.wish.findFirst({
+              where: {
+                id: existing.wishId,
+                coupleId: actor.couple.id,
+                deletedAt: null,
+              },
+              select: {
+                id: true,
+                status: true,
+                plannedFor: true,
+                completedAt: true,
+                completedById: true,
+              },
+            })
+          : null;
+      if (releaseLinkedWish && linkedWish === null) {
+        throw stateConflict({ linkedWishUnavailable: true });
+      }
       const changed = await transaction.plan.updateMany({
         where: {
           id: planId,
@@ -517,6 +543,30 @@ export class PlansService {
         REMINDER_KEY(planId),
         REMINDER_CANCELLABLE_STATUSES,
       );
+      await createRecycleBinItem(transaction, {
+        coupleId: actor.couple.id,
+        resourceType: RecycleBinResourceType.PLAN,
+        resourceId: planId,
+        deletedById: actor.user.id,
+        deletedAt: now,
+        restoreData: {
+          status: existing.status,
+          wishId: existing.wishId,
+          completedAt: nullableInstant(existing.completedAt),
+          cancelledAt: nullableInstant(existing.cancelledAt),
+          reminderAt: nullableInstant(existing.reminderAt),
+          linkedWish:
+            linkedWish === null
+              ? null
+              : {
+                  id: linkedWish.id,
+                  status: linkedWish.status,
+                  plannedFor: nullableInstant(linkedWish.plannedFor),
+                  completedAt: nullableInstant(linkedWish.completedAt),
+                  completedById: linkedWish.completedById,
+                },
+        },
+      });
       await this.writeMutationEvents(
         transaction,
         { ...existing, version: version + 1 },
