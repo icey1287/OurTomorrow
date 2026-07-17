@@ -43,7 +43,7 @@ pnpm dev
 curl -sS \
   -H 'content-type: application/json' \
   -d '{"role":"boy"}' \
-  http://localhost:3000/api/v1/identity/select
+  http://localhost:3001/api/v1/identity/select
 ```
 
 后续 API 请求显式发送 `X-Our-Tomorrow-Role: boy` 或 `girl`。该值只是本地界面选择，不是登录凭据。
@@ -51,15 +51,11 @@ curl -sS \
 默认地址：
 
 - Web：<http://localhost:5173>
-- API：<http://localhost:3000/api/v1>
-- OpenAPI UI：<http://localhost:3000/api/v1/docs>
-- OpenAPI JSON：<http://localhost:3000/api/v1/openapi.json>
+- API：<http://localhost:3001/api/v1>
+- OpenAPI UI：<http://localhost:3001/api/v1/docs>
+- OpenAPI JSON：<http://localhost:3001/api/v1/openapi.json>
 
-根 `pnpm dev` 并行启动 Web 和 API；持久化任务需要另开终端：
-
-```bash
-pnpm --filter @our-tomorrow/api dev:worker
-```
+根 `pnpm dev` 并行启动 Web、API 和持久化 Worker。定时便利贴、冷静信箱解锁和提醒等后台任务无需再另开终端。
 
 固定身份映射为 `boy/甲/slot 1` 与 `girl/乙/slot 2`，两者始终属于同一个确定性 Couple。初始化不依赖成员凭据或配对流程。能访问站点的人可以切换两个角色，因此对公网部署前必须在应用之外配置只允许两个人访问的网络边界。
 
@@ -71,7 +67,7 @@ pnpm --filter @our-tomorrow/api dev:worker
 pnpm --filter @our-tomorrow/web dev
 ```
 
-Vite 把 `/api` 代理到 `VITE_DEV_API_TARGET`，默认 `http://localhost:3000`。开发仍应使用相对 `/api/v1`，不要在组件中硬编码主机名。
+Vite 把 `/api` 代理到 `VITE_DEV_API_TARGET`，默认 `http://localhost:3001`。开发仍应使用相对 `/api/v1`，不要在组件中硬编码主机名。
 
 ### 2.2 完整 Compose 验证
 
@@ -93,7 +89,7 @@ Compose 会先运行 `migrate`，再启动 `api`/`worker`，Web 由 Nginx 提供
 | -------------------------- | --------------------------- | ----------------------- | --------------------------------- |
 | `NODE_ENV`                 | development/test/production | `development`           | `production`                      |
 | `AMAP_WEB_SERVICE_KEY`     | 高德地点搜索与地址转坐标    | 仅写入 `apps/api/.env`  | 只注入 API，不进入 Web 包         |
-| `API_PORT`                 | Nest 端口                   | `3000`                  | 容器内 3000                       |
+| `API_PORT`                 | Nest 端口                   | `3001`                  | 容器内仍由 Compose 显式使用 3000  |
 | `DATABASE_URL`             | Prisma PostgreSQL URL       | localhost Compose DB    | URL encode 密码；不公开数据库端口 |
 | `WEB_ORIGIN`               | 唯一允许的 Web Origin       | `http://localhost:5173` | 与实际 HTTPS 同源一致             |
 | `PUBLIC_APP_URL`           | Web/API 绝对 URL 基址       | Web 地址                | HTTPS 正式域名                    |
@@ -114,7 +110,7 @@ Compose 额外需要 PostgreSQL、Restic/S3、端口和镜像 tag 变量，见 `
 
 | 命令                | 作用                                                        |
 | ------------------- | ----------------------------------------------------------- |
-| `pnpm dev`          | 并行启动 Web 与 API 开发进程                                |
+| `pnpm dev`          | 并行启动 Web、API 与持久化 Worker 开发进程                  |
 | `pnpm build`        | 构建所有 workspace                                          |
 | `pnpm test`         | 运行各 workspace 测试                                       |
 | `pnpm test:unit`    | 单元测试基线                                                |

@@ -38,9 +38,10 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - 127.0.0.1:${POSTGRES_PORT:-5432}:5432
+      - 127.0.0.1:${POSTGRES_PORT:-5433}:5432
     networks:
       - data
+      - postgres_host
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
@@ -243,6 +244,7 @@ networks:
   app:
   data:
     internal: true
+  postgres_host:
 
 volumes:
   postgres_data:

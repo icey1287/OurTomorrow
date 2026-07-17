@@ -32,7 +32,8 @@ export const environmentSchema = z
       .enum(["development", "test", "production"])
       .default("development"),
     AMAP_WEB_SERVICE_KEY: z.string().trim().default(""),
-    API_PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+    // Local development uses 3001; Compose explicitly keeps the container on 3000.
+    API_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
     DATABASE_URL: z
       .string()
       .url()
