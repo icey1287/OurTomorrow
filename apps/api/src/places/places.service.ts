@@ -74,6 +74,7 @@ export type PlaceMapMemorySummary = {
   title: string;
   happenedAt: string;
   coverMedia: MediaAssetSummary | null;
+  photos: MediaAssetSummary[];
 };
 
 export type PlaceMapWishSummary = {
@@ -337,6 +338,16 @@ export class PlacesService {
             title: true,
             happenedAt: true,
             coverMediaId: true,
+            media: {
+              where: {
+                mediaAsset: readableMediaAssetWhere(
+                  actor.couple.id,
+                  actor.user.id,
+                ),
+              },
+              orderBy: [{ sortOrder: "asc" }, { mediaAssetId: "asc" }],
+              select: { mediaAsset: { select: mapMediaSelect } },
+            },
           },
         },
         wishes: {
@@ -395,6 +406,9 @@ export class PlacesService {
           memory.coverMediaId === null
             ? null
             : (mediaById.get(memory.coverMediaId) ?? null),
+        photos: memory.media.map(({ mediaAsset }) =>
+          toMediaAssetSummary(mediaAsset),
+        ),
       })),
       wishes: place.wishes.map((wish) => ({
         id: wish.id,

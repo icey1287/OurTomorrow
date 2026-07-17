@@ -1006,6 +1006,7 @@ export interface PlaceMapMemorySummary {
   title: string;
   happenedAt: string;
   coverMedia: MediaAssetSummary | null;
+  photos: MediaAssetSummary[];
 }
 
 export interface PlaceMapWishSummary {
