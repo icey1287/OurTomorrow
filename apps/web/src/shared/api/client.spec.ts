@@ -76,4 +76,39 @@ describe("api client", () => {
       displayName: "must not be empty；too long",
     });
   });
+
+  it("uploads binary media without rewriting its content type", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(null, { status: 204 }));
+    vi.stubGlobal("fetch", fetchMock);
+    setApiIdentityRole("girl");
+
+    await apiClient.putBinary(
+      "/uploads/media-1/content",
+      new Blob(["image"], { type: "image/png" }),
+      "image/png",
+    );
+
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const headers = new Headers(init.headers);
+    expect(headers.get("Content-Type")).toBe("image/png");
+    expect(headers.get("X-Our-Tomorrow-Role")).toBe("girl");
+  });
+
+  it("fetches private media blobs with the selected role", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Blob(["private-image"], { type: "image/webp" }), {
+        status: 200,
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    setApiIdentityRole("boy");
+
+    await expect(apiClient.blob("/media/media-1")).resolves.toBeInstanceOf(
+      Blob,
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(new Headers(init.headers).get("X-Our-Tomorrow-Role")).toBe("boy");
+  });
 });

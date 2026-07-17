@@ -1,10 +1,13 @@
-import { Controller, Get, Inject } from "@nestjs/common";
+import { Controller, Get, Inject, Query } from "@nestjs/common";
 import { ApiHeader, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import {
   CurrentIdentityRole,
   IDENTITY_ROLE_HEADER,
 } from "../identity/current-role.decorator";
 import type { IdentityRole } from "../identity/identity.constants";
+import type { MemoryCardSummary } from "../memories/memory.presentation";
+import { createValidationPipe } from "../common/http/validation";
+import { RandomMemoryQueryDto } from "./dto/random-memory-query.dto";
 import { TodayResponseDto } from "./dto/today-response.dto";
 import { TodayService, type TodayResponse } from "./today.service";
 
@@ -22,5 +25,20 @@ export class TodayController {
   @ApiOkResponse({ type: TodayResponseDto })
   get(@CurrentIdentityRole() role: IdentityRole): Promise<TodayResponse> {
     return this.today.get(role);
+  }
+
+  @Get("random-memory")
+  @ApiHeader({
+    name: IDENTITY_ROLE_HEADER,
+    enum: ["boy", "girl"],
+    required: true,
+  })
+  @ApiOkResponse({ description: "A deduplicated safe memory card or null" })
+  randomMemory(
+    @CurrentIdentityRole() role: IdentityRole,
+    @Query(createValidationPipe(RandomMemoryQueryDto))
+    query: RandomMemoryQueryDto,
+  ): Promise<MemoryCardSummary | null> {
+    return this.today.randomMemory(role, query.excludeId);
   }
 }

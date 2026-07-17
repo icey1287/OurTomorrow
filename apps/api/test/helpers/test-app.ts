@@ -14,19 +14,23 @@ const TEST_WEB_ORIGIN = "http://127.0.0.1:5173";
 
 export async function startTestApplication(
   databaseUrl: string,
+  options: { mediaStoragePath?: string } = {},
 ): Promise<RunningTestApplication> {
   Object.assign(process.env, {
     NODE_ENV: "test",
     DATABASE_URL: databaseUrl,
     WEB_ORIGIN: TEST_WEB_ORIGIN,
     PUBLIC_APP_URL: TEST_WEB_ORIGIN,
-    MEDIA_STORAGE_PATH: "/tmp/our-tomorrow-stage1-media",
+    MEDIA_STORAGE_PATH:
+      options.mediaStoragePath ?? "/tmp/our-tomorrow-integration-media",
     MEDIA_MAX_BYTES: "15728640",
+    MEDIA_MAX_PIXELS: "40000000",
+    MEDIA_UPLOAD_TTL_SECONDS: "900",
     WORKER_POLL_INTERVAL_MS: "2000",
     WORKER_BATCH_SIZE: "20",
     TRUST_PROXY: "false",
     TZ: "UTC",
-    APP_VERSION: "stage1-integration",
+    APP_VERSION: "integration",
   });
 
   const { AppModule } = await import("../../src/app.module");

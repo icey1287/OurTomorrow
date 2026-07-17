@@ -20,8 +20,23 @@ describe("validateEnvironment", () => {
       API_PORT: 3100,
       TRUST_PROXY: true,
       TZ: "Asia/Shanghai",
+      MEDIA_MAX_BYTES: 15 * 1024 * 1024,
+      MEDIA_MAX_PIXELS: 40_000_000,
+      MEDIA_UPLOAD_TTL_SECONDS: 900,
       WORKER_POLL_INTERVAL_MS: 2_000,
     });
+  });
+
+  it("rejects unsafe image processing and upload limits", () => {
+    expect(() =>
+      validateEnvironment({ ...validEnvironment, MEDIA_MAX_PIXELS: "999" }),
+    ).toThrow("MEDIA_MAX_PIXELS");
+    expect(() =>
+      validateEnvironment({
+        ...validEnvironment,
+        MEDIA_UPLOAD_TTL_SECONDS: "30",
+      }),
+    ).toThrow("MEDIA_UPLOAD_TTL_SECONDS");
   });
 
   it("rejects non-PostgreSQL database URLs", () => {

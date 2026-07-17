@@ -1,19 +1,22 @@
-name: our-tomorrow-stage1-test
+name: our-tomorrow-integration-test
 
 services:
   postgres:
-    image: ${POSTGRES_TEST_IMAGE:-postgres:16-alpine}
+    image: ${POSTGRES_TEST_IMAGE:-postgres:15}
     environment:
-      POSTGRES_DB: our_tomorrow_stage1_test
+      POSTGRES_DB: our_tomorrow_integration_test
       POSTGRES_USER: our_tomorrow
-      POSTGRES_PASSWORD: stage1-test-password
+      POSTGRES_PASSWORD: integration-test-password
     ports:
       - "127.0.0.1:55432:5432"
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
       test:
-        ["CMD-SHELL", "pg_isready -U our_tomorrow -d our_tomorrow_stage1_test"]
+        [
+          "CMD-SHELL",
+          "pg_isready -U our_tomorrow -d our_tomorrow_integration_test",
+        ]
       interval: 2s
       timeout: 2s
       retries: 20

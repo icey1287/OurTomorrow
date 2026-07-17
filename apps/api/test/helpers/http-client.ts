@@ -87,4 +87,35 @@ export class Stage1HttpClient {
       options,
     );
   }
+
+  put<T>(
+    path: string,
+    body?: unknown,
+    options?: RequestOptions,
+  ): Promise<HttpResult<T>> {
+    const init: RequestInit = { method: "PUT" };
+    if (body !== undefined) init.body = JSON.stringify(body);
+    return this.request<T>(path, init, options);
+  }
+
+  delete<T>(path: string, options?: RequestOptions): Promise<HttpResult<T>> {
+    return this.request<T>(path, { method: "DELETE" }, options);
+  }
+
+  putBinary<T>(
+    path: string,
+    body: Uint8Array,
+    mimeType: string,
+    options?: RequestOptions,
+  ): Promise<HttpResult<T>> {
+    return this.request<T>(
+      path,
+      {
+        method: "PUT",
+        body: body as unknown as BodyInit,
+        headers: { "content-type": mimeType },
+      },
+      options,
+    );
+  }
 }

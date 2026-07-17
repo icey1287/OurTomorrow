@@ -295,7 +295,7 @@ type ReadyHealth = {
 | DELETE | `/memories/:id/comments/:commentId` | 作者删除评论（软删除）                                                                       |
 | PUT    | `/memories/:id/reactions/:emoji`    | 当前用户幂等设置回应                                                                         |
 | DELETE | `/memories/:id/reactions/:emoji`    | 移除当前用户回应                                                                             |
-| POST   | `/memories/:id/media`               | 绑定已上传媒体并指定顺序/封面                                                                |
+| POST   | `/memories/:id/media`               | 以 `mediaIds` 顺序同步已上传媒体，并用 `coverMediaId` 指定封面                               |
 | DELETE | `/memories/:id/media/:mediaId`      | 解除绑定；不立即物理删除对象                                                                 |
 | GET    | `/memories/:id/revisions`           | 共享字段的安全修改历史                                                                       |
 
@@ -335,14 +335,17 @@ type ReadyHealth = {
 | 方法   | 路径                   | 阶段 | 说明                                                         |
 | ------ | ---------------------- | ---- | ------------------------------------------------------------ |
 | POST   | `/uploads/presign`     | 2    | 创建短时上传意图；请求声明文件名、大小和 MIME                |
+| PUT    | `/uploads/:id/content` | 2    | 同域上传原始二进制；仅创建意图的角色可在有效期内写入一次     |
 | POST   | `/uploads/complete`    | 2    | 校验实际对象、重编码、去 EXIF、生成缩略图并登记 `MediaAsset` |
 | GET    | `/media/:id`           | 2    | 鉴权后流式读取或 302 到短时签名 URL                          |
 | GET    | `/media/:id/thumbnail` | 2    | 鉴权缩略图                                                   |
 | DELETE | `/media/:id`           | 2    | 标记删除；仍被内容引用时返回冲突或只解除指定关系             |
 
-`/uploads/complete` 要求 `Idempotency-Key`。客户端声明 MIME 只用于早期提示，完成端点必须验证真实格式、像素、大小和解码完整性。响应只返回授权 URL，不返回 `storageKey`。
+`POST /uploads/presign` 返回 `{ uploadId, uploadUrl, method: "PUT", expiresAt }`；`POST /uploads/complete` 接受 `{ uploadId }` 并要求 `Idempotency-Key`。客户端声明 MIME 只用于早期提示，完成端点必须验证真实格式、像素、大小和解码完整性。响应只返回 `{ id, originalName, mimeType, size, width, height, url, thumbnailUrl, createdAt }`，不返回 `storageKey`。
 
 若阶段 2 的本地存储不支持浏览器直传，`presign` 可返回同域一次性上传 URL；外部契约不因存储后端改变。
+
+由于角色通过自定义 header 传递，Web 不把授权 URL直接放入 `<img src>`，而是带角色 header `fetch` 为 Blob，再创建并及时撤销 object URL。角色值不放入 query string。
 
 ## 9. 阶段 3：日常
 

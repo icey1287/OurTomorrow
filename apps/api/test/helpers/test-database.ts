@@ -12,7 +12,7 @@ export function integrationDatabaseUrl(): string {
 
   const url = new URL(value);
   if (!["postgresql:", "postgres:"].includes(url.protocol)) {
-    throw new Error("Stage 1 integration tests require PostgreSQL");
+    throw new Error("Integration tests require PostgreSQL");
   }
 
   const databaseName = decodeURIComponent(url.pathname.replace(/^\//, ""));

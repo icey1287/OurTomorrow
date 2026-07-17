@@ -5,6 +5,7 @@ import { createApp } from "vue";
 import App from "@/App.vue";
 import { queryClient } from "@/app/query-client";
 import { router } from "@/router";
+import { revokeAllPrivateMediaUrls } from "@/shared/composables/use-private-media";
 import { useIdentityStore } from "@/shared/stores/identity";
 import { useThemeStore } from "@/shared/stores/theme";
 import "@/shared/styles/index.css";
@@ -23,6 +24,7 @@ let previousRole = identityStore.role;
 identityStore.$subscribe((_mutation, state) => {
   if (state.role !== previousRole) {
     previousRole = state.role;
+    revokeAllPrivateMediaUrls();
     queryClient.clear();
   }
 });

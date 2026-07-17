@@ -552,8 +552,12 @@ model MediaAsset {
   duration               Int?
   thumbnailKey           String?                    @map("thumbnail_key") @db.VarChar(512)
   checksumSha256         String?                    @map("checksum_sha256") @db.VarChar(64)
+  uploadExpiresAt        DateTime?                  @map("upload_expires_at") @db.Timestamptz(3)
+  uploadedAt             DateTime?                  @map("uploaded_at") @db.Timestamptz(3)
+  readyAt                DateTime?                  @map("ready_at") @db.Timestamptz(3)
   createdById            String                     @map("created_by") @db.Uuid
   createdAt              DateTime                   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime                   @updatedAt @map("updated_at") @db.Timestamptz(3)
   deletedAt              DateTime?                  @map("deleted_at") @db.Timestamptz(3)
   couple                 Couple                     @relation(fields: [coupleId], references: [id], onDelete: Cascade)
   createdBy              User                       @relation("MediaCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -567,6 +571,8 @@ model MediaAsset {
 
   @@index([coupleId, status, createdAt(sort: Desc)])
   @@index([coupleId, deletedAt])
+  @@index([createdById, status, deletedAt, createdAt(sort: Desc)])
+  @@index([status, uploadExpiresAt])
   @@map("media_assets")
 }
 
@@ -638,6 +644,7 @@ model Memory {
   @@index([coupleId, placeId, happenedAt(sort: Desc)])
   @@index([coupleId, isFirstTime, happenedAt(sort: Desc)])
   @@index([coupleId, isPinned, happenedAt(sort: Desc)])
+  @@index([coupleId, status, deletedAt, isPinned(sort: Desc), happenedAt(sort: Desc), id], map: "memories_couple_id_status_deleted_at_is_pinned_happened_idx")
   @@index([sourceAnniversaryId])
   @@map("memories")
 }
@@ -680,11 +687,15 @@ model Tag {
   name           String      @db.VarChar(64)
   normalizedName String      @map("normalized_name") @db.VarChar(64)
   color          String?     @db.VarChar(32)
+  version        Int         @default(1)
   createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+  deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(3)
   couple         Couple      @relation(fields: [coupleId], references: [id], onDelete: Cascade)
   memories       MemoryTag[]
 
   @@unique([coupleId, normalizedName])
+  @@index([coupleId, deletedAt, name])
   @@map("tags")
 }
 
@@ -710,7 +721,7 @@ model Comment {
   memory    Memory    @relation(fields: [memoryId], references: [id], onDelete: Cascade)
   author    User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
 
-  @@index([memoryId, createdAt])
+  @@index([memoryId, deletedAt, createdAt])
   @@map("comments")
 }
 
@@ -741,6 +752,7 @@ model MemoryResurface {
   memory      Memory                @relation(fields: [memoryId], references: [id], onDelete: Cascade)
 
   @@index([coupleId, displayedAt(sort: Desc)])
+  @@index([coupleId, reason, displayedAt(sort: Desc)])
   @@index([memoryId, displayedAt(sort: Desc)])
   @@map("memory_resurfaces")
 }

@@ -8,6 +8,10 @@ import { PrismaModule } from "./database/prisma.module";
 import { HealthModule } from "./health/health.module";
 import { CouplesModule } from "./couples/couples.module";
 import { IdentityModule } from "./identity/identity.module";
+import { MediaModule } from "./media/media.module";
+import { MemoriesModule } from "./memories/memories.module";
+import { PlacesModule } from "./places/places.module";
+import { TagsModule } from "./tags/tags.module";
 import { TodayModule } from "./today/today.module";
 import { UsersModule } from "./users/users.module";
 
@@ -20,6 +24,10 @@ import { UsersModule } from "./users/users.module";
     IdentityModule,
     CouplesModule,
     UsersModule,
+    MediaModule,
+    TagsModule,
+    PlacesModule,
+    MemoriesModule,
     TodayModule,
     HealthModule,
   ],

@@ -3,6 +3,8 @@ import { Clock } from "../common/clock/clock";
 import type { CoupleSummary } from "../common/presentation/relationship";
 import { CouplesService } from "../couples/couples.service";
 import type { IdentityRole } from "../identity/identity.constants";
+import { type MemoryCardSummary } from "../memories/memory.presentation";
+import { MemoryResurfaceService } from "../memories/memory-resurface.service";
 
 export type TodayResponse = {
   serverNow: string;
@@ -13,7 +15,7 @@ export type TodayResponse = {
   latestNote: null;
   dailyEntryStatus: null;
   nextAnniversary: null;
-  randomMemory: null;
+  randomMemory: MemoryCardSummary | null;
   activeWish: null;
 };
 
@@ -48,6 +50,8 @@ export class TodayService {
     private readonly couples: CouplesService,
     @Inject(Clock)
     private readonly clock: Clock,
+    @Inject(MemoryResurfaceService)
+    private readonly memoryResurface: MemoryResurfaceService,
   ) {}
 
   async get(role: IdentityRole): Promise<TodayResponse> {
@@ -58,6 +62,7 @@ export class TodayService {
       (dateOrdinal(localDate) - dateOrdinal(relationship.startDate)) /
         86_400_000,
     );
+    const randomMemory = await this.memoryResurface.random(role);
     return {
       serverNow: now.toISOString(),
       localDate,
@@ -70,8 +75,15 @@ export class TodayService {
       latestNote: null,
       dailyEntryStatus: null,
       nextAnniversary: null,
-      randomMemory: null,
+      randomMemory,
       activeWish: null,
     };
+  }
+
+  randomMemory(
+    role: IdentityRole,
+    excludeId?: string,
+  ): Promise<MemoryCardSummary | null> {
+    return this.memoryResurface.random(role, excludeId);
   }
 }

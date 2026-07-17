@@ -50,6 +50,18 @@ export const environmentSchema = z
       .int()
       .min(1_024)
       .default(15 * 1024 * 1024),
+    MEDIA_MAX_PIXELS: z.coerce
+      .number()
+      .int()
+      .min(1_000_000)
+      .max(100_000_000)
+      .default(40_000_000),
+    MEDIA_UPLOAD_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(3_600)
+      .default(900),
     WORKER_POLL_INTERVAL_MS: z.coerce
       .number()
       .int()

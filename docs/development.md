@@ -89,20 +89,22 @@ Compose 会先运行 `migrate`，再启动 `api`/`worker`，Web 由 Nginx 提供
 
 `apps/api/.env` 用于本地 API、Worker 与 Prisma CLI，`infra/.env` 用于 Compose。真实文件不提交 Git。
 
-| 变量                      | 作用                        | 本地提示                | 生产要求                          |
-| ------------------------- | --------------------------- | ----------------------- | --------------------------------- |
-| `NODE_ENV`                | development/test/production | `development`           | `production`                      |
-| `API_PORT`                | Nest 端口                   | `3000`                  | 容器内 3000                       |
-| `DATABASE_URL`            | Prisma PostgreSQL URL       | localhost Compose DB    | URL encode 密码；不公开数据库端口 |
-| `WEB_ORIGIN`              | 唯一允许的 Web Origin       | `http://localhost:5173` | 与实际 HTTPS 同源一致             |
-| `PUBLIC_APP_URL`          | Web/API 绝对 URL 基址       | Web 地址                | HTTPS 正式域名                    |
-| `MEDIA_STORAGE_PATH`      | 私有媒体根目录              | `./storage`             | 独立持久卷，不能由 Web 静态暴露   |
-| `MEDIA_MAX_BYTES`         | 单文件上限                  | 默认 15 MiB             | 同时限制像素/解码资源             |
-| `WORKER_POLL_INTERVAL_MS` | Worker 轮询间隔             | 默认 2000               | 结合任务延迟监控                  |
-| `WORKER_BATCH_SIZE`       | 每次认领量                  | 默认 20                 | 不超过 100                        |
-| `TRUST_PROXY`             | 信任反代头                  | 直连 API 时 false       | 仅在已知 Caddy 拓扑下 true        |
-| `APP_VERSION`             | 健康/日志版本               | `0.1.0`                 | 设置为镜像或发布版本              |
-| `TZ`                      | 进程/备份默认时区           | `Asia/Shanghai`         | 业务日历仍以 Couple.timezone 为准 |
+| 变量                       | 作用                        | 本地提示                | 生产要求                          |
+| -------------------------- | --------------------------- | ----------------------- | --------------------------------- |
+| `NODE_ENV`                 | development/test/production | `development`           | `production`                      |
+| `API_PORT`                 | Nest 端口                   | `3000`                  | 容器内 3000                       |
+| `DATABASE_URL`             | Prisma PostgreSQL URL       | localhost Compose DB    | URL encode 密码；不公开数据库端口 |
+| `WEB_ORIGIN`               | 唯一允许的 Web Origin       | `http://localhost:5173` | 与实际 HTTPS 同源一致             |
+| `PUBLIC_APP_URL`           | Web/API 绝对 URL 基址       | Web 地址                | HTTPS 正式域名                    |
+| `MEDIA_STORAGE_PATH`       | 私有媒体根目录              | `./storage`             | 独立持久卷，不能由 Web 静态暴露   |
+| `MEDIA_MAX_BYTES`          | 单文件上限                  | 默认 15 MiB             | 同时限制像素/解码资源             |
+| `MEDIA_MAX_PIXELS`         | 图片解码像素上限            | 默认 4000 万            | 防止像素炸弹与异常内存占用        |
+| `MEDIA_UPLOAD_TTL_SECONDS` | 上传意图有效期              | 默认 900 秒             | 过期隔离文件不可完成或读取        |
+| `WORKER_POLL_INTERVAL_MS`  | Worker 轮询间隔             | 默认 2000               | 结合任务延迟监控                  |
+| `WORKER_BATCH_SIZE`        | 每次认领量                  | 默认 20                 | 不超过 100                        |
+| `TRUST_PROXY`              | 信任反代头                  | 直连 API 时 false       | 仅在已知 Caddy 拓扑下 true        |
+| `APP_VERSION`              | 健康/日志版本               | `0.1.0`                 | 设置为镜像或发布版本              |
+| `TZ`                       | 进程/备份默认时区           | `Asia/Shanghai`         | 业务日历仍以 Couple.timezone 为准 |
 
 Compose 额外需要 PostgreSQL、Restic/S3、端口和镜像 tag 变量，见 `infra/.env.example`。Web 的 `VITE_*` 会进入浏览器包，绝不放秘密。
 备份容器使用不含 Prisma 专用 `?schema=` 参数的 `BACKUP_DATABASE_URL`；它与应用的 `DATABASE_URL` 指向同一数据库，但必须保持为 libpq/`pg_dump` 可识别的连接串。
@@ -379,7 +381,9 @@ Controller 不读取请求体 `coupleId`，不直接调用其他模块 Prisma �
 - 未解锁胶囊附件；
 - 删除、回收站恢复和延迟清理。
 
-存储通过 adapter 接口访问，业务代码不拼接磁盘路径或 S3 URL。测试使用临时目录并在测试结束清理。
+阶段 2 的本地适配器使用 `/uploads/presign → PUT /uploads/:id/content → /uploads/complete`；原始字节只进入隔离区，完成后才原子移动到私有对象目录。存储通过 adapter 接口访问，业务代码不拼接用户提供的磁盘路径或 S3 URL。测试使用临时目录并在测试结束清理。
+
+当前阶段优先防止误删，因此过期上传、失败隔离文件和未绑定成品仍会保留。开发环境可手动清理专用测试目录；生产自动保留期清理、清理审计与容量告警在阶段 5 完成。
 
 ## 14. 测试策略
 

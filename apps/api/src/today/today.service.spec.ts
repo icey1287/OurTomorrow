@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { Clock } from "../common/clock/clock";
 import { CouplesService } from "../couples/couples.service";
+import { MemoryResurfaceService } from "../memories/memory-resurface.service";
 import { TodayService } from "./today.service";
 
 class FixedClock implements Clock {
@@ -46,7 +47,14 @@ describe("TodayService", () => {
         ],
       }),
     } as unknown as CouplesService;
-    const service = new TodayService(couples, new FixedClock());
+    const memoryResurface = {
+      random: vi.fn().mockResolvedValue(null),
+    } as unknown as MemoryResurfaceService;
+    const service = new TodayService(
+      couples,
+      new FixedClock(),
+      memoryResurface,
+    );
 
     const result = await service.get("boy");
 
@@ -58,6 +66,8 @@ describe("TodayService", () => {
       partnerStatus: null,
       latestNote: null,
       activeWish: null,
+      randomMemory: null,
     });
+    expect(memoryResurface.random).toHaveBeenCalledWith("boy");
   });
 });

@@ -9,10 +9,12 @@ const IDENTITY_HEADER = "X-Our-Tomorrow-Role";
 let identityRole: IdentityRole | null = null;
 
 const ERROR_MESSAGES: Record<string, string> = {
+  VALIDATION_FAILED: "请检查填写的内容后再试。",
   IDENTITY_REQUIRED: "请先选择你的身份。",
   ACTION_FORBIDDEN: "当前身份不能执行这个操作。",
   RESOURCE_NOT_FOUND: "请求的内容不存在或已不可用。",
   STATE_CONFLICT: "内容已在另一处更新，请刷新后重试。",
+  IDEMPOTENCY_CONFLICT: "这次操作与刚才的请求不一致，请重新开始。",
   DEPENDENCY_UNAVAILABLE: "服务依赖暂时不可用，请稍后再试。",
   INTERNAL_ERROR: "服务暂时没有回应，请稍后再试。",
 };
@@ -92,7 +94,7 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
 
   headers.set("Accept", "application/json");
 
-  if (fetchInit.body && !(fetchInit.body instanceof FormData)) {
+  if (typeof fetchInit.body === "string" && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
 
@@ -126,6 +128,34 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function requestBlob(
+  path: string,
+  init: ApiRequestInit = {},
+): Promise<Blob> {
+  const { includeIdentity = true, ...fetchInit } = init;
+  const headers = new Headers(fetchInit.headers);
+  if (includeIdentity && identityRole) {
+    headers.set(IDENTITY_HEADER, identityRole);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...fetchInit,
+      headers,
+      credentials: "omit",
+    });
+  } catch {
+    throw new ApiClientError("暂时无法连接明天，请检查网络后再试。", {
+      status: 0,
+      code: "NETWORK_ERROR",
+    });
+  }
+
+  if (!response.ok) throw await parseError(response);
+  return response.blob();
+}
+
 function jsonBody(payload: unknown): string {
   return JSON.stringify(payload);
 }
@@ -157,5 +187,15 @@ export const apiClient = {
   },
   delete<T>(path: string, init?: ApiRequestInit) {
     return request<T>(path, { ...init, method: "DELETE" });
+  },
+  putBinary(path: string, body: Blob, mimeType: string) {
+    return request<void>(path, {
+      method: "PUT",
+      body,
+      headers: { "Content-Type": mimeType },
+    });
+  },
+  blob(path: string, init?: ApiRequestInit) {
+    return requestBlob(path, { ...init, method: "GET" });
   },
 };

@@ -76,6 +76,18 @@ const serverTimeLabel = computed(() => {
   }).format(new Date(value));
 });
 
+const randomMemoryDateLabel = computed(() => {
+  const happenedAt = today.value?.randomMemory?.happenedAt;
+  const timezone = relationship.value?.timezone;
+  if (!happenedAt || !timezone) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: timezone,
+  }).format(new Date(happenedAt));
+});
+
 const errorMessage = computed(() => {
   const error = todayQuery.error.value;
   if (error instanceof ApiClientError) {
@@ -292,7 +304,48 @@ watch(
           description="首页只呈现服务器确认可见的内容；尚无内容时保持安静。"
         />
         <div class="mt-4 grid gap-4 lg:grid-cols-2">
-          <SurfaceCard>
+          <RouterLink
+            v-if="today.randomMemory"
+            :to="{
+              path: '/remember',
+              query: { memory: today.randomMemory.id },
+            }"
+            class="group block"
+          >
+            <SurfaceCard tone="memory" interactive class="h-full">
+              <div class="flex items-start gap-4">
+                <span
+                  class="grid size-11 shrink-0 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-900/45 dark:text-memory-200"
+                  ><Clock3 class="size-5"
+                /></span>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="eyebrow text-memory-700 dark:text-memory-300">
+                      随机旧回忆 · {{ randomMemoryDateLabel }}
+                    </p>
+                    <ArrowUpRight
+                      class="size-4 shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
+                    />
+                  </div>
+                  <h3
+                    class="mt-2 font-display text-xl font-semibold text-ink-950 dark:text-white"
+                  >
+                    {{ today.randomMemory.title }}
+                  </h3>
+                  <p
+                    class="mt-2 line-clamp-2 text-sm leading-6 text-ink-500 dark:text-ink-400"
+                  >
+                    {{
+                      today.randomMemory.excerpt ||
+                      "这段共同故事，今天又轻轻回到了你们面前。"
+                    }}
+                  </p>
+                </div>
+              </div>
+            </SurfaceCard>
+          </RouterLink>
+
+          <SurfaceCard v-else>
             <div class="flex items-start gap-4">
               <span
                 class="grid size-11 shrink-0 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
