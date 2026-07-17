@@ -128,7 +128,7 @@ infra/scripts/restore-drill.sh \
 
 正式演练去掉 `--dry-run`。脚本会拒绝 `infra/.env`、非 `our-tomorrow-drill-*` project、已存在 project、隐式 `latest`、非 localhost URL 和低端口；它只启动 PostgreSQL/API/Web/Caddy，不启动 worker/backup。流程包含 metadata 与 SHA-256、PostgreSQL restore、媒体复制、当前 migration、健康与安全头、无 Cookie、boy/girl 不同成员但同 Couple、核心表数量以及最多 10 个 READY 媒体路径抽查。成功证据写入 Git 忽略的 `infra/restore-drills/<project>.json`，默认随后删除演练容器与卷。
 
-仓库包含一份脱敏的阶段 5 离线演练证据：`infra/restore-drills/our-tomorrow-offline-20260717080357-7995.json`。它完成了隔离 custom-format `pg_dump → pg_restore`、10 项迁移、固定双角色/同 Couple、媒体解码和锁定胶囊不泄露验证；因当时 Docker registry/BuildKit 异常，使用了本机 PostgreSQL 15 与私有目录媒体复制。该证据证明应用级恢复链路，但不能替代正式上线前要求的 PostgreSQL 16 + Restic 演练。
+仓库包含一份脱敏的 PostgreSQL 16 离线演练证据：`infra/restore-drills/our-tomorrow-offline-20260717145931-33163.json`。它完成了隔离 custom-format `pg_dump → pg_restore`、11 项迁移、固定双角色/同 Couple、媒体解码和锁定胶囊不泄露验证。该证据验证应用级数据库与媒体恢复链路；正式上线前仍需按本手册完成对应 Restic 快照的完整演练。
 
 需要人工检查 UI/图片时加 `--keep`，检查完成后再次核对 project 名，再执行本节清理命令。以下手工步骤同时是脚本审计说明和无法使用脚本时的受控备用流程。
 

@@ -2,7 +2,7 @@ name: our-tomorrow-recycle-bin-integration-test
 
 services:
   postgres:
-    image: ${POSTGRES_TEST_IMAGE:-postgres:15}
+    image: ${POSTGRES_TEST_IMAGE:-postgres:16-alpine}
     environment:
       POSTGRES_DB: our_tomorrow_recycle_test
       POSTGRES_USER: our_tomorrow_recycle

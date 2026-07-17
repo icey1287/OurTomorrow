@@ -2,26 +2,26 @@
   "format": "our-tomorrow-offline-restore-drill",
   "version": 1,
   "status": "succeeded",
-  "completedAt": "2026-07-17T08:04:12Z",
-  "gitCommit": "efb0a1366e46bacae8d58722d3b911342ccc13cf",
+  "completedAt": "2026-07-17T14:59:45Z",
+  "gitCommit": "9ba451c625ac146286da55058f029b33f4af1316",
   "isolation": {
-    "sourceProject": "our-tomorrow-offline-source-20260717080357-7995",
-    "targetProject": "our-tomorrow-offline-target-20260717080357-7995",
+    "sourceProject": "our-tomorrow-offline-source-20260717145931-33163",
+    "targetProject": "our-tomorrow-offline-target-20260717145931-33163",
     "sourceDatabase": "dedicated-compose-volume",
     "targetDatabase": "dedicated-compose-volume",
     "sharedStage3E2eDatabaseTouched": false
   },
   "backup": {
     "databaseFormat": "pg_dump-custom",
-    "databaseSha256": "0447fde332e74b2a48cc30ec51c9c8ab247b837110624208a194a8afe5588013",
+    "databaseSha256": "ea2fd10655c67cd278131290f2d47f1da6213f59e5457534e5770b4a628cb915",
     "mediaTransport": "isolated-private-directory-copy"
   },
   "compatibility": {
-    "exercisedPostgresMajor": 15,
+    "exercisedPostgresMajor": 16,
     "productionBaselinePostgresMajor": 16,
-    "limitation": "Docker registry failure prevented the production-image/Restic path; a PostgreSQL 16 + Restic drill remains required before production."
+    "limitation": null
   },
-  "latestMigration": "20260717003100_stage5_recycle_bin",
+  "latestMigration": "20260717004000_stage6_romantic_foundations",
   "counts": {
     "capsule_messages": 1,
     "capsules": 1,
