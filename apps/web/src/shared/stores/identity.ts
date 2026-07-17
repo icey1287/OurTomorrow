@@ -11,7 +11,8 @@ import { computed, ref } from "vue";
 import { ApiClientError, setApiIdentityRole } from "@/shared/api/client";
 import { stageOneApi } from "@/shared/api/stage-one";
 
-export const IDENTITY_STORAGE_KEY = "our-tomorrow-role";
+export const IDENTITY_STORAGE_KEY = "our-tomorrow-role-v2";
+const LEGACY_IDENTITY_STORAGE_KEY = "our-tomorrow-role";
 export type IdentityState = "unknown" | "unselected" | "selected";
 
 function readCachedRole(): IdentityRole | null {
@@ -27,6 +28,7 @@ function cacheRole(role: IdentityRole | null) {
   try {
     if (role) localStorage.setItem(IDENTITY_STORAGE_KEY, role);
     else localStorage.removeItem(IDENTITY_STORAGE_KEY);
+    localStorage.removeItem(LEGACY_IDENTITY_STORAGE_KEY);
   } catch {
     // Identity remains usable for this tab when storage is unavailable.
   }

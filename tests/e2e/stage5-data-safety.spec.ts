@@ -11,7 +11,8 @@ const IDENTITY_HEADER = "X-Our-Tomorrow-Role";
 
 async function selectBoy(page: Page) {
   await page.goto(APP_URL);
-  await page.getByRole("button", { name: "选择我是男生" }).click();
+  await page.getByLabel("你的名字").fill("示例用户甲");
+  await page.getByRole("button", { name: "验证名字" }).click();
   await expect(page).toHaveURL(/\/today$/);
 }
 

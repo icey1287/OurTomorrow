@@ -46,7 +46,7 @@ test("the production PWA keeps only the app shell available offline", async ({
   try {
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(
-      page.getByRole("heading", { name: "请选择你是谁" }),
+      page.getByRole("heading", { name: "输入你的名字" }),
     ).toBeVisible();
     await expect(page.getByText(/当前离线/)).toBeVisible();
   } finally {

@@ -39,11 +39,8 @@ test.beforeEach(() => {
 
 async function selectIdentity(page: Page, role: IdentityRole) {
   await page.goto(APP_URL);
-  await page
-    .getByRole("button", {
-      name: role === "boy" ? "选择我是男生" : "选择我是女生",
-    })
-    .click();
+  await page.getByLabel("你的名字").fill(role === "boy" ? "示例用户甲" : "示例用户乙");
+  await page.getByRole("button", { name: "验证名字" }).click();
   await expect(page).toHaveURL(/\/today$/);
 }
 
@@ -336,7 +333,7 @@ test("an old private query response cannot cross a local identity switch", async
     await expect(page).toHaveURL(/\/today$/);
     await expect
       .poll(() =>
-        page.evaluate(() => localStorage.getItem("our-tomorrow-role")),
+        page.evaluate(() => localStorage.getItem("our-tomorrow-role-v2")),
       )
       .toBe("girl");
 

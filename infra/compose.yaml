@@ -59,9 +59,7 @@ services:
       dockerfile: infra/docker/api.Dockerfile
     command:
       [
-        "pnpm",
-        "exec",
-        "prisma",
+        "/workspace/apps/api/node_modules/.bin/prisma",
         "migrate",
         "deploy",
         "--schema",
@@ -203,6 +201,7 @@ services:
       BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL:-postgresql://our_tomorrow:our_tomorrow@postgres:5432/our_tomorrow}
       RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/backups/restic}
       RESTIC_PASSWORD: ${BACKUP_ENCRYPTION_KEY:-development-only-change-me}
+      RESTIC_CACHE_DIR: /var/lib/backup/cache
       RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-14}
       RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-8}
       RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}

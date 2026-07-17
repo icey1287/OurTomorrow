@@ -23,7 +23,7 @@
 
 ### 1.3 固定身份选择
 
-OurTomorrow 是只供固定两个人使用的自部署应用，不提供账号、密码、注册、邀请、Cookie Session 或 CSRF token。浏览器在欢迎页选择“我是男生”或“我是女生”，内部对应 `boy`/`girl`，随后在每个角色相关请求中显式发送：
+OurTomorrow 是只供固定两个人使用的自部署应用，不提供账号、密码、注册、邀请、Cookie Session 或 CSRF token。浏览器在欢迎页输入真名，Web 将 `示例用户甲` 映射到 `boy`、将 `示例用户乙` 映射到 `girl`，随后在每个角色相关请求中显式发送：
 
 ```http
 X-Our-Tomorrow-Role: boy
@@ -31,7 +31,7 @@ X-Our-Tomorrow-Role: boy
 
 允许值只有 `boy` 和 `girl`。缺失或非法值返回 `400 IDENTITY_REQUIRED`。`POST /identity/select` 的请求体直接携带角色，因此该端点本身不要求 header。
 
-Web 可以在 `localStorage` 的 `our-tomorrow-role` 中保存字符串 `boy` 或 `girl` 以记住界面选择，并保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好；不得保存正文、媒体、情侣空间/API 实体、令牌或未来新增的秘密。角色值不是凭据，header 也不是安全边界：任何能访问应用的人都能切换两个身份。部署者必须通过网络入口、设备访问控制或 VPN 保证应用只对这两个人可达。
+Web 可以在 `localStorage` 的 `our-tomorrow-role-v2` 中保存字符串 `boy` 或 `girl` 以记住匹配结果，并保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好；不得保存正文、媒体、情侣空间/API 实体、令牌或未来新增的秘密。姓名映射和角色值都不是凭据，header 也不是安全边界：任何能访问应用的人都能绕过前端并切换两个身份。部署者必须通过网络入口、设备访问控制或 VPN 保证应用只对这两个人可达。
 
 因为请求不使用浏览器自动附带的认证 Cookie，当前 API 不采用 CSRF token。生产仍保持同域部署、配置的单一 CORS Origin、安全响应头和无公开内容入口；这些控制不能把角色选择包装成真正认证。
 
@@ -223,7 +223,7 @@ type ReadyHealth = {
 | `boy`  | `boy`  | 甲                  | 1    |
 | `girl` | `girl` | 乙 | 2    |
 
-内部键不进入 API 响应；Web 身份按钮显示“我是男生/我是女生”。
+内部键不进入 API 响应；Web 只显示姓名输入与匹配动画，不直接展示角色按钮。
 
 两个用户拥有确定性 ID，同属一个确定性情侣空间。默认空间为“我们的明天”，开始日期 `2024-01-01`，时区 `Asia/Shanghai`，签名“今天也一起认真生活。”。并发选择任一角色最多生成这两个用户、一个空间和两条成员关系；重复或重启后返回相同记录。
 

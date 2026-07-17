@@ -31,7 +31,7 @@ pnpm dev
 - API：<http://localhost:3001/api/v1>
 - OpenAPI：<http://localhost:3001/api/v1/docs>
 
-应用固定服务男生和女生两种本地身份。首次打开在 `/login` 选择“我是男生”或“我是女生”；“甲/乙”只是默认称呼。身份数据只把 `boy` 或 `girl` 保存到 `localStorage`；theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好也可本地保存，但正文、媒体和 API 实体不会持久化。API 通过 `X-Our-Tomorrow-Role` 显式映射到同一个双人空间。角色选择不是认证或安全边界；部署入口必须只对两个人的设备、私有网络或外部访问代理开放。准确说明见 [`docs/development.md`](docs/development.md#2-首次本地启动) 与 [`docs/security.md`](docs/security.md#3-固定双人身份模型)。
+应用固定服务男生和女生两种本地身份。首次打开在 `/login` 输入真名：`示例用户甲` 映射到 `boy`，`示例用户乙` 映射到 `girl`；匹配成功后播放身份揭晓动画。“甲/乙”只是默认称呼。身份数据只把 `boy` 或 `girl` 保存到 `localStorage`；theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好也可本地保存，但正文、媒体和 API 实体不会持久化。API 通过 `X-Our-Tomorrow-Role` 显式映射到同一个双人空间。姓名匹配发生在 Web 前端，不是认证或安全边界；部署入口仍应只对两个人的设备、私有网络或外部访问代理开放。准确说明见 [`docs/development.md`](docs/development.md#2-首次本地启动) 与 [`docs/security.md`](docs/security.md#3-固定双人身份模型)。
 
 ## 已实现功能
 

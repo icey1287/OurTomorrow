@@ -438,7 +438,7 @@ watch(
               variant="ghost"
               :disabled="Boolean(switchingRole)"
               @click="clearCachedIdentity"
-              ><Trash2 class="size-4" />重新选择身份</BaseButton
+              ><Trash2 class="size-4" />重新验证身份</BaseButton
             >
           </div>
           <p class="mt-3 text-xs leading-5 text-ink-400 dark:text-ink-500">

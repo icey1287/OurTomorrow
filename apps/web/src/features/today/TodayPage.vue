@@ -138,7 +138,7 @@ const errorMessage = computed(() => {
   const error = todayQuery.error.value;
   if (error instanceof ApiClientError) {
     if (error.code === "IDENTITY_REQUIRED") {
-      return "请返回登录页重新选择身份。";
+      return "请返回登录页重新验证身份。";
     }
     return error.message;
   }

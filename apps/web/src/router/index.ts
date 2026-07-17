@@ -24,7 +24,7 @@ export const router = createRouter({
           path: "login",
           name: "login",
           component: () => import("@/features/identity/IdentityPage.vue"),
-          meta: { title: "选择身份", identityOnly: true },
+          meta: { title: "姓名验证", identityOnly: true },
         },
         { path: "identity", redirect: "/login" },
         { path: "join", redirect: "/login" },

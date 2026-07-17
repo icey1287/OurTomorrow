@@ -26,7 +26,8 @@ test("two local identities complete and rediscover one private memory", async ({
   const girl = await girlContext.newPage();
 
   await boy.goto(APP_URL);
-  await boy.getByRole("button", { name: "选择我是男生" }).click();
+  await boy.getByLabel("你的名字").fill("示例用户甲");
+  await boy.getByRole("button", { name: "验证名字" }).click();
   await expect(boy).toHaveURL(/\/today$/);
   await boy.goto(`${APP_URL}/remember`);
   await boy.getByRole("button", { name: "新回忆" }).click();
@@ -66,7 +67,8 @@ test("two local identities complete and rediscover one private memory", async ({
   await expect(boy.getByText("你的视角已经提交给另一半。")).toBeVisible();
 
   await girl.goto(APP_URL);
-  await girl.getByRole("button", { name: "选择我是女生" }).click();
+  await girl.getByLabel("你的名字").fill("示例用户乙");
+  await girl.getByRole("button", { name: "验证名字" }).click();
   await expect(girl).toHaveURL(/\/today$/);
   await girl.goto(`${APP_URL}/remember`);
   await girl.getByRole("button", { name: `打开回忆：${title}` }).click();

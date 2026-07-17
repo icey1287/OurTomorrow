@@ -236,7 +236,7 @@ Web 采用 Vue 3、Vue Router、Pinia、TanStack Vue Query 和 Tailwind CSS：
 - `shared/components/`：实现 `brand.md` 的基础组件；
 - `shared/utils/`：纯函数，不包含业务状态机。
 
-Pinia 保存短期 UI 状态，不复制服务器实体缓存；服务器数据由 Vue Query 管理。身份相关本地数据只保存 `our-tomorrow-role=boy|girl`，另可保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好；正文、媒体、Couple/API 实体和秘密不得进入 `localStorage`。查询键必须包含当前角色/空间语义，切换或清除角色时清空私密缓存和 object URL。响应中的秘密字段缺失被视为协议设计，而不是由 CSS 隐藏。
+Pinia 保存短期 UI 状态，不复制服务器实体缓存；服务器数据由 Vue Query 管理。Web 姓名匹配完成后，身份相关本地数据只保存 `our-tomorrow-role-v2=boy|girl`，另可保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好；正文、媒体、Couple/API 实体和秘密不得进入 `localStorage`。查询键必须包含当前角色/空间语义，切换或清除角色时清空私密缓存和 object URL。响应中的秘密字段缺失被视为协议设计，而不是由 CSS 隐藏。
 
 页面按路由懒加载；图片使用尺寸占位和懒加载。实时消息只触发精确查询失效或更新通知计数，不把 WebSocket 当作永久数据仓库。
 
