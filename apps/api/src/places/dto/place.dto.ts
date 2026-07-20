@@ -5,14 +5,14 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 export class NearbyPlacesDto {
   @ApiProperty({ minimum: -90, maximum: 90 })
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 7 })
+  @IsNumber()
   @Min(-90)
   @Max(90)
   latitude!: number;
 
   @ApiProperty({ minimum: -180, maximum: 180 })
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 7 })
+  @IsNumber()
   @Min(-180)
   @Max(180)
   longitude!: number;

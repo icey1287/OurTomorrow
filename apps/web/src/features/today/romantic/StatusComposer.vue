@@ -16,6 +16,7 @@ import { computed, ref, watch } from "vue";
 
 import { stageThreeApi } from "@/shared/api/stage-three";
 
+import { nearbyPlacesFromCurrentPosition } from "./geolocation";
 import {
   romanticArt,
   statusOptions,
@@ -90,24 +91,17 @@ const hasPreciseLocation = computed(
   () => latitude.value !== null && longitude.value !== null,
 );
 
-function currentPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 12_000,
-      maximumAge: 60_000,
-    });
-  });
-}
-
 function locationFailure(error: unknown): string {
   if (typeof error === "object" && error !== null && "code" in error) {
     const geolocationError = error as GeolocationPositionError;
     if (geolocationError.code === 1) {
       return "没有获得定位权限，可以在浏览器设置里允许后再试。";
     }
+    if (geolocationError.code === 2) {
+      return "暂时无法确定位置，请确认系统定位已开启，或先手动填写。";
+    }
     if (geolocationError.code === 3) {
-      return "定位花了太久，请再试一次。";
+      return "还是没能确定位置，请确认系统定位已开启，或先手动填写。";
     }
   }
   return error instanceof Error ? error.message : "暂时没有找到你附近的位置。";
@@ -124,12 +118,9 @@ async function locateNow() {
   localError.value = null;
   nearbyPlaces.value = [];
   try {
-    const position = await currentPosition();
-    const response = await stageThreeApi.nearbyPlaces({
-      latitude: position.coords.latitude,
-      longitude: position.coords.longitude,
-      radius: 1_000,
-      limit: 6,
+    const response = await nearbyPlacesFromCurrentPosition({
+      geolocation: navigator.geolocation,
+      searchNearby: (input) => stageThreeApi.nearbyPlaces(input),
     });
     nearbyPlaces.value = response.items;
     if (!response.items.length) {
@@ -270,9 +261,11 @@ function submit() {
               </div>
 
               <p class="location-privacy">
-                <MapPin
-                  class="size-3"
-                />只在你点击定位时读取一次，不会持续追踪。
+                <MapPin class="size-3" />{{
+                  locating
+                    ? "正在读取这一次的位置…"
+                    : "只在你点击定位时读取一次，不会持续追踪。"
+                }}
               </p>
 
               <div

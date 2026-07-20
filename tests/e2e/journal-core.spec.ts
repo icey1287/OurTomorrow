@@ -50,6 +50,88 @@ test("the journal exposes only status, place and notes", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("location uses one ordinary-accuracy request", async ({ page }) => {
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "geolocation", {
+      configurable: true,
+      value: {
+        getCurrentPosition(
+          success: PositionCallback,
+          _failure: PositionErrorCallback | null,
+          options?: PositionOptions,
+        ) {
+          const calls = ((
+            window as typeof window & {
+              __locationOptions?: PositionOptions[];
+            }
+          ).__locationOptions ??= []);
+          calls.push(options ?? {});
+
+          success({
+            coords: {
+              accuracy: 20,
+              altitude: null,
+              altitudeAccuracy: null,
+              heading: null,
+              latitude: 31.2304161234,
+              longitude: 121.4737011234,
+              speed: null,
+            },
+            timestamp: Date.now(),
+          } as GeolocationPosition);
+        },
+      },
+    });
+  });
+
+  let nearbyRequests = 0;
+  let nearbyPayload: unknown;
+  await page.route("**/api/v1/places/nearby", async (route) => {
+    nearbyRequests += 1;
+    nearbyPayload = route.request().postDataJSON();
+    await route.fulfill({
+      contentType: "application/json",
+      json: {
+        items: [
+          {
+            id: "spring-library",
+            name: "春日图书馆",
+            address: "梧桐路 20 号",
+            district: "徐汇区",
+            latitude: 31.2305,
+            longitude: 121.4738,
+            distanceMeters: 42,
+          },
+        ],
+      },
+    });
+  });
+
+  await page.getByRole("button", { name: /MY MOMENT/ }).click();
+  await page.getByRole("button", { name: "定位现在的位置" }).click();
+
+  await expect(page.getByRole("option", { name: /春日图书馆/ })).toBeVisible();
+  expect(nearbyRequests).toBe(1);
+  expect(nearbyPayload).toEqual({
+    latitude: 31.2304161,
+    longitude: 121.4737011,
+    radius: 1_000,
+    limit: 6,
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __locationOptions?: PositionOptions[];
+            }
+          ).__locationOptions,
+      ),
+    )
+    .toEqual([expect.objectContaining({ enableHighAccuracy: false })]);
+});
+
 test("settings keeps only the shared anniversary and current user", async ({
   page,
 }) => {
