@@ -231,7 +231,7 @@ function noteState(note: NoteView) {
                     }}</time>
                   </header>
                   <div v-if="note.image" class="stored-note-photo">
-                    <NoteImage :note-id="note.id" alt="便笺照片" />
+                    <NoteImage :note-id="note.id" alt="便笺照片" previewable />
                   </div>
                   <p>{{ note.content }}</p>
                   <footer>
@@ -581,7 +581,7 @@ function noteState(note: NoteView) {
 .stored-note-photo {
   position: relative;
   z-index: 1;
-  height: 182px;
+  overflow: hidden;
   margin: 12px 0 13px;
   border: 6px solid #fffdf5;
   background: #eadfc9;

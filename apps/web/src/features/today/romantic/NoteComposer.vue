@@ -37,6 +37,11 @@ const photoInput = ref<HTMLInputElement | null>(null);
 const processingPhoto = ref(false);
 const localError = ref<string | null>(null);
 const isOpen = computed(() => props.open);
+const photoPreviewStyle = computed(() =>
+  photo.value
+    ? { "--note-photo-aspect": `${photo.value.width} / ${photo.value.height}` }
+    : undefined,
+);
 let photoSelectionVersion = 0;
 
 useSheetBodyLock(isOpen);
@@ -154,12 +159,18 @@ function submit() {
               :class="{ 'has-photo': photo }"
               aria-label="便笺预览"
             >
-              <img
+              <span
                 v-if="photo"
-                class="preview-photo"
-                :src="photo.previewUrl"
-                alt="待发送的照片"
-              />
+                class="preview-photo-frame"
+                :data-orientation="photo.orientation"
+                :style="photoPreviewStyle"
+              >
+                <img
+                  class="preview-photo"
+                  :src="photo.previewUrl"
+                  alt="待发送的照片"
+                />
+              </span>
               <img
                 class="preview-sticker"
                 :src="decorationAssetByKey[decoration]"
@@ -413,19 +424,27 @@ legend,
 
 .message-preview.has-photo {
   min-height: 304px;
-  padding-top: 202px;
+}
+
+.preview-photo-frame {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: calc(100% + 50px);
+  aspect-ratio: var(--note-photo-aspect, 4 / 3);
+  overflow: hidden;
+  margin: -13px -50px 23px -7px;
+  border: 7px solid #fffdf5;
+  background: #eadfc9;
+  box-shadow: 2px 4px 10px rgb(68 46 34 / 0.16);
+  transform: rotate(0.6deg);
 }
 
 .preview-photo {
-  position: absolute;
-  top: 15px;
-  left: 15px;
-  width: calc(100% - 30px);
-  height: 168px;
-  border: 7px solid #fffdf5;
-  object-fit: cover;
-  box-shadow: 2px 4px 10px rgb(68 46 34 / 0.16);
-  transform: rotate(0.6deg);
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .message-preview::after {
@@ -566,7 +585,8 @@ legend,
   width: 58px;
   height: 54px;
   border: 3px solid #fffaf0;
-  object-fit: cover;
+  background: #eadfc9;
+  object-fit: contain;
   box-shadow: 1px 2px 5px rgb(68 46 34 / 0.14);
   transform: rotate(-1deg);
 }

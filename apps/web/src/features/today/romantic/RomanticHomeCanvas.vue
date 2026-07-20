@@ -986,7 +986,7 @@ function latestState() {
 
 .latest-note-photo {
   display: block;
-  height: 178px;
+  overflow: hidden;
   margin: 12px 3px 14px;
   border: 7px solid #fffdf5;
   background: #eadfc9;

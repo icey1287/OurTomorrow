@@ -8,11 +8,22 @@ export type PreparedNoteImage = {
   upload: NoteImageUpload;
   previewUrl: string;
   sizeBytes: number;
+  width: number;
+  height: number;
+  orientation: NoteImageOrientation;
 };
+
+export type NoteImageOrientation = "portrait" | "landscape" | "square";
 
 type CompressionAttempt = {
   maxDimension: number;
   quality: number;
+};
+
+type RenderedJpeg = {
+  blob: Blob;
+  width: number;
+  height: number;
 };
 
 const COMPRESSION_ATTEMPTS: CompressionAttempt[] = [
@@ -50,7 +61,7 @@ function loadImage(file: File): Promise<{
 function renderJpeg(
   image: HTMLImageElement,
   attempt: CompressionAttempt,
-): Promise<Blob> {
+): Promise<RenderedJpeg> {
   const scale = Math.min(
     1,
     attempt.maxDimension / Math.max(image.naturalWidth, image.naturalHeight),
@@ -69,13 +80,23 @@ function renderJpeg(
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (blob) => {
-        if (blob) resolve(blob);
+        if (blob) resolve({ blob, width, height });
         else reject(new Error("照片压缩失败，请换一张再试。"));
       },
       "image/jpeg",
       attempt.quality,
     );
   });
+}
+
+export function noteImageOrientation(
+  width: number,
+  height: number,
+): NoteImageOrientation {
+  const ratio = width / height;
+  if (ratio < 0.92) return "portrait";
+  if (ratio > 1.08) return "landscape";
+  return "square";
 }
 
 function blobBase64(blob: Blob): Promise<string> {
@@ -109,15 +130,18 @@ export async function prepareNoteImage(file: File): Promise<PreparedNoteImage> {
       throw new Error("这张图片没有可用的尺寸信息。");
     }
     for (const attempt of COMPRESSION_ATTEMPTS) {
-      const blob = await renderJpeg(loaded.image, attempt);
-      if (blob.size > NOTE_IMAGE_MAX_BYTES) continue;
+      const rendered = await renderJpeg(loaded.image, attempt);
+      if (rendered.blob.size > NOTE_IMAGE_MAX_BYTES) continue;
       return {
         upload: {
           mimeType: "image/jpeg",
-          dataBase64: await blobBase64(blob),
+          dataBase64: await blobBase64(rendered.blob),
         },
-        previewUrl: URL.createObjectURL(blob),
-        sizeBytes: blob.size,
+        previewUrl: URL.createObjectURL(rendered.blob),
+        sizeBytes: rendered.blob.size,
+        width: rendered.width,
+        height: rendered.height,
+        orientation: noteImageOrientation(rendered.width, rendered.height),
       };
     }
   } finally {

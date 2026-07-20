@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 const APP_URL = process.env.E2E_BASE_URL ?? "http://localhost:5173";
+const PORTRAIT_NOTE_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAAECAYAAACk7+45AAAAEklEQVR4nGP4v2XffxBmwM0AAO8LG4H86nsEAAAAAElFTkSuQmCC",
+  "base64",
+);
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.clear());
@@ -11,6 +15,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("the journal exposes only status, place and notes", async ({ page }) => {
+  const noteText = `竖屏照片完整显示 ${Date.now()}`;
+
   await expect(page.getByRole("heading", { name: "今天的我们" })).toBeVisible();
 
   await page.getByRole("button", { name: /MY MOMENT/ }).click();
@@ -26,28 +32,52 @@ test("the journal exposes only status, place and notes", async ({ page }) => {
   await page.getByLabel("从相册选择一张照片").setInputFiles({
     name: "spring-note.png",
     mimeType: "image/png",
-    buffer: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlZ4h8AAAAASUVORK5CYII=",
-      "base64",
-    ),
+    buffer: PORTRAIT_NOTE_PNG,
   });
-  await expect(page.getByAltText("待发送的照片")).toBeVisible();
-  await page.getByLabel("想说什么？").fill("这是一张独立保存的测试便笺。");
+  const composerPhoto = page.getByAltText("待发送的照片");
+  await expect(composerPhoto).toBeVisible();
+  await expect(composerPhoto).toHaveCSS("object-fit", "contain");
+  await page.getByLabel("想说什么？").fill(noteText);
   await page.getByRole("button", { name: "放进对方的手账" }).click();
   await expect(page.getByRole("dialog", { name: "写一张新便笺" })).toBeHidden();
   await expect(
-    page
-      .getByTestId("latest-note-card")
-      .getByText("这是一张独立保存的测试便笺。"),
+    page.getByTestId("latest-note-card").getByText(noteText),
   ).toBeVisible();
-  await expect(
-    page.getByTestId("latest-note-card").getByAltText("便笺照片"),
-  ).toBeVisible();
+  const latestPhoto = page
+    .getByTestId("latest-note-card")
+    .getByAltText("便笺照片");
+  await expect(latestPhoto).toBeVisible();
+  await expect(latestPhoto).toHaveCSS("object-fit", "contain");
+  await expect(latestPhoto.locator("..")).toHaveAttribute(
+    "data-orientation",
+    "portrait",
+  );
 
   await page.getByTestId("latest-note-card").click();
-  await expect(
-    page.getByTestId("note-box").getByAltText("便笺照片").first(),
-  ).toBeVisible();
+  const storedNote = page
+    .getByTestId("note-box")
+    .locator(".stored-note")
+    .filter({ hasText: noteText });
+  await expect(storedNote).toHaveCount(1);
+  await expect(storedNote.getByAltText("便笺照片")).toHaveCSS(
+    "object-fit",
+    "contain",
+  );
+
+  const openOriginal = storedNote.getByRole("button", {
+    name: "查看便笺照片原图",
+  });
+  await expect(openOriginal).toBeVisible();
+  await expect(openOriginal).toHaveText("");
+  await openOriginal.click();
+  const photoViewer = page.getByRole("dialog", { name: "照片原图" });
+  await expect(photoViewer).toBeVisible();
+  await expect(photoViewer.getByAltText("便笺照片原图")).toHaveCSS(
+    "object-fit",
+    "contain",
+  );
+  await photoViewer.getByRole("button", { name: "关闭照片原图" }).click();
+  await expect(photoViewer).toBeHidden();
 });
 
 test("location uses one ordinary-accuracy request", async ({ page }) => {
