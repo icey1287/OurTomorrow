@@ -104,12 +104,25 @@ export interface UpsertCurrentStatusRequest {
 
 export type NoteStatus = "VISIBLE" | "VIEWED";
 
+export type NoteImageMimeType = "image/jpeg" | "image/png" | "image/webp";
+
+export interface NoteImageUpload {
+  mimeType: NoteImageMimeType;
+  dataBase64: string;
+}
+
+export interface NoteImageSummary {
+  mimeType: NoteImageMimeType;
+  sizeBytes: number;
+}
+
 export interface NoteView {
   id: string;
   version: number;
   status: NoteStatus;
   content: string;
   icon: string | null;
+  image: NoteImageSummary | null;
   author: UserSummary;
   recipient: UserSummary;
   readAt: string | null;
@@ -125,6 +138,7 @@ export interface NoteListResponse {
 export interface CreateNoteRequest {
   content: string;
   icon?: string | null;
+  image?: NoteImageUpload | null;
 }
 
 export interface LiveHealthResponse {

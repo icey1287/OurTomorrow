@@ -50,6 +50,7 @@ type NoteView = {
   status: "VISIBLE" | "VIEWED";
   content: string;
   icon: string | null;
+  image: { mimeType: string; sizeBytes: number } | null;
   author: { id: string };
   recipient: { id: string };
   readAt: string | null;
@@ -170,9 +171,21 @@ describe.sequential("the minimal two-person journal", () => {
 
   test("stores every note independently and tracks unread state", async () => {
     const identities = await selectPair();
+    const imageBytes = Buffer.concat([
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlZ4h8AAAAASUVORK5CYII=",
+        "base64",
+      ),
+      Buffer.alloc(120_000),
+    ]);
+    const imageBase64 = imageBytes.toString("base64");
     const first = await boy.post<NoteView>("/notes", {
       content: "晚饭在等你，我也在等你。",
       icon: "peony",
+      image: {
+        mimeType: "image/png",
+        dataBase64: imageBase64,
+      },
     });
     const second = await boy.post<NoteView>("/notes", {
       content: "第二张便笺也要独立保存。",
@@ -181,6 +194,23 @@ describe.sequential("the minimal two-person journal", () => {
     expect(first.status).toBe(201);
     expect(second.status).toBe(201);
     expect(first.body?.id).not.toBe(second.body?.id);
+    expect(first.body?.image).toEqual({
+      mimeType: "image/png",
+      sizeBytes: imageBytes.length,
+    });
+
+    const imageResponse = await fetch(
+      `${application.baseUrl}/notes/${first.body!.id}/image`,
+      {
+        headers: {
+          origin: "http://127.0.0.1:5173",
+          "x-our-tomorrow-role": "girl",
+        },
+      },
+    );
+    expect(imageResponse.status).toBe(200);
+    expect(imageResponse.headers.get("content-type")).toContain("image/png");
+    expect(Buffer.from(await imageResponse.arrayBuffer())).toEqual(imageBytes);
 
     const inbox = await girl.get<{ items: NoteView[] }>("/notes");
     expect(inbox.body?.items.map((note) => note.content)).toEqual([

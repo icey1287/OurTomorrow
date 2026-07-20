@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { X } from "lucide-vue-next";
-import { computed, ref, watch } from "vue";
+import type { NoteImageUpload } from "@our-tomorrow/contracts";
+import { ImagePlus, LoaderCircle, Trash2, X } from "lucide-vue-next";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 
+import { prepareNoteImage, type PreparedNoteImage } from "./note-image";
 import {
   decorationAssetByKey,
   decorationOptions,
@@ -19,19 +21,37 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  send: [input: { content: string; decoration: NoteDecorationKey }];
+  send: [
+    input: {
+      content: string;
+      decoration: NoteDecorationKey;
+      image: NoteImageUpload | null;
+    },
+  ];
 }>();
 
 const content = ref("");
 const decoration = ref<NoteDecorationKey>("peony");
+const photo = ref<PreparedNoteImage | null>(null);
+const photoInput = ref<HTMLInputElement | null>(null);
+const processingPhoto = ref(false);
 const localError = ref<string | null>(null);
 const isOpen = computed(() => props.open);
+let photoSelectionVersion = 0;
 
 useSheetBodyLock(isOpen);
+
+function releasePhoto() {
+  if (photo.value) URL.revokeObjectURL(photo.value.previewUrl);
+  photo.value = null;
+}
 
 watch(
   () => props.open,
   (open) => {
+    photoSelectionVersion += 1;
+    releasePhoto();
+    processingPhoto.value = false;
     if (!open) return;
     content.value = "";
     decoration.value = "peony";
@@ -39,14 +59,60 @@ watch(
   },
 );
 
+onBeforeUnmount(() => {
+  photoSelectionVersion += 1;
+  releasePhoto();
+});
+
+async function selectPhoto(event: Event) {
+  const input = event.currentTarget as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = "";
+  if (!file) return;
+
+  processingPhoto.value = true;
+  photoSelectionVersion += 1;
+  const selectionVersion = photoSelectionVersion;
+  localError.value = null;
+  try {
+    const prepared = await prepareNoteImage(file);
+    if (selectionVersion !== photoSelectionVersion) {
+      URL.revokeObjectURL(prepared.previewUrl);
+      return;
+    }
+    releasePhoto();
+    photo.value = prepared;
+  } catch (error) {
+    if (selectionVersion === photoSelectionVersion) {
+      localError.value =
+        error instanceof Error ? error.message : "这张照片暂时没有准备好。";
+    }
+  } finally {
+    if (selectionVersion === photoSelectionVersion) {
+      processingPhoto.value = false;
+    }
+  }
+}
+
+function removePhoto() {
+  photoSelectionVersion += 1;
+  releasePhoto();
+  localError.value = null;
+}
+
 function submit() {
+  if (processingPhoto.value) return;
   const message = content.value.trim();
   if (!message) {
     localError.value = "先写下一句话，再把它放进对方的手账。";
     return;
   }
   localError.value = null;
-  emit("send", { content: message, decoration: decoration.value });
+  emit("send", {
+    content: message,
+    decoration: decoration.value,
+    image: photo.value?.upload ?? null,
+  });
 }
 </script>
 
@@ -83,7 +149,17 @@ function submit() {
           </header>
 
           <form @submit.prevent="submit">
-            <div class="message-preview" aria-label="便笺预览">
+            <div
+              class="message-preview"
+              :class="{ 'has-photo': photo }"
+              aria-label="便笺预览"
+            >
+              <img
+                v-if="photo"
+                class="preview-photo"
+                :src="photo.previewUrl"
+                alt="待发送的照片"
+              />
               <img
                 class="preview-sticker"
                 :src="decorationAssetByKey[decoration]"
@@ -105,6 +181,58 @@ function submit() {
               />
               <small>{{ content.length }}/240</small>
             </label>
+
+            <div class="photo-field">
+              <span>夹一张照片 <small>可不选</small></span>
+              <input
+                ref="photoInput"
+                class="photo-input"
+                type="file"
+                accept="image/*"
+                aria-label="从相册选择一张照片"
+                @change="selectPhoto"
+              />
+
+              <button
+                v-if="!photo"
+                class="photo-picker"
+                type="button"
+                :disabled="processingPhoto"
+                @click="photoInput?.click()"
+              >
+                <LoaderCircle
+                  v-if="processingPhoto"
+                  class="size-5 animate-spin"
+                  aria-hidden="true"
+                />
+                <ImagePlus v-else class="size-5" aria-hidden="true" />
+                <span>
+                  <strong>{{
+                    processingPhoto ? "正在把照片夹好…" : "从相册或相机选择"
+                  }}</strong>
+                  <small>发送前会自动压缩，只保留这一张</small>
+                </span>
+              </button>
+
+              <div v-else class="selected-photo">
+                <img :src="photo.previewUrl" alt="已选择的照片" />
+                <span>
+                  <strong>照片已经夹好</strong>
+                  <small
+                    >{{
+                      Math.max(1, Math.round(photo.sizeBytes / 1024))
+                    }}KB</small
+                  >
+                </span>
+                <button
+                  type="button"
+                  aria-label="移除照片"
+                  @click="removePhoto"
+                >
+                  <Trash2 class="size-4" aria-hidden="true" />
+                </button>
+              </div>
+            </div>
 
             <fieldset>
               <legend>夹上一枚小贴纸</legend>
@@ -129,7 +257,7 @@ function submit() {
             <button
               class="primary-action message-action"
               type="submit"
-              :disabled="submitting"
+              :disabled="submitting || processingPhoto"
             >
               <img :src="romanticArt.envelopeOpen" alt="" aria-hidden="true" />
               <span>{{ submitting ? "正在送去…" : "放进对方的手账" }}</span>
@@ -263,7 +391,8 @@ fieldset {
 }
 
 legend,
-.message-field > span {
+.message-field > span,
+.photo-field > span {
   display: block;
   margin-bottom: 10px;
   font-family: "Kaiti SC", "STKaiti", serif;
@@ -280,6 +409,23 @@ legend,
   padding: 28px 72px 26px 22px;
   box-shadow: 5px 6px 0 rgb(91 63 43 / 0.1);
   transform: rotate(-0.7deg);
+}
+
+.message-preview.has-photo {
+  min-height: 304px;
+  padding-top: 202px;
+}
+
+.preview-photo {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: calc(100% - 30px);
+  height: 168px;
+  border: 7px solid #fffdf5;
+  object-fit: cover;
+  box-shadow: 2px 4px 10px rgb(68 46 34 / 0.16);
+  transform: rotate(0.6deg);
 }
 
 .message-preview::after {
@@ -343,6 +489,94 @@ legend,
   font-family: "Courier New", monospace;
   font-size: 9px;
   text-align: right;
+}
+
+.photo-field {
+  display: grid;
+}
+
+.photo-field > span small {
+  color: currentColor;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.5;
+}
+
+.photo-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.photo-picker,
+.selected-photo {
+  min-height: 70px;
+  border: 1px dashed rgb(113 79 56 / 0.24);
+  background: rgb(255 251 240 / 0.62);
+  box-shadow: 3px 4px 0 rgb(90 61 43 / 0.07);
+}
+
+.photo-picker {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  color: #8e514a;
+  text-align: left;
+}
+
+.photo-picker > span,
+.selected-photo > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.photo-picker strong,
+.selected-photo strong {
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 13px;
+}
+
+.photo-picker small,
+.selected-photo small {
+  color: #8d7565;
+  font-size: 9px;
+}
+
+.photo-picker:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.selected-photo {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 8px;
+}
+
+.selected-photo > img {
+  width: 58px;
+  height: 54px;
+  border: 3px solid #fffaf0;
+  object-fit: cover;
+  box-shadow: 1px 2px 5px rgb(68 46 34 / 0.14);
+  transform: rotate(-1deg);
+}
+
+.selected-photo > button {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  color: #a34f48;
 }
 
 .decoration-row {

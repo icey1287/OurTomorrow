@@ -23,6 +23,15 @@ test("the journal exposes only status, place and notes", async ({ page }) => {
   await page.getByRole("button", { name: "关闭状态编辑" }).click();
 
   await page.getByRole("button", { name: /写给乙/ }).click();
+  await page.getByLabel("从相册选择一张照片").setInputFiles({
+    name: "spring-note.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlZ4h8AAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
+  await expect(page.getByAltText("待发送的照片")).toBeVisible();
   await page.getByLabel("想说什么？").fill("这是一张独立保存的测试便笺。");
   await page.getByRole("button", { name: "放进对方的手账" }).click();
   await expect(page.getByRole("dialog", { name: "写一张新便笺" })).toBeHidden();
@@ -30,6 +39,14 @@ test("the journal exposes only status, place and notes", async ({ page }) => {
     page
       .getByTestId("latest-note-card")
       .getByText("这是一张独立保存的测试便笺。"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("latest-note-card").getByAltText("便笺照片"),
+  ).toBeVisible();
+
+  await page.getByTestId("latest-note-card").click();
+  await expect(
+    page.getByTestId("note-box").getByAltText("便笺照片").first(),
   ).toBeVisible();
 });
 

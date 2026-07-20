@@ -50,6 +50,10 @@ export const stageThreeApi = {
     return apiClient.post<NoteView>("/notes", input);
   },
 
+  noteImage(id: string) {
+    return apiClient.getBlob(`/notes/${id}/image`);
+  },
+
   markNoteViewed(id: string, version?: number) {
     return apiClient.post<NoteView>(
       `/notes/${id}/mark-viewed`,

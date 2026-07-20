@@ -25,6 +25,7 @@ function note(
     },
     content: "一张便笺",
     icon: "peony",
+    image: null,
     readAt: null,
     createdAt,
     updatedAt: createdAt,

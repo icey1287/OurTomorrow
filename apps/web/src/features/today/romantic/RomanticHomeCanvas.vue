@@ -10,6 +10,7 @@ import {
 import { computed } from "vue";
 import { RouterLink } from "vue-router";
 
+import NoteImage from "./NoteImage.vue";
 import {
   decorationAssetByKey,
   isIncoming,
@@ -327,6 +328,10 @@ function latestState() {
             <h2>刚刚夹进来的话</h2>
           </div>
         </header>
+
+        <span v-if="latestNote.image" class="latest-note-photo">
+          <NoteImage :note-id="latestNote.id" alt="便笺照片" />
+        </span>
 
         <blockquote>{{ latestNote.content }}</blockquote>
 
@@ -977,6 +982,16 @@ function latestState() {
   margin: 3px 0 0;
   font-family: "Songti SC", "Noto Serif SC", serif;
   font-size: 18px;
+}
+
+.latest-note-photo {
+  display: block;
+  height: 178px;
+  margin: 12px 3px 14px;
+  border: 7px solid #fffdf5;
+  background: #eadfc9;
+  box-shadow: 2px 5px 12px rgb(67 45 32 / 0.15);
+  transform: rotate(-0.45deg);
 }
 
 .message-reading blockquote {

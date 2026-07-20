@@ -10,6 +10,7 @@ const REQUIRED_OPERATIONS = {
   "/api/v1/statuses/current": ["get"],
   "/api/v1/statuses/me": ["put", "delete"],
   "/api/v1/notes": ["get", "post"],
+  "/api/v1/notes/{id}/image": ["get"],
   "/api/v1/notes/{id}/mark-viewed": ["post"],
   "/api/v1/places/nearby": ["post"],
   "/api/v1/places/status/{id}/map-preview": ["get"],

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { NoteView } from "@our-tomorrow/contracts";
+import type { NoteImageUpload, NoteView } from "@our-tomorrow/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { computed, nextTick, ref, watch } from "vue";
 
@@ -123,10 +123,15 @@ const clearStatusMutation = useMutation({
 });
 
 const sendNoteMutation = useMutation({
-  mutationFn: (input: { content: string; decoration: NoteDecorationKey }) =>
+  mutationFn: (input: {
+    content: string;
+    decoration: NoteDecorationKey;
+    image: NoteImageUpload | null;
+  }) =>
     stageThreeApi.createNote({
       content: input.content,
       icon: input.decoration,
+      image: input.image,
     }),
 });
 
@@ -198,6 +203,7 @@ async function clearStatus() {
 async function sendNote(input: {
   content: string;
   decoration: NoteDecorationKey;
+  image: NoteImageUpload | null;
 }) {
   if (sendNoteMutation.isPending.value) return;
   noteSendError.value = null;

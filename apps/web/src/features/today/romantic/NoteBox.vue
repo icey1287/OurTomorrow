@@ -3,6 +3,7 @@ import type { NoteView } from "@our-tomorrow/contracts";
 import { Check, CheckCheck, PenLine, X } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 
+import NoteImage from "./NoteImage.vue";
 import {
   decorationAssetByKey,
   isIncoming,
@@ -229,6 +230,9 @@ function noteState(note: NoteView) {
                       formatTime(note.createdAt)
                     }}</time>
                   </header>
+                  <div v-if="note.image" class="stored-note-photo">
+                    <NoteImage :note-id="note.id" alt="便笺照片" />
+                  </div>
                   <p>{{ note.content }}</p>
                   <footer>
                     <span
@@ -572,6 +576,17 @@ function noteState(note: NoteView) {
   font-size: 7px;
   font-weight: 700;
   letter-spacing: 0.06em;
+}
+
+.stored-note-photo {
+  position: relative;
+  z-index: 1;
+  height: 182px;
+  margin: 12px 0 13px;
+  border: 6px solid #fffdf5;
+  background: #eadfc9;
+  box-shadow: 2px 4px 10px rgb(68 46 34 / 0.14);
+  transform: rotate(0.45deg);
 }
 
 .stored-note p {

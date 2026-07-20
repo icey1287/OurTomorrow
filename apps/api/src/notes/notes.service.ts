@@ -9,6 +9,7 @@ import { PrismaService } from "../database/prisma.service";
 import type { IdentityRole } from "../identity/identity.constants";
 import { IdentityService } from "../identity/identity.service";
 import type { CreateNoteDto, MarkNoteViewedDto } from "./dto/note.dto";
+import { decodeNoteImage, type StoredNoteImage } from "./note-image";
 import { noteSelect, toNoteView, type NoteView } from "./note.presentation";
 
 export type NotesResponse = {
@@ -49,6 +50,7 @@ export class NotesService {
       (member) => member.id !== actor.user.id,
     );
     if (!recipient) throw resourceNotFound();
+    const image = decodeNoteImage(dto.image);
     const note = await this.prisma.note.create({
       data: {
         coupleId: actor.couple.id,
@@ -56,10 +58,41 @@ export class NotesService {
         recipientId: recipient.id,
         content: dto.content,
         icon: dto.icon ?? null,
+        imageData: image ? Uint8Array.from(image.data) : null,
+        imageMimeType: image?.mimeType ?? null,
+        imageSizeBytes: image?.sizeBytes ?? null,
       },
       select: noteSelect,
     });
     return toNoteView(note, actor.couple);
+  }
+
+  async image(role: IdentityRole, noteId: string): Promise<StoredNoteImage> {
+    const actor = await this.identities.current(role);
+    const note = await this.prisma.note.findFirst({
+      where: {
+        id: noteId,
+        coupleId: actor.couple.id,
+        OR: [{ authorId: actor.user.id }, { recipientId: actor.user.id }],
+      },
+      select: {
+        imageData: true,
+        imageMimeType: true,
+        imageSizeBytes: true,
+      },
+    });
+    if (
+      !note?.imageData ||
+      !note.imageMimeType ||
+      note.imageSizeBytes === null
+    ) {
+      throw resourceNotFound();
+    }
+    return {
+      data: Buffer.from(note.imageData),
+      mimeType: note.imageMimeType as StoredNoteImage["mimeType"],
+      sizeBytes: note.imageSizeBytes,
+    };
   }
 
   async markViewed(

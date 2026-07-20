@@ -75,19 +75,22 @@ model CurrentStatus {
 }
 
 model Note {
-  id          String    @id @default(uuid()) @db.Uuid
-  coupleId    String    @map("couple_id") @db.Uuid
-  authorId    String    @map("author_id") @db.Uuid
-  recipientId String    @map("recipient_id") @db.Uuid
-  version     Int       @default(1)
-  content     String    @db.Text
-  icon        String?   @db.VarChar(32)
-  readAt      DateTime? @map("read_at") @db.Timestamptz(3)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
-  couple      Couple    @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  author      User      @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
-  recipient   User      @relation("NoteRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  id             String    @id @default(uuid()) @db.Uuid
+  coupleId       String    @map("couple_id") @db.Uuid
+  authorId       String    @map("author_id") @db.Uuid
+  recipientId    String    @map("recipient_id") @db.Uuid
+  version        Int       @default(1)
+  content        String    @db.Text
+  icon           String?   @db.VarChar(32)
+  imageData      Bytes?    @map("image_data")
+  imageMimeType  String?   @map("image_mime_type") @db.VarChar(32)
+  imageSizeBytes Int?      @map("image_size_bytes")
+  readAt         DateTime? @map("read_at") @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  couple         Couple    @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  author         User      @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  recipient      User      @relation("NoteRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
 
   @@index([coupleId, createdAt(sort: Desc)])
   @@index([recipientId, readAt, createdAt(sort: Desc)])

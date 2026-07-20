@@ -1,5 +1,6 @@
 import type { INestApplication } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
+import type { NestExpressApplication } from "@nestjs/platform-express";
 import type { AddressInfo } from "node:net";
 
 import { HttpExceptionFilter } from "../../src/common/http/http-exception.filter";
@@ -25,7 +26,10 @@ export async function startTestApplication(
   });
 
   const { AppModule } = await import("../../src/app.module");
-  const app = await NestFactory.create(AppModule, { logger: false });
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    logger: false,
+  });
+  app.useBodyParser("json", { limit: "3mb" });
   app.setGlobalPrefix("api/v1");
   app.enableCors({
     origin: TEST_WEB_ORIGIN,

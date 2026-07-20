@@ -6,8 +6,16 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Res,
+  StreamableFile,
 } from "@nestjs/common";
-import { ApiHeader, ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import {
+  ApiHeader,
+  ApiOkResponse,
+  ApiProduces,
+  ApiTags,
+} from "@nestjs/swagger";
+import type { Response } from "express";
 import { createValidationPipe } from "../common/http/validation";
 import {
   CurrentIdentityRole,
@@ -46,6 +54,21 @@ export class NotesController {
     @Body(createValidationPipe(CreateNoteDto)) dto: CreateNoteDto,
   ): Promise<NoteView> {
     return this.notes.create(role, dto);
+  }
+
+  @Get(":id/image")
+  @ApiProduces("image/jpeg", "image/png", "image/webp")
+  @ApiOkResponse({ description: "Image attached to a note" })
+  async image(
+    @CurrentIdentityRole() role: IdentityRole,
+    @Param("id", uuidPipe) noteId: string,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<StreamableFile> {
+    const image = await this.notes.image(role, noteId);
+    response.setHeader("Content-Type", image.mimeType);
+    response.setHeader("Content-Length", String(image.sizeBytes));
+    response.setHeader("Cache-Control", "private, max-age=31536000, immutable");
+    return new StreamableFile(image.data);
   }
 
   @Post(":id/mark-viewed")

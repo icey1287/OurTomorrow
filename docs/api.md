@@ -19,6 +19,7 @@ X-Our-Tomorrow-Role: boy | girl
 | DELETE | `/statuses/me`                   | 提前收起自己的当前状态                        |
 | GET    | `/notes`                         | 获取全部往来留言，按时间倒序                  |
 | POST   | `/notes`                         | 独立保存并发送一张留言                        |
+| GET    | `/notes/:id/image`               | 按需读取留言附带的照片                        |
 | POST   | `/notes/:id/mark-viewed`         | 收件人标记留言已读                            |
 | POST   | `/places/nearby`                 | 将一次性 GPS 坐标转换为高德坐标并返回附近建筑 |
 | GET    | `/places/status/:id/map-preview` | 获取情侣空间内状态位置的高德地图图片          |
@@ -31,7 +32,7 @@ X-Our-Tomorrow-Role: boy | girl
 
 ## 留言
 
-每次 `POST /notes` 都创建一条独立记录。留言不覆盖、不合并、不定时发送，也不自动消失。`readAt` 为空时为 `VISIBLE`，有值时为 `VIEWED`。
+每次 `POST /notes` 都创建一条独立记录。留言不覆盖、不合并、不定时发送，也不自动消失。每张留言最多附带一张 JPEG、PNG 或 WebP 图片，压缩后不得超过 1.5MB；列表只返回图片元信息，图片内容通过 `/notes/:id/image` 按需读取。`readAt` 为空时为 `VISIBLE`，有值时为 `VIEWED`。
 
 ## 错误
 
