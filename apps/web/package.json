@@ -15,7 +15,6 @@
   "dependencies": {
     "@our-tomorrow/contracts": "workspace:*",
     "@tanstack/vue-query": "^5.66.8",
-    "d3-geo": "^3.1.1",
     "lucide-vue-next": "^0.475.0",
     "pinia": "^3.0.1",
     "socket.io-client": "^4.8.3",
@@ -23,7 +22,6 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
-    "@types/d3-geo": "^3.1.0",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^22.13.1",
     "@vitejs/plugin-vue": "^5.2.1",

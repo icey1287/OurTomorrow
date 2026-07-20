@@ -310,6 +310,7 @@ export interface CurrentStatusSummary {
   message: string | null;
   mood: string | null;
   scene: string | null;
+  location: string | null;
   needsResponse: boolean;
   startsAt: string;
   expiresAt: string;
@@ -328,6 +329,7 @@ export interface UpsertCurrentStatusRequest {
   message?: string | null;
   mood?: string | null;
   scene?: string | null;
+  location?: string | null;
   needsResponse?: boolean;
   expiresAt: string;
   version?: number;

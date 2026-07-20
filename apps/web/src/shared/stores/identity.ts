@@ -2,7 +2,6 @@ import type {
   CoupleSummary,
   IdentityRole,
   IdentitySession,
-  UpdateCoupleRequest,
   UpdateProfileRequest,
 } from "@our-tomorrow/contracts";
 import { defineStore } from "pinia";
@@ -188,12 +187,6 @@ export const useIdentityStore = defineStore("identity", () => {
     return nextUser;
   }
 
-  async function updateCouple(input: UpdateCoupleRequest) {
-    const nextCouple = await stageOneApi.updateCouple(input);
-    replaceCouple(nextCouple);
-    return nextCouple;
-  }
-
   return {
     state,
     role,
@@ -207,9 +200,5 @@ export const useIdentityStore = defineStore("identity", () => {
     clearIdentity,
     refreshIdentity,
     updateProfile,
-    updateCouple,
-    setIdentity,
-    replaceCouple,
-    replaceUser,
   };
 });

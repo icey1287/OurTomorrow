@@ -2,8 +2,6 @@ import type {
   CoupleSummary,
   IdentitySession,
   SelectIdentityRequest,
-  TodayResponse,
-  UpdateCoupleRequest,
   UpdateProfileRequest,
   UserSummary,
 } from "@our-tomorrow/contracts";
@@ -22,13 +20,7 @@ export const stageOneApi = {
   currentCouple() {
     return apiClient.get<CoupleSummary>("/couples/current");
   },
-  updateCouple(input: UpdateCoupleRequest) {
-    return apiClient.patch<CoupleSummary>("/couples/current", input);
-  },
   updateProfile(input: UpdateProfileRequest) {
     return apiClient.patch<UserSummary>("/users/me", input);
-  },
-  today() {
-    return apiClient.get<TodayResponse>("/today");
   },
 };

@@ -12,7 +12,7 @@ export const router = createRouter({
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) return savedPosition;
     if (to.path === from.path) return undefined;
-    return { top: 0, behavior: "smooth" };
+    return { top: 0 };
   },
   routes: [
     {
@@ -24,7 +24,11 @@ export const router = createRouter({
           path: "login",
           name: "login",
           component: () => import("@/features/identity/IdentityPage.vue"),
-          meta: { title: "姓名验证", identityOnly: true },
+          meta: {
+            title: "写下名字",
+            identityOnly: true,
+            transitionName: "journal-route",
+          },
         },
         { path: "identity", redirect: "/login" },
         { path: "join", redirect: "/login" },
@@ -41,52 +45,17 @@ export const router = createRouter({
           path: "today",
           name: "today",
           component: () => import("@/features/today/TodayPage.vue"),
-          meta: { title: "今日" },
-        },
-        {
-          path: "remember",
-          name: "remember",
-          component: () => import("@/features/remember/RememberPage.vue"),
-          meta: { title: "记录" },
-        },
-        {
-          path: "daily",
-          name: "daily",
-          component: () => import("@/features/daily/DailyPage.vue"),
-          meta: { title: "日常" },
-        },
-        {
-          path: "tomorrow",
-          name: "tomorrow",
-          component: () => import("@/features/tomorrow/TomorrowPage.vue"),
-          meta: { title: "明天" },
-        },
-        {
-          path: "us",
-          name: "us",
-          component: () => import("@/features/us/UsPage.vue"),
-          meta: { title: "我们" },
+          meta: { title: "今天", transitionName: "journal-route" },
         },
         {
           path: "settings",
           name: "settings",
           component: () => import("@/features/settings/SettingsPage.vue"),
-          meta: { title: "设置" },
+          meta: { title: "手账的小抽屉", transitionName: "journal-route" },
         },
       ],
     },
-    {
-      path: "/:pathMatch(.*)*",
-      component: PublicLayout,
-      children: [
-        {
-          path: "",
-          name: "not-found",
-          component: () => import("@/features/NotFoundPage.vue"),
-          meta: { title: "页面走远了" },
-        },
-      ],
-    },
+    { path: "/:pathMatch(.*)*", redirect: "/today" },
   ],
 });
 

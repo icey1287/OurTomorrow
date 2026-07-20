@@ -917,6 +917,7 @@ model CurrentStatus {
   message       String?            @db.VarChar(280)
   mood          String?            @db.VarChar(80)
   scene         String?            @db.VarChar(120)
+  location      String?            @db.VarChar(160)
   needsResponse Boolean            @default(false) @map("needs_response")
   startsAt      DateTime           @default(now()) @map("starts_at") @db.Timestamptz(3)
   expiresAt     DateTime           @map("expires_at") @db.Timestamptz(3)

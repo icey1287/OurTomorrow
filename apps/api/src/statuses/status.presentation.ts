@@ -12,10 +12,13 @@ export const currentStatusSelect =
     message: true,
     mood: true,
     scene: true,
+    location: true,
     needsResponse: true,
     startsAt: true,
     expiresAt: true,
     version: true,
+    createdAt: true,
+    updatedAt: true,
   });
 
 export type CurrentStatusRecord = Prisma.CurrentStatusGetPayload<{
@@ -30,9 +33,12 @@ export type CurrentStatusView = {
   message: string | null;
   mood: string | null;
   scene: string | null;
+  location: string | null;
   needsResponse: boolean;
   startsAt: string;
   expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type CurrentStatusesResponse = {
@@ -59,8 +65,11 @@ export function toCurrentStatusView(
     message: status.message,
     mood: status.mood,
     scene: status.scene,
+    location: status.location,
     needsResponse: status.needsResponse,
     startsAt: status.startsAt.toISOString(),
     expiresAt: status.expiresAt.toISOString(),
+    createdAt: status.createdAt.toISOString(),
+    updatedAt: status.updatedAt.toISOString(),
   };
 }

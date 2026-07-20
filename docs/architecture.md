@@ -229,18 +229,20 @@ Caddy TLS / 外部私有访问边界 / 安全响应头
 
 Web 采用 Vue 3、Vue Router、Pinia、TanStack Vue Query 和 Tailwind CSS：
 
-- `app/`：应用启动、QueryClient、错误边界、主题和本地角色恢复；
-- `router/`：未选择角色/已选择角色守卫；`/identity`、停用的 `/join`/`/onboarding` 重定向到 `/login`；
-- `features/<domain>/`：页面、领域组件、请求 hooks 和表单 schema；
-- `shared/api/`：OpenAPI 生成客户端、角色 header、请求 ID 处理；
-- `shared/components/`：实现 `brand.md` 的基础组件；
-- `shared/utils/`：纯函数，不包含业务状态机。
+- `router/`：只组织 `/login`、`/today`、`/settings` 与身份守卫；旧页面路径统一重定向，不再加载兼容页面；
+- `features/identity/`：写名字、固定角色匹配和进入手账的叙事动画；
+- `features/today/`：状态、位置、最新便笺、便笺编辑与便笺匣；
+- `features/settings/`：称呼和当前使用者切换；
+- `shared/assets/romantic/`：统一管理原创植物绘本与手账贴纸素材；
+- `shared/api/`、`shared/stores/`：最小接口封装、角色 header、服务器数据缓存和本地 UI 状态。
 
-Pinia 保存短期 UI 状态，不复制服务器实体缓存；服务器数据由 Vue Query 管理。Web 姓名匹配完成后，身份相关本地数据只保存 `our-tomorrow-role-v2=boy|girl`，另可保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好；正文、媒体、Couple/API 实体和秘密不得进入 `localStorage`。查询键必须包含当前角色/空间语义，切换或清除角色时清空私密缓存和 object URL。响应中的秘密字段缺失被视为协议设计，而不是由 CSS 隐藏。
+Pinia 保存短期 UI 状态，不复制服务器实体缓存；服务器数据由 Vue Query 管理。Web 姓名匹配完成后，本地只保存 `our-tomorrow-role-v2=boy|girl`；正文、媒体、Couple/API 实体和秘密不得进入 `localStorage`。查询键必须包含当前角色/空间语义，切换或清除角色时清空私密缓存。响应中的秘密字段缺失被视为协议设计，而不是由 CSS 隐藏。
 
 页面按路由懒加载；图片使用尺寸占位和懒加载。实时消息只触发精确查询失效或更新通知计数，不把 WebSocket 当作永久数据仓库。
 
-阶段 6 的 Service Worker 只缓存导航 shell、manifest、图标和构建后的静态资源；`/api/*`、`/socket/*`、媒体和导出请求不进入 Cache Storage。页面进入后台或 `pagehide` 时显示顶层隐私幕，并使下面的路由内容 inert；回到前台后先清空 Vue Query、内存媒体 URL 和 Service Worker 私密数据，再用本地角色重新读取身份，成功后才揭开。抱抱到达浮层是本地可关闭偏好，并继续尊重减少动效设置。
+正式主页面直接组合 `statuses/current` 与 `notes?scope=all`：客户端只负责按 `createdAt` 选择最新已揭晓便笺并计算当前角色的未读数，写入、送达、已读和并发版本仍由既有领域服务负责。移动端不设底部导航；旧领域 Web 页面和前端实现已经删除。
+
+Service Worker 只缓存导航 shell、manifest、图标和构建后的静态资源；`/api/*` 与 `/socket/*` 不进入 Cache Storage。页面进入后台或 `pagehide` 时显示手账风格隐私幕，并使下面的路由内容 inert；回到前台后先清空 Vue Query 与 Service Worker 私密数据，再用本地角色重新读取身份，成功后才揭开。正式 Web 始终使用完整花园动效，不再保存设备动效偏好。
 
 ## 13. 可观测性与健康检查
 

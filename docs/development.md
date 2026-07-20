@@ -347,7 +347,7 @@ Controller 不读取请求体 `coupleId`，不直接调用其他模块 Prisma �
 ### 11.1 数据所有权
 
 - Vue Query 管服务器实体、分页、刷新和 mutation；
-- Pinia 管主题和短期 UI 状态；身份相关本地数据只允许保存 `boy`/`girl`，另可保存 theme、reduce-motion、touch-arrivals 等非敏感偏好，禁止持久化正文、媒体和 Couple/API 实体；
+- Pinia 管短期 UI 状态；身份相关本地数据只允许保存 `boy`/`girl`，禁止持久化正文、媒体和 Couple/API 实体；
 - 不把完整 API 数据复制到 Pinia；
 - 切换角色、清除身份选择或页面锁定时清空所有私密 Query cache 和 object URL；
 - WebSocket 事件使精确查询失效，再通过 REST 读取事实。

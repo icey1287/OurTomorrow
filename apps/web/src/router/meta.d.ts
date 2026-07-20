@@ -7,6 +7,6 @@ declare module "vue-router" {
     title?: string;
     identityOnly?: boolean;
     requiresIdentity?: boolean;
-    transitionKey?: string;
+    transitionName?: string;
   }
 }

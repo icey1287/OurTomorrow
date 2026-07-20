@@ -57,6 +57,13 @@ export class PutCurrentStatusDto {
   @MaxLength(120)
   scene?: string | null;
 
+  @ApiPropertyOptional({ maxLength: 160, nullable: true })
+  @Transform(({ value }) => nullableTrim(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  location?: string | null;
+
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()

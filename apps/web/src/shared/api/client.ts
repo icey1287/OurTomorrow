@@ -44,24 +44,11 @@ export class ApiClientError extends Error {
     this.requestId = options.requestId ?? null;
     this.details = options.details ?? null;
   }
-
-  get isForbidden() {
-    return this.status === 403;
-  }
 }
 
 export function setApiIdentityRole(role: IdentityRole | null) {
   if (identityRole !== role) identityEpoch += 1;
   identityRole = role;
-}
-
-export function apiFieldErrors(error: ApiClientError) {
-  return Object.fromEntries(
-    Object.entries(error.details ?? {}).flatMap(([field, messages]) => {
-      const message = messages.filter(Boolean).join("；");
-      return message ? [[field, message]] : [];
-    }),
-  );
 }
 
 async function parseError(response: Response): Promise<ApiClientError> {
@@ -167,47 +154,6 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   return payload;
 }
 
-async function requestBlob(
-  path: string,
-  init: ApiRequestInit = {},
-): Promise<Blob> {
-  const { includeIdentity = true, ...fetchInit } = init;
-  const requestIdentityEpoch = identityEpoch;
-  const headers = new Headers(fetchInit.headers);
-  if (includeIdentity && identityRole) {
-    headers.set(IDENTITY_HEADER, identityRole);
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...fetchInit,
-      headers,
-      credentials: "omit",
-    });
-  } catch {
-    throw new ApiClientError("暂时无法连接明天，请检查网络后再试。", {
-      status: 0,
-      code: "NETWORK_ERROR",
-    });
-  }
-
-  await assertIdentityUnchanged(
-    includeIdentity,
-    requestIdentityEpoch,
-    response,
-  );
-
-  if (!response.ok) {
-    const error = await parseError(response);
-    await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
-    throw error;
-  }
-  const blob = await response.blob();
-  await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
-  return blob;
-}
-
 function jsonBody(payload: unknown): string {
   return JSON.stringify(payload);
 }
@@ -239,30 +185,5 @@ export const apiClient = {
   },
   delete<T>(path: string, init?: ApiRequestInit) {
     return request<T>(path, { ...init, method: "DELETE" });
-  },
-  putBinary(path: string, body: Blob, mimeType: string) {
-    return request<void>(path, {
-      method: "PUT",
-      body,
-      headers: { "Content-Type": mimeType },
-    });
-  },
-  blob(path: string, init?: ApiRequestInit) {
-    return requestBlob(path, { ...init, method: "GET" });
-  },
-  postBlob(path: string, payload?: unknown, init?: ApiRequestInit) {
-    return requestBlob(path, {
-      ...init,
-      method: "POST",
-      ...(payload === undefined ? {} : { body: jsonBody(payload) }),
-      ...(payload === undefined
-        ? {}
-        : {
-            headers: {
-              "Content-Type": "application/json",
-              ...Object.fromEntries(new Headers(init?.headers).entries()),
-            },
-          }),
-    });
   },
 };

@@ -82,7 +82,7 @@ OurTomorrow 保存日记、照片、关系状态、地点、愿望和时间胶�
 
 ### 3.3 浏览器保存
 
-Web 的身份数据只在 `localStorage` 保存一个 `boy` 或 `girl` 字符串；另可保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好。不得保存用户正文、媒体、完整身份响应、Couple、服务端实体缓存或未来新增的秘密。切换/清除角色时清空 Vue Query 私密缓存、内存 object URL、草稿临时文件和通知状态。
+Web 的身份数据只在 `localStorage` 保存一个 `boy` 或 `girl` 字符串。不得保存用户正文、媒体、完整身份响应、Couple、服务端实体缓存或未来新增的秘密。切换/清除角色时清空 Vue Query 私密缓存和通知状态。
 
 ## 4. 请求来源与显式角色
 
@@ -336,7 +336,7 @@ Vue 模板默认转义文本；禁止用 `v-html` 渲染用户内容，除非经
 
 - Service Worker 对 `/api/*`、`/socket/*`、媒体和导出保持 network-only。
 - 只缓存导航 shell、manifest、图标和构建静态资源；用户正文、API JSON、WebSocket、图片、日记、胶囊和导出包不进入通用 Cache Storage。
-- 身份相关本地数据只保存 `boy`/`girl`。`localStorage` 还可保存 theme、reduce-motion、touch-arrivals 等非敏感 UI 偏好；禁止保存正文、媒体 Blob/URL、Couple/API 实体、令牌或部署秘密。
+- 身份相关本地数据只保存 `boy`/`girl`；禁止保存正文、媒体 Blob/URL、Couple/API 实体、令牌或部署秘密。
 - Pinia/Vue Query 的实体持久化关闭。切换角色时清空查询缓存、内存对象 URL 和 Service Worker 管理的私密数据；抱抱浮层开关不影响站内事实记录。
 - 页面进入后台或 `pagehide` 后用顶层隐私幕遮盖并禁用下面的私密 UI；返回前台先清理私密状态，再用本地角色重新读取 `/identity/me`。刷新失败时继续保持遮盖并允许重试。
 

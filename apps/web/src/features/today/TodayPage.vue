@@ -1,466 +1,313 @@
 <script setup lang="ts">
-import type { UserSummary } from "@our-tomorrow/contracts";
-import { useQuery } from "@tanstack/vue-query";
-import {
-  ArrowUpRight,
-  Clock3,
-  Heart,
-  MessageCircleHeart,
-  StickyNote,
-  Sunrise,
-} from "lucide-vue-next";
-import { computed, watch } from "vue";
-import { RouterLink } from "vue-router";
+import type { VisibleNoteView } from "@our-tomorrow/contracts";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
+import { computed, nextTick, ref, watch } from "vue";
 
+import NoteBox from "@/features/today/romantic/NoteBox.vue";
+import NoteComposer from "@/features/today/romantic/NoteComposer.vue";
+import RomanticHomeCanvas from "@/features/today/romantic/RomanticHomeCanvas.vue";
+import StatusComposer from "@/features/today/romantic/StatusComposer.vue";
+import {
+  isUnread,
+  type NoteDecorationKey,
+  visibleNotes,
+} from "@/features/today/romantic/romantic-model";
 import { ApiClientError } from "@/shared/api/client";
-import { stageOneApi } from "@/shared/api/stage-one";
-import AsyncState from "@/shared/components/AsyncState.vue";
-import PageHeader from "@/shared/components/PageHeader.vue";
-import SectionHeading from "@/shared/components/SectionHeading.vue";
-import SurfaceCard from "@/shared/components/SurfaceCard.vue";
+import { stageThreeApi } from "@/shared/api/stage-three";
 import { useIdentityStore } from "@/shared/stores/identity";
 
 const identity = useIdentityStore();
-const todayQuery = useQuery({
-  queryKey: ["today", identity.role],
-  queryFn: stageOneApi.today,
+const queryClient = useQueryClient();
+const statusComposerOpen = ref(false);
+const noteComposerOpen = ref(false);
+const noteBoxOpen = ref(false);
+const noteBoxFilter = ref<"unread" | "all">("all");
+const statusActionError = ref<string | null>(null);
+const noteSendError = ref<string | null>(null);
+const noteBoxError = ref<string | null>(null);
+const markingIds = ref<string[]>([]);
+const markingAll = ref(false);
+
+const statusesQuery = useQuery({
+  queryKey: computed(() => ["statuses", identity.role]),
+  queryFn: stageThreeApi.statuses,
+  enabled: computed(() => Boolean(identity.role)),
+  refetchInterval: 60_000,
 });
 
-const today = computed(() => todayQuery.data.value ?? null);
-const relationship = computed(() => today.value?.relationship ?? null);
-const members = computed(() =>
-  [...(relationship.value?.members ?? [])].sort(
-    (left, right) => (left.slot ?? 99) - (right.slot ?? 99),
-  ),
-);
+const notesQuery = useQuery({
+  queryKey: computed(() => ["notes", identity.role, "romantic-home"]),
+  queryFn: () => stageThreeApi.notes("all"),
+  enabled: computed(() => Boolean(identity.role)),
+});
 
-function memberName(member: UserSummary | undefined, fallback: string) {
-  return member?.nicknameInRelationship ?? member?.displayName ?? fallback;
+const currentUserId = computed(() => identity.user?.id ?? "");
+const partner = computed(() =>
+  identity.couple?.members.find((member) => member.id !== currentUserId.value),
+);
+const myName = computed(
+  () =>
+    identity.user?.nicknameInRelationship ?? identity.user?.displayName ?? "我",
+);
+const partnerName = computed(
+  () =>
+    partner.value?.nicknameInRelationship ??
+    partner.value?.displayName ??
+    "另一半",
+);
+const timezone = computed(() => identity.couple?.timezone ?? "Asia/Shanghai");
+const myStatus = computed(() => statusesQuery.data.value?.mine ?? null);
+const partnerStatus = computed(() => statusesQuery.data.value?.partner ?? null);
+const messages = computed(() =>
+  visibleNotes(notesQuery.data.value?.items ?? []),
+);
+const latestNote = computed(() => messages.value[0] ?? null);
+const unreadMessages = computed(() =>
+  messages.value.filter((note) => isUnread(note, currentUserId.value)),
+);
+const pageLoading = computed(
+  () => statusesQuery.isPending.value || notesQuery.isPending.value,
+);
+const pageError = computed(() => {
+  const errors = [statusesQuery.error.value, notesQuery.error.value].filter(
+    Boolean,
+  );
+  if (!errors.length) return null;
+  const first = errors[0];
+  return first instanceof Error
+    ? first.message
+    : "今天这一页暂时没有完整打开，请稍后再试。";
+});
+
+function conflictMessage(error: unknown, noun: string) {
+  if (
+    error instanceof ApiClientError &&
+    (error.code === "STATE_CONFLICT" || error.code === "PRECONDITION_REQUIRED")
+  ) {
+    return `${noun}刚刚在另一处更新了，已经为你刷新，请再试一次。`;
+  }
+  return error instanceof Error ? error.message : `${noun}没有保存成功。`;
 }
 
-const firstName = computed(() => memberName(members.value[0], "你"));
-const secondName = computed(() => memberName(members.value[1], "另一半"));
-const firstInitial = computed(() => firstName.value.trim().slice(0, 1) || "甲");
-const secondInitial = computed(
-  () => secondName.value.trim().slice(0, 1) || "乙",
-);
-const partner = computed(() =>
-  members.value.find((member) => member.role !== identity.role),
-);
-const partnerName = computed(() => memberName(partner.value, "另一半"));
+async function refreshHome() {
+  await Promise.all([statusesQuery.refetch(), notesQuery.refetch()]);
+}
 
-const statusKindLabels = {
-  BUSY: "忙碌中",
-  COMMUTING: "在路上",
-  RESTING: "休息中",
-  TIRED: "有点累",
-  HAPPY: "心情很好",
-  NEED_HUG: "需要抱抱",
-  TALK_LATER: "晚点聊聊",
-  HOME: "已经到家",
-  MISS_YOU: "正在想你",
-  CUSTOM: "此刻",
-} as const;
+async function invalidateStatus() {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["statuses"] }),
+    queryClient.invalidateQueries({ queryKey: ["today"] }),
+    queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  ]);
+}
 
-const partnerStatusLabel = computed(() => {
-  const status = today.value?.partnerStatus;
-  return status ? statusKindLabels[status.kind] : "今天还没有设置状态";
+async function invalidateNotes() {
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["notes"] }),
+    queryClient.invalidateQueries({ queryKey: ["today"] }),
+    queryClient.invalidateQueries({ queryKey: ["notifications"] }),
+  ]);
+}
+
+const saveStatusMutation = useMutation({
+  mutationFn: (input: {
+    kind: Parameters<typeof stageThreeApi.setStatus>[0]["kind"];
+    location: string;
+    message: string;
+  }) =>
+    stageThreeApi.setStatus({
+      kind: input.kind,
+      location: input.location,
+      message: input.message || null,
+      mood: null,
+      scene: null,
+      needsResponse: false,
+      expiresAt: new Date(Date.now() + 6 * 60 * 60_000).toISOString(),
+      ...(myStatus.value ? { version: myStatus.value.version } : {}),
+    }),
 });
 
-const partnerStatusUntil = computed(() => {
-  const status = today.value?.partnerStatus;
-  const timezone = relationship.value?.timezone;
-  if (!status || !timezone) return "暂无状态";
-  return `持续到 ${new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: timezone,
-  }).format(new Date(status.expiresAt))}`;
+const clearStatusMutation = useMutation({
+  mutationFn: (version: number) => stageThreeApi.clearStatus(version),
 });
 
-const diarySummary = computed(() => {
-  const diary = today.value?.dailyEntryStatus;
-  if (!diary) return "今天的问题正在准备。";
-  if (diary.status === "REVEALED") return "两份答案已经同时揭晓。";
-  if (diary.status === "WAITING_FOR_PARTNER") {
-    return "你的答案已经收好，等待另一份答案。";
-  }
-  if (diary.partner.submitted) {
-    return "对方的答案已经收好，等你写下今天。";
-  }
-  if (diary.mine?.status === "EDITING") return "你的草稿还在，随时可以继续。";
-  return "分别回答，在两个人都提交前互不可见。";
+const sendNoteMutation = useMutation({
+  mutationFn: (input: { content: string; decoration: NoteDecorationKey }) =>
+    stageThreeApi.createNote({
+      type: "LOVE",
+      content: input.content,
+      icon: input.decoration,
+      keepAfterViewed: true,
+      publish: true,
+    }),
 });
 
-const localDateLabel = computed(() => {
-  const value = today.value?.localDate;
-  if (!value) return "";
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return value;
+function openStatusComposer() {
+  statusActionError.value = null;
+  statusComposerOpen.value = true;
+}
 
-  const date = new Date(
-    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
-  );
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-    timeZone: "UTC",
-  }).format(date);
-});
+function openNoteComposer() {
+  noteSendError.value = null;
+  noteComposerOpen.value = true;
+}
 
-const serverTimeLabel = computed(() => {
-  const value = today.value?.serverNow;
-  const timezone = relationship.value?.timezone;
-  if (!value || !timezone) return "";
+function openNoteBox(filter: "unread" | "all") {
+  noteBoxError.value = null;
+  noteBoxFilter.value = filter;
+  noteBoxOpen.value = true;
+}
 
-  return new Intl.DateTimeFormat("zh-CN", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: timezone,
-  }).format(new Date(value));
-});
+async function composeFromNoteBox() {
+  noteBoxOpen.value = false;
+  await nextTick();
+  openNoteComposer();
+}
 
-const randomMemoryDateLabel = computed(() => {
-  const happenedAt = today.value?.randomMemory?.happenedAt;
-  const timezone = relationship.value?.timezone;
-  if (!happenedAt || !timezone) return "";
-  return new Intl.DateTimeFormat("zh-CN", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    timeZone: timezone,
-  }).format(new Date(happenedAt));
-});
-
-const errorMessage = computed(() => {
-  const error = todayQuery.error.value;
-  if (error instanceof ApiClientError) {
-    if (error.code === "IDENTITY_REQUIRED") {
-      return "请返回登录页重新验证身份。";
+async function saveStatus(input: {
+  kind: Parameters<typeof stageThreeApi.setStatus>[0]["kind"];
+  location: string;
+  message: string;
+}) {
+  if (saveStatusMutation.isPending.value) return;
+  statusActionError.value = null;
+  try {
+    await saveStatusMutation.mutateAsync(input);
+    await invalidateStatus();
+    statusComposerOpen.value = false;
+  } catch (error) {
+    statusActionError.value = conflictMessage(error, "这张状态贴纸");
+    if (error instanceof ApiClientError && error.code === "STATE_CONFLICT") {
+      await queryClient.invalidateQueries({ queryKey: ["statuses"] });
     }
-    return error.message;
   }
-  return "今日内容暂时没有打开，请稍后再试。";
-});
+}
+
+async function clearStatus() {
+  if (!myStatus.value || clearStatusMutation.isPending.value) return;
+  statusActionError.value = null;
+  try {
+    await clearStatusMutation.mutateAsync(myStatus.value.version);
+    await invalidateStatus();
+    statusComposerOpen.value = false;
+  } catch (error) {
+    statusActionError.value = conflictMessage(error, "这张状态贴纸");
+    await queryClient.invalidateQueries({ queryKey: ["statuses"] });
+  }
+}
+
+async function sendNote(input: {
+  content: string;
+  decoration: NoteDecorationKey;
+}) {
+  if (sendNoteMutation.isPending.value) return;
+  noteSendError.value = null;
+  try {
+    await sendNoteMutation.mutateAsync(input);
+    await invalidateNotes();
+    noteComposerOpen.value = false;
+  } catch (error) {
+    noteSendError.value = conflictMessage(error, "这张便笺");
+  }
+}
+
+async function markRead(note: VisibleNoteView) {
+  if (markingIds.value.includes(note.id)) return;
+  noteBoxError.value = null;
+  markingIds.value = [...markingIds.value, note.id];
+  try {
+    await stageThreeApi.markNoteViewed(note.id, note.version);
+    await invalidateNotes();
+  } catch (error) {
+    noteBoxError.value = conflictMessage(error, "这张便笺");
+    await queryClient.invalidateQueries({ queryKey: ["notes"] });
+  } finally {
+    markingIds.value = markingIds.value.filter((id) => id !== note.id);
+  }
+}
+
+async function markAllRead() {
+  if (markingAll.value || !unreadMessages.value.length) return;
+  noteBoxError.value = null;
+  markingAll.value = true;
+  const pending = [...unreadMessages.value];
+  markingIds.value = pending.map((note) => note.id);
+  try {
+    await Promise.all(
+      pending.map((note) =>
+        stageThreeApi.markNoteViewed(note.id, note.version),
+      ),
+    );
+    await invalidateNotes();
+  } catch (error) {
+    noteBoxError.value = conflictMessage(error, "未读便笺");
+    await queryClient.invalidateQueries({ queryKey: ["notes"] });
+  } finally {
+    markingIds.value = [];
+    markingAll.value = false;
+  }
+}
 
 watch(
-  () => today.value?.relationship,
-  (nextRelationship) => {
-    if (nextRelationship) identity.replaceCouple(nextRelationship);
+  () => identity.role,
+  () => {
+    statusComposerOpen.value = false;
+    noteComposerOpen.value = false;
+    noteBoxOpen.value = false;
   },
-  { immediate: true },
 );
 </script>
 
 <template>
-  <main class="page-shell">
-    <AsyncState
-      v-if="todayQuery.isPending.value"
-      state="loading"
-      title="正在打开今天…"
-      message="把属于今天的片刻轻轻放好。"
-    />
+  <RomanticHomeCanvas
+    :my-name="myName"
+    :partner-name="partnerName"
+    :current-user-id="currentUserId"
+    :my-status="myStatus"
+    :partner-status="partnerStatus"
+    :latest-note="latestNote"
+    :unread-count="unreadMessages.length"
+    :timezone="timezone"
+    :loading="pageLoading"
+    :error="pageError"
+    @open-status="openStatusComposer"
+    @open-message="openNoteComposer"
+    @open-inbox="openNoteBox"
+    @retry="refreshHome"
+  />
 
-    <AsyncState
-      v-else-if="todayQuery.isError.value"
-      state="error"
-      title="今日暂时没有顺利打开"
-      :message="errorMessage"
-      action-label="重新加载"
-      @action="todayQuery.refetch()"
-    />
+  <StatusComposer
+    :open="statusComposerOpen"
+    :current="myStatus"
+    :submitting="saveStatusMutation.isPending.value"
+    :clearing="clearStatusMutation.isPending.value"
+    :error="statusActionError"
+    @close="statusComposerOpen = false"
+    @save="saveStatus"
+    @clear="clearStatus"
+  />
 
-    <template v-else-if="today && relationship">
-      <PageHeader
-        eyebrow="Today · 时间交汇处"
-        :title="today.greeting"
-        :description="localDateLabel"
-      />
+  <NoteComposer
+    :open="noteComposerOpen"
+    :partner-name="partnerName"
+    :submitting="sendNoteMutation.isPending.value"
+    :error="noteSendError"
+    @close="noteComposerOpen = false"
+    @send="sendNote"
+  />
 
-      <section class="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
-        <SurfaceCard class="relative min-h-72 overflow-hidden" :padded="false">
-          <div
-            class="absolute inset-0 bg-gradient-to-br from-memory-100/90 via-white/55 to-present-100/75 dark:from-memory-950/50 dark:via-ink-950/55 dark:to-present-950/45"
-          />
-          <div
-            class="absolute -right-12 -top-20 size-72 rounded-full border-[52px] border-white/40 dark:border-white/[0.035]"
-            aria-hidden="true"
-          />
-          <div
-            class="relative flex min-h-72 flex-col justify-between p-6 sm:p-8"
-          >
-            <div class="flex flex-wrap items-center justify-between gap-4">
-              <div
-                class="flex -space-x-3"
-                :aria-label="`${firstName}与${secondName}`"
-              >
-                <span
-                  class="grid size-12 place-items-center rounded-2xl border-2 border-white bg-memory-400 font-display text-lg font-semibold text-white shadow-sm dark:border-ink-900"
-                  >{{ firstInitial }}</span
-                >
-                <span
-                  class="grid size-12 place-items-center rounded-2xl border-2 border-white bg-present-500 font-display text-lg font-semibold text-white shadow-sm dark:border-ink-900"
-                  >{{ secondInitial }}</span
-                >
-              </div>
-              <span
-                class="rounded-full border border-white/70 bg-white/55 px-3 py-1.5 text-xs font-semibold text-ink-600 backdrop-blur dark:border-white/10 dark:bg-white/[0.06] dark:text-ink-300"
-              >
-                今天 · {{ serverTimeLabel }}
-              </span>
-            </div>
-
-            <div class="mt-10">
-              <p class="text-sm font-medium text-ink-500 dark:text-ink-300">
-                {{ firstName }} 与 {{ secondName }}
-              </p>
-              <p
-                class="mt-2 font-display text-4xl font-semibold leading-none tracking-[-0.05em] text-ink-950 dark:text-white sm:text-5xl"
-              >
-                在一起第 {{ relationship.daysTogether }} 天
-              </p>
-              <p
-                class="mt-4 max-w-xl text-sm leading-6 text-ink-600 dark:text-ink-300 sm:text-base"
-              >
-                {{
-                  relationship.signature ||
-                  "记录每个昨天，共度每个今天，奔赴所有明天。"
-                }}
-              </p>
-            </div>
-          </div>
-        </SurfaceCard>
-
-        <SurfaceCard
-          tone="present"
-          class="flex min-h-72 flex-col justify-between"
-        >
-          <div>
-            <div class="flex items-center justify-between">
-              <span
-                class="grid size-11 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
-                ><Heart class="size-5"
-              /></span>
-              <span
-                class="rounded-full bg-white/70 px-3 py-1 text-xs text-ink-400 dark:bg-white/[0.06] dark:text-ink-500"
-                >{{ partnerStatusUntil }}</span
-              >
-            </div>
-            <p class="eyebrow mt-6">{{ partnerName }}的此刻</p>
-            <h2
-              class="mt-2 font-display text-2xl font-semibold text-ink-950 dark:text-white"
-            >
-              {{ partnerStatusLabel }}
-            </h2>
-            <p class="mt-3 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              <template v-if="today.partnerStatus">
-                {{
-                  today.partnerStatus.message ||
-                  today.partnerStatus.scene ||
-                  "对方轻轻留下了现在的状态。"
-                }}
-                <span v-if="today.partnerStatus.mood">
-                  · 心情：{{ today.partnerStatus.mood }}</span
-                >
-              </template>
-              <template v-else> 今天还没有留下近况，晚一点再来看看。 </template>
-            </p>
-          </div>
-          <RouterLink
-            to="/daily"
-            class="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-present-700 dark:text-present-300"
-          >
-            去日常看看 <ArrowUpRight class="size-4" />
-          </RouterLink>
-        </SurfaceCard>
-      </section>
-
-      <section class="mt-5 grid gap-5 md:grid-cols-3">
-        <RouterLink to="/remember" class="group block">
-          <SurfaceCard tone="memory" interactive class="h-full">
-            <div class="flex items-start justify-between">
-              <span
-                class="grid size-10 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-900/45 dark:text-memory-200"
-                ><Clock3 class="size-4"
-              /></span>
-              <ArrowUpRight
-                class="size-4 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
-              />
-            </div>
-            <p class="eyebrow mt-5 text-memory-700 dark:text-memory-300">
-              记录
-            </p>
-            <h2
-              class="mt-2 font-display text-xl font-semibold text-ink-950 dark:text-white"
-            >
-              从共同故事里重新遇见过去
-            </h2>
-            <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              这里会收好过去的片段，也会偶尔带一段回忆回来。
-            </p>
-          </SurfaceCard>
-        </RouterLink>
-
-        <RouterLink to="/daily" class="group block">
-          <SurfaceCard tone="present" interactive class="h-full">
-            <div class="flex items-start justify-between">
-              <span
-                class="grid size-10 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
-                ><StickyNote class="size-4"
-              /></span>
-              <ArrowUpRight
-                class="size-4 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
-              />
-            </div>
-            <p class="eyebrow mt-5 text-present-700 dark:text-present-300">
-              日常
-            </p>
-            <h2
-              class="mt-2 font-display text-xl font-semibold text-ink-950 dark:text-white"
-            >
-              用很轻的方式留下此刻
-            </h2>
-            <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              便利贴、心情和交换日记会在这里汇入今日。
-            </p>
-          </SurfaceCard>
-        </RouterLink>
-
-        <RouterLink to="/tomorrow" class="group block">
-          <SurfaceCard tone="future" interactive class="h-full">
-            <div class="flex items-start justify-between">
-              <span
-                class="grid size-10 place-items-center rounded-2xl bg-future-100 text-future-700 dark:bg-future-900/45 dark:text-future-200"
-                ><Sunrise class="size-4"
-              /></span>
-              <ArrowUpRight
-                class="size-4 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
-              />
-            </div>
-            <p class="eyebrow mt-5 text-future-700 dark:text-future-300">
-              明天
-            </p>
-            <h2
-              class="mt-2 font-display text-xl font-semibold text-ink-950 dark:text-white"
-            >
-              把共同期待写进未来
-            </h2>
-            <p class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400">
-              愿望、计划和胶囊，会在合适的时刻来到今天。
-            </p>
-          </SurfaceCard>
-        </RouterLink>
-      </section>
-
-      <section class="mt-8">
-        <SectionHeading
-          title="今天值得留意"
-          description="今天想说的、想起的和期待的，都在这里慢慢相遇。"
-        />
-        <div class="mt-4 grid gap-4 lg:grid-cols-2">
-          <RouterLink
-            v-if="today.randomMemory"
-            :to="{
-              path: '/remember',
-              query: { memory: today.randomMemory.id },
-            }"
-            class="group block"
-          >
-            <SurfaceCard tone="memory" interactive class="h-full">
-              <div class="flex items-start gap-4">
-                <span
-                  class="grid size-11 shrink-0 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-900/45 dark:text-memory-200"
-                  ><Clock3 class="size-5"
-                /></span>
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="eyebrow text-memory-700 dark:text-memory-300">
-                      随机旧回忆 · {{ randomMemoryDateLabel }}
-                    </p>
-                    <ArrowUpRight
-                      class="size-4 shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
-                    />
-                  </div>
-                  <h3
-                    class="mt-2 font-display text-xl font-semibold text-ink-950 dark:text-white"
-                  >
-                    {{ today.randomMemory.title }}
-                  </h3>
-                  <p
-                    class="mt-2 line-clamp-2 text-sm leading-6 text-ink-500 dark:text-ink-400"
-                  >
-                    {{
-                      today.randomMemory.excerpt ||
-                      "这段共同故事，今天又轻轻回到了我们面前。"
-                    }}
-                  </p>
-                </div>
-              </div>
-            </SurfaceCard>
-          </RouterLink>
-
-          <RouterLink
-            v-if="today.latestNote && !today.latestNote.isPlaceholder"
-            to="/daily?focus=notes"
-            class="group block"
-          >
-            <SurfaceCard tone="present" interactive class="h-full">
-              <div class="flex items-start gap-4">
-                <span
-                  class="grid size-11 shrink-0 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
-                  ><StickyNote class="size-5"
-                /></span>
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="eyebrow text-present-700 dark:text-present-300">
-                      对方刚刚留下的纸条
-                    </p>
-                    <ArrowUpRight
-                      class="size-4 shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
-                    />
-                  </div>
-                  <p
-                    class="mt-2 line-clamp-3 text-sm leading-6 text-ink-600 dark:text-ink-300"
-                  >
-                    {{ today.latestNote.content }}
-                  </p>
-                </div>
-              </div>
-            </SurfaceCard>
-          </RouterLink>
-
-          <RouterLink to="/daily?focus=diary" class="group block">
-            <SurfaceCard tone="present" interactive class="h-full">
-              <div class="flex items-start gap-4">
-                <span
-                  class="grid size-11 shrink-0 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
-                  ><MessageCircleHeart class="size-5"
-                /></span>
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center justify-between gap-3">
-                    <h3 class="font-semibold text-ink-950 dark:text-white">
-                      今日交换日记
-                    </h3>
-                    <ArrowUpRight
-                      class="size-4 shrink-0 text-ink-300 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5 dark:text-ink-600"
-                    />
-                  </div>
-                  <p class="mt-2 font-medium text-ink-700 dark:text-ink-200">
-                    {{ today.dailyEntryStatus.prompt.text }}
-                  </p>
-                  <p
-                    class="mt-2 text-sm leading-6 text-ink-500 dark:text-ink-400"
-                  >
-                    {{ diarySummary }}
-                  </p>
-                </div>
-              </div>
-            </SurfaceCard>
-          </RouterLink>
-        </div>
-      </section>
-    </template>
-  </main>
+  <NoteBox
+    :open="noteBoxOpen"
+    :initial-filter="noteBoxFilter"
+    :messages="messages"
+    :current-user-id="currentUserId"
+    :timezone="timezone"
+    :marking-ids="markingIds"
+    :marking-all="markingAll"
+    :error="noteBoxError"
+    @close="noteBoxOpen = false"
+    @compose="composeFromNoteBox"
+    @mark-read="markRead"
+    @mark-all-read="markAllRead"
+  />
 </template>

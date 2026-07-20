@@ -1,210 +1,90 @@
 <script setup lang="ts">
-import type { IdentityRole, ThemePreference } from "@our-tomorrow/contracts";
-import {
-  BadgeCheck,
-  BellRing,
-  Check,
-  Mars,
-  Monitor,
-  Moon,
-  Palette,
-  Pencil,
-  RefreshCw,
-  Sun,
-  Trash2,
-  UserRound,
-  UsersRound,
-  Venus,
-  ZapOff,
-} from "lucide-vue-next";
-import { computed, reactive, ref, watch } from "vue";
+import { ArrowLeft, Check, Feather, Flower2, LogOut } from "lucide-vue-next";
+import { computed, ref, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 
-import DataStatusPanel from "@/features/settings/DataStatusPanel.vue";
-import ExportPanel from "@/features/settings/ExportPanel.vue";
-import RecycleBinPanel from "@/features/settings/RecycleBinPanel.vue";
-import { apiFieldErrors, ApiClientError } from "@/shared/api/client";
-import BaseButton from "@/shared/components/BaseButton.vue";
-import PageHeader from "@/shared/components/PageHeader.vue";
-import SectionHeading from "@/shared/components/SectionHeading.vue";
-import SurfaceCard from "@/shared/components/SurfaceCard.vue";
-import PwaInstallPanel from "@/shared/pwa/PwaInstallPanel.vue";
-import { usePwa } from "@/shared/pwa/pwa";
-import { useIdentityStore } from "@/shared/stores/identity";
-import { type MotionPreference, useThemeStore } from "@/shared/stores/theme";
 import {
-  type FieldErrors,
-  validateRequiredText,
-} from "@/shared/utils/profile-validation";
-
-type ProfileField = "displayName" | "nicknameInRelationship";
+  coupleEmblem,
+  microDaisy,
+  microLily,
+  microWashi,
+  nightGarden,
+  springDivider,
+} from "@/shared/assets/romantic";
+import { ApiClientError } from "@/shared/api/client";
+import { useIdentityStore } from "@/shared/stores/identity";
 
 const router = useRouter();
 const identity = useIdentityStore();
-const theme = useThemeStore();
-const pwa = usePwa();
+const nickname = ref("");
+const saving = ref(false);
+const formError = ref<string | null>(null);
+const savedMessage = ref<string | null>(null);
 
-const profile = reactive({
-  displayName: "",
-  nicknameInRelationship: "",
-});
-const profileErrors = ref<FieldErrors<ProfileField>>({});
-const profileRequestError = ref<string | null>(null);
-const profileSavedMessage = ref<string | null>(null);
-const savingProfile = ref(false);
-const savingTheme = ref<ThemePreference | null>(null);
-const themeError = ref<string | null>(null);
-const switchingRole = ref<IdentityRole | null>(null);
-const refreshingIdentity = ref(false);
-const identityActionError = ref<string | null>(null);
-
-function roleName(role: IdentityRole | null) {
-  if (!role) return "未选择";
-  const member = identity.couple?.members.find((item) => item.role === role);
-  return (
-    member?.nicknameInRelationship ??
-    member?.displayName ??
-    (role === "boy" ? "甲" : "乙")
-  );
-}
-
-const currentRoleLabel = computed(() => roleName(identity.role));
-const nextRole = computed<IdentityRole>(() =>
-  identity.role === "boy" ? "girl" : "boy",
+const currentName = computed(
+  () =>
+    identity.user?.nicknameInRelationship ?? identity.user?.displayName ?? "我",
 );
-const nextRoleLabel = computed(() => roleName(nextRole.value));
-
-const themeOptions: Array<{
-  id: ThemePreference;
-  label: string;
-  description: string;
-  icon: typeof Sun;
-}> = [
-  {
-    id: "system",
-    label: "跟随系统",
-    description: "随设备外观切换",
-    icon: Monitor,
-  },
-  { id: "light", label: "晨光", description: "温暖、清晰的浅色", icon: Sun },
-  { id: "dark", label: "深夜", description: "私密、克制的深色", icon: Moon },
-];
-
-const motionOptions: Array<{ id: MotionPreference; label: string }> = [
-  { id: "system", label: "跟随系统" },
-  { id: "reduce", label: "减少动效" },
-  { id: "full", label: "完整动效" },
-];
-
-function validateProfile() {
-  const nextErrors: FieldErrors<ProfileField> = {};
-  const displayNameError = validateRequiredText(
-    profile.displayName,
-    "显示名称",
-    100,
+const partner = computed(() =>
+  identity.couple?.members.find((member) => member.id !== identity.user?.id),
+);
+const partnerName = computed(
+  () =>
+    partner.value?.nicknameInRelationship ??
+    partner.value?.displayName ??
+    "另一半",
+);
+const initials = computed(() => ({
+  mine: currentName.value.trim().slice(0, 1) || "我",
+  partner: partnerName.value.trim().slice(0, 1) || "你",
+}));
+const startDate = computed(() => {
+  const value = identity.couple?.startDate;
+  if (!value) return "还没有写下日期";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return value;
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
   );
-  if (displayNameError) nextErrors.displayName = displayNameError;
-  if (profile.nicknameInRelationship.trim().length > 100) {
-    nextErrors.nicknameInRelationship = "关系里的称呼不能超过 100 个字符。";
-  }
-  profileErrors.value = nextErrors;
-  return Object.keys(nextErrors).length === 0;
-}
+  return new Intl.DateTimeFormat("zh-CN", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(date);
+});
 
-async function saveProfile() {
+async function saveNickname() {
   const user = identity.user;
-  if (!user || savingProfile.value || !validateProfile()) return;
-  savingProfile.value = true;
-  profileRequestError.value = null;
-  profileSavedMessage.value = null;
-
-  try {
-    await identity.updateProfile({
-      version: user.version,
-      displayName: profile.displayName.trim(),
-      nicknameInRelationship: profile.nicknameInRelationship.trim() || null,
-    });
-    profileSavedMessage.value = "个人资料已保存。";
-  } catch (error) {
-    if (error instanceof ApiClientError) {
-      profileErrors.value = {
-        ...profileErrors.value,
-        ...apiFieldErrors(error),
-      };
-      profileRequestError.value =
-        error.code === "STATE_CONFLICT"
-          ? "资料刚刚在另一处更新，请刷新后再修改。"
-          : error.code === "VALIDATION_FAILED"
-            ? "有些内容需要修改，请查看表单提示。"
-            : error.message;
-    } else {
-      profileRequestError.value = "个人资料没有保存成功，请稍后再试。";
-    }
-  } finally {
-    savingProfile.value = false;
-  }
-}
-
-async function saveTheme(preference: ThemePreference) {
-  const couple = identity.couple;
-  if (!couple || savingTheme.value) return;
-  if (couple.theme === preference) {
-    theme.setPreference(preference);
+  if (!user || saving.value) return;
+  const nextNickname = nickname.value.trim();
+  if (nextNickname.length > 20) {
+    formError.value = "手账里的称呼最多写 20 个字。";
     return;
   }
 
-  savingTheme.value = preference;
-  themeError.value = null;
-
+  saving.value = true;
+  formError.value = null;
+  savedMessage.value = null;
   try {
-    const updatedCouple = await identity.updateCouple({
-      version: couple.version,
-      theme: preference,
+    await identity.updateProfile({
+      version: user.version,
+      nicknameInRelationship: nextNickname || null,
     });
-    theme.setPreference(updatedCouple.theme);
+    savedMessage.value = "新的称呼已经写进手账。";
   } catch (error) {
-    themeError.value =
+    formError.value =
       error instanceof ApiClientError && error.code === "STATE_CONFLICT"
-        ? "主题刚刚在另一处更新，请刷新后重试。"
+        ? "称呼刚刚在另一处更新了，请再写一次。"
         : error instanceof Error
           ? error.message
-          : "主题没有保存成功，请稍后再试。";
+          : "称呼没有保存成功，请稍后再试。";
   } finally {
-    savingTheme.value = null;
+    saving.value = false;
   }
 }
 
-async function switchIdentity() {
-  if (switchingRole.value) return;
-  switchingRole.value = nextRole.value;
-  identityActionError.value = null;
-
-  try {
-    await identity.selectRole(nextRole.value);
-    await router.replace("/today");
-  } catch (error) {
-    identityActionError.value =
-      error instanceof Error ? error.message : "身份切换没有成功。";
-  } finally {
-    switchingRole.value = null;
-  }
-}
-
-async function retryIdentity() {
-  if (refreshingIdentity.value) return;
-  refreshingIdentity.value = true;
-  identityActionError.value = null;
-  try {
-    await identity.refreshIdentity();
-  } catch (error) {
-    identityActionError.value =
-      error instanceof Error ? error.message : "身份资料没有恢复成功。";
-  } finally {
-    refreshingIdentity.value = false;
-  }
-}
-
-async function clearCachedIdentity() {
+async function chooseAnotherPerson() {
   identity.clearIdentity();
   await router.replace("/login");
 }
@@ -213,413 +93,624 @@ watch(
   () => identity.user,
   (user) => {
     if (!user) return;
-    profile.displayName = user.displayName;
-    profile.nicknameInRelationship = user.nicknameInRelationship ?? "";
+    nickname.value = user.nicknameInRelationship ?? "";
   },
   { immediate: true },
 );
 </script>
 
 <template>
-  <main class="page-shell">
-    <PageHeader
-      eyebrow="Settings · 我们的偏好"
-      title="把明天调成我们喜欢的样子。"
-      description="在这里换身份、改称呼，也调整我们都能看到的外观。"
-    />
+  <main class="settings-journal">
+    <div class="paper-grain" aria-hidden="true" />
 
-    <div
-      v-if="identity.errorMessage && !identity.identity"
-      class="mb-5 flex flex-col gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-200 sm:flex-row sm:items-center sm:justify-between"
-      role="alert"
-    >
-      <span>{{ identity.errorMessage }}</span>
-      <BaseButton
-        variant="secondary"
-        size="sm"
-        :loading="refreshingIdentity"
-        @click="retryIdentity"
-      >
-        <RefreshCw class="size-4" />重新加载身份
-      </BaseButton>
+    <div class="book-spine" aria-hidden="true">
+      <span v-for="index in 8" :key="index" />
     </div>
 
-    <section class="grid gap-5 xl:grid-cols-[0.8fr_1.2fr]">
-      <div class="space-y-5">
-        <SurfaceCard>
-          <div class="flex items-center gap-4">
-            <span
-              class="grid size-12 place-items-center rounded-2xl bg-ink-950 text-lg font-semibold text-white dark:bg-white dark:text-ink-950"
-            >
-              {{ (identity.user?.displayName ?? "我").slice(0, 1) }}
-            </span>
-            <div class="min-w-0 flex-1">
-              <p class="truncate font-semibold text-ink-950 dark:text-white">
-                {{ identity.user?.displayName || "身份资料加载中" }}
-              </p>
-              <p class="mt-1 truncate text-xs text-ink-400 dark:text-ink-500">
-                当前选择：{{ currentRoleLabel }}
-              </p>
-            </div>
-            <UserRound class="size-5 text-ink-300 dark:text-ink-600" />
-          </div>
-
-          <form class="mt-6 space-y-4" novalidate @submit.prevent="saveProfile">
-            <div>
-              <label class="field-label" for="settings-display-name"
-                >显示名称</label
-              >
-              <input
-                id="settings-display-name"
-                v-model="profile.displayName"
-                class="field-input"
-                autocomplete="name"
-                maxlength="100"
-                :disabled="!identity.user"
-                :aria-invalid="Boolean(profileErrors.displayName)"
-                :aria-describedby="
-                  profileErrors.displayName
-                    ? 'settings-display-name-error'
-                    : undefined
-                "
-              />
-              <p
-                v-if="profileErrors.displayName"
-                id="settings-display-name-error"
-                class="mt-2 text-sm text-red-600 dark:text-red-300"
-              >
-                {{ profileErrors.displayName }}
-              </p>
-            </div>
-            <div>
-              <label class="field-label" for="settings-nickname"
-                >关系里的称呼
-                <span class="font-normal text-ink-400">（可留空）</span></label
-              >
-              <input
-                id="settings-nickname"
-                v-model="profile.nicknameInRelationship"
-                class="field-input"
-                maxlength="100"
-                :disabled="!identity.user"
-                :aria-invalid="Boolean(profileErrors.nicknameInRelationship)"
-                :aria-describedby="
-                  profileErrors.nicknameInRelationship
-                    ? 'settings-nickname-error'
-                    : undefined
-                "
-              />
-              <p
-                v-if="profileErrors.nicknameInRelationship"
-                id="settings-nickname-error"
-                class="mt-2 text-sm text-red-600 dark:text-red-300"
-              >
-                {{ profileErrors.nicknameInRelationship }}
-              </p>
-            </div>
-            <div
-              v-if="profileRequestError"
-              class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-200"
-              role="alert"
-            >
-              {{ profileRequestError }}
-            </div>
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <p
-                class="text-sm text-present-700 dark:text-present-300"
-                role="status"
-                aria-live="polite"
-              >
-                {{ profileSavedMessage }}
-              </p>
-              <BaseButton
-                type="submit"
-                size="sm"
-                :loading="savingProfile"
-                :disabled="!identity.user"
-                ><Check class="size-4" />保存个人资料</BaseButton
-              >
-            </div>
-          </form>
-        </SurfaceCard>
-
-        <DataStatusPanel />
-
-        <PwaInstallPanel />
-
-        <SurfaceCard>
-          <div class="flex items-start gap-3">
-            <span
-              class="grid size-10 shrink-0 place-items-center rounded-2xl bg-memory-100 text-memory-700 dark:bg-memory-900/45 dark:text-memory-200"
-              ><UsersRound class="size-4"
-            /></span>
-            <SectionHeading
-              title="我们的资料"
-              description="名字、签名和故事开始的日期都可以在这里查看。"
-            />
-          </div>
-          <dl
-            class="mt-5 space-y-3 rounded-2xl bg-ink-50/70 p-4 text-sm dark:bg-white/[0.03]"
-          >
-            <div class="flex justify-between gap-4">
-              <dt class="text-ink-400">名字</dt>
-              <dd
-                class="text-right font-semibold text-ink-800 dark:text-ink-100"
-              >
-                {{ identity.couple?.name || "加载中" }}
-              </dd>
-            </div>
-            <div class="flex justify-between gap-4">
-              <dt class="text-ink-400">开始日期</dt>
-              <dd class="text-right text-ink-700 dark:text-ink-200">
-                {{ identity.couple?.startDate || "—" }}
-              </dd>
-            </div>
-            <div class="flex justify-between gap-4">
-              <dt class="text-ink-400">时区</dt>
-              <dd class="break-all text-right text-ink-700 dark:text-ink-200">
-                {{ identity.couple?.timezone || "—" }}
-              </dd>
-            </div>
-          </dl>
-          <RouterLink
-            to="/us?edit=relationship"
-            class="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-memory-700 transition hover:bg-memory-50 dark:text-memory-300 dark:hover:bg-memory-950/30"
-            ><Pencil class="size-4" />编辑我们的资料</RouterLink
-          >
-        </SurfaceCard>
-
-        <SurfaceCard>
-          <div class="flex items-start gap-3">
-            <span
-              class="grid size-10 shrink-0 place-items-center rounded-2xl bg-present-100 text-present-700 dark:bg-present-900/45 dark:text-present-200"
-              ><BadgeCheck class="size-4"
-            /></span>
-            <SectionHeading
-              title="现在是谁在用"
-              description="这台设备会记住当前选择，平时不用反复确认。"
-            />
-          </div>
-          <div
-            class="mt-5 rounded-2xl border border-ink-200/80 bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]"
-          >
-            <div class="flex items-center gap-3">
-              <component
-                :is="identity.role === 'boy' ? Mars : Venus"
-                class="size-5 text-present-600 dark:text-present-300"
-              />
-              <div>
-                <p class="text-sm font-semibold text-ink-900 dark:text-white">
-                  现在是 {{ currentRoleLabel }}
-                </p>
-                <p
-                  class="mt-1 text-xs leading-5 text-ink-400 dark:text-ink-500"
-                >
-                  下次打开时仍会保持这个身份。
-                </p>
-              </div>
-            </div>
-          </div>
-          <p
-            v-if="identityActionError"
-            class="mt-4 text-sm text-red-600 dark:text-red-300"
-            role="alert"
-          >
-            {{ identityActionError }}
-          </p>
-          <div class="mt-5 flex flex-col gap-3 sm:flex-row">
-            <BaseButton
-              variant="secondary"
-              :loading="switchingRole === nextRole"
-              @click="switchIdentity"
-              ><RefreshCw class="size-4" />切换为{{ nextRoleLabel }}</BaseButton
-            >
-            <BaseButton
-              variant="ghost"
-              :disabled="Boolean(switchingRole)"
-              @click="clearCachedIdentity"
-              ><Trash2 class="size-4" />重新验证身份</BaseButton
-            >
-          </div>
-          <p class="mt-3 text-xs leading-5 text-ink-400 dark:text-ink-500">
-            重新选择不会删掉任何回忆、纸条或照片。
-          </p>
-        </SurfaceCard>
-
-        <ExportPanel />
-
-        <RecycleBinPanel />
+    <header class="settings-header">
+      <RouterLink to="/today" aria-label="返回今天">
+        <ArrowLeft class="size-4" />
+        <span>今天</span>
+      </RouterLink>
+      <div>
+        <p>THE LITTLE DRAWER · SETTINGS</p>
+        <h1>手账的小抽屉</h1>
       </div>
+      <Flower2 class="size-5" aria-hidden="true" />
+    </header>
 
-      <div class="space-y-5">
-        <SurfaceCard>
-          <div class="flex items-center gap-3">
-            <span
-              class="grid size-10 place-items-center rounded-2xl bg-future-100 text-future-700 dark:bg-future-900/45 dark:text-future-200"
-              ><Palette class="size-4"
-            /></span>
-            <SectionHeading
-              title="共同主题"
-              description="选好以后，我们两个人都会看到同一种样子。"
-            />
-          </div>
-          <div class="mt-5 grid gap-3 sm:grid-cols-3">
-            <button
-              v-for="option in themeOptions"
-              :key="option.id"
-              type="button"
-              class="relative rounded-2xl border p-4 text-left transition disabled:cursor-wait disabled:opacity-60"
-              :class="
-                identity.couple?.theme === option.id
-                  ? 'border-present-300 bg-present-50 ring-2 ring-present-100 dark:border-present-700 dark:bg-present-950/30 dark:ring-present-900/30'
-                  : 'border-ink-200/80 bg-white/55 hover:border-ink-300 dark:border-white/10 dark:bg-white/[0.03] dark:hover:border-white/20'
-              "
-              :disabled="Boolean(savingTheme) || !identity.couple"
-              :aria-pressed="identity.couple?.theme === option.id"
-              @click="saveTheme(option.id)"
-            >
-              <component
-                :is="option.icon"
-                class="size-5 text-ink-600 dark:text-ink-300"
-              />
-              <p
-                class="mt-4 text-sm font-semibold text-ink-950 dark:text-white"
-              >
-                {{ option.label }}
-              </p>
-              <p class="mt-1 text-xs leading-5 text-ink-400 dark:text-ink-500">
-                {{ option.description }}
-              </p>
-              <span
-                v-if="savingTheme === option.id"
-                class="absolute right-3 top-3 size-4 animate-spin rounded-full border-2 border-present-500 border-t-transparent"
-                aria-label="正在保存主题"
-              />
-            </button>
-          </div>
-          <p
-            v-if="themeError"
-            class="mt-4 text-sm text-red-600 dark:text-red-300"
-            role="alert"
-          >
-            {{ themeError }}
-          </p>
-
-          <div class="quiet-divider my-6" />
-          <div
-            class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div class="flex items-start gap-3">
-              <ZapOff class="mt-0.5 size-4 text-ink-400" />
-              <div>
-                <p class="text-sm font-semibold text-ink-900 dark:text-white">
-                  本设备动态效果
-                </p>
-                <p
-                  class="mt-1 text-xs leading-5 text-ink-400 dark:text-ink-500"
-                >
-                  这个选择只影响现在使用的设备。
-                </p>
-              </div>
-            </div>
-            <div
-              class="inline-flex self-start rounded-xl bg-ink-100/75 p-1 dark:bg-white/[0.06] sm:self-auto"
-            >
-              <button
-                v-for="option in motionOptions"
-                :key="option.id"
-                type="button"
-                class="rounded-lg px-3 py-2 text-xs font-semibold transition"
-                :class="
-                  theme.motionPreference === option.id
-                    ? 'bg-white text-ink-950 shadow-sm dark:bg-white/10 dark:text-white'
-                    : 'text-ink-400 hover:text-ink-700 dark:hover:text-ink-200'
-                "
-                :aria-pressed="theme.motionPreference === option.id"
-                @click="theme.setMotionPreference(option.id)"
-              >
-                {{ option.label }}
-              </button>
-            </div>
-          </div>
-
-          <div class="quiet-divider my-6" />
-          <div
-            class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div class="flex items-start gap-3">
-              <BellRing class="mt-0.5 size-4 text-ink-400" />
-              <div>
-                <p class="text-sm font-semibold text-ink-900 dark:text-white">
-                  抱抱到达浮层
-                </p>
-                <p
-                  class="mt-1 max-w-xl text-xs leading-5 text-ink-400 dark:text-ink-500"
-                >
-                  决定抱抱、想你等心意到达时，要不要立刻在页面上出现。
-                </p>
-              </div>
-            </div>
-            <button
-              type="button"
-              class="inline-flex min-h-10 shrink-0 items-center gap-2 self-start rounded-xl border px-3 py-2 text-xs font-semibold transition sm:self-auto"
-              :class="
-                pwa.touchArrivalsEnabled.value
-                  ? 'border-present-300 bg-present-50 text-present-800 dark:border-present-800 dark:bg-present-950/35 dark:text-present-200'
-                  : 'border-ink-200 bg-white/60 text-ink-500 dark:border-white/10 dark:bg-white/[0.03] dark:text-ink-400'
-              "
-              :aria-pressed="pwa.touchArrivalsEnabled.value"
-              :aria-label="
-                pwa.touchArrivalsEnabled.value
-                  ? '关闭抱抱到达浮层'
-                  : '开启抱抱到达浮层'
-              "
-              @click="
-                pwa.setTouchArrivalsEnabled(!pwa.touchArrivalsEnabled.value)
-              "
-            >
-              <span
-                class="size-2 rounded-full"
-                :class="
-                  pwa.touchArrivalsEnabled.value
-                    ? 'bg-present-500'
-                    : 'bg-ink-300 dark:bg-ink-600'
-                "
-                aria-hidden="true"
-              />
-              {{ pwa.touchArrivalsEnabled.value ? "已开启" : "已关闭" }}
-            </button>
-          </div>
-        </SurfaceCard>
-
-        <SurfaceCard>
-          <SectionHeading
-            title="我们两个人"
-            description="这里一直只有甲和乙。"
-          />
-          <div class="mt-5 grid gap-3 sm:grid-cols-2">
-            <article
-              v-for="member in identity.couple?.members ?? []"
-              :key="member.id"
-              class="rounded-2xl border border-ink-200/80 bg-white/55 p-4 dark:border-white/10 dark:bg-white/[0.03]"
-            >
-              <component
-                :is="member.role === 'boy' ? Mars : Venus"
-                class="size-5 text-ink-400"
-              />
-              <p
-                class="mt-3 text-sm font-semibold text-ink-900 dark:text-white"
-              >
-                {{ member.nicknameInRelationship || member.displayName }}
-              </p>
-              <p class="mt-1 text-xs text-ink-400 dark:text-ink-500">
-                {{ member.role === "boy" ? "男生" : "女生" }} ·
-                {{ member.displayName }}
-              </p>
-            </article>
-          </div>
-        </SurfaceCard>
+    <section class="garden-postcard" aria-label="我们的手账">
+      <span class="postcard-tape" aria-hidden="true" />
+      <img :src="nightGarden" alt="" aria-hidden="true" />
+      <div class="garden-copy">
+        <small>PRIVATE GARDEN · FOR TWO</small>
+        <h2>{{ identity.couple?.name || "我们的明天" }}</h2>
+        <p>
+          从 {{ startDate }} 开始，只有 {{ currentName }} 和 {{ partnerName }}。
+        </p>
+      </div>
+      <div class="postcard-seal" aria-hidden="true">
+        <img :src="coupleEmblem" alt="" />
+        <span
+          ><b>{{ initials.mine }}</b
+          ><i>&amp;</i><b>{{ initials.partner }}</b></span
+        >
       </div>
     </section>
+
+    <div class="section-divider" aria-hidden="true">
+      <img :src="springDivider" alt="" />
+      <span>MY SIGNATURE</span>
+    </div>
+
+    <section
+      class="settings-paper signature-paper"
+      aria-labelledby="signature-title"
+    >
+      <span class="paper-tape" aria-hidden="true" />
+      <img class="paper-flower" :src="microDaisy" alt="" aria-hidden="true" />
+      <header>
+        <small>01 · 写在每张便笺上的名字</small>
+        <h2 id="signature-title">我在手账里的称呼</h2>
+        <p>真名用来认出你；这个称呼只负责让页面更像你们。</p>
+      </header>
+
+      <form @submit.prevent="saveNickname">
+        <label class="signature-input">
+          <img :src="microWashi" alt="" aria-hidden="true" />
+          <span>留空时使用 {{ identity.user?.displayName || "真名" }}</span>
+          <input
+            v-model="nickname"
+            maxlength="20"
+            autocomplete="off"
+            placeholder="例如：甲、乙、小朋友"
+            @input="
+              formError = null;
+              savedMessage = null;
+            "
+          />
+          <Feather class="size-5" aria-hidden="true" />
+        </label>
+
+        <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
+        <p v-else-if="savedMessage" class="saved-message" role="status">
+          <Check class="size-3.5" />{{ savedMessage }}
+        </p>
+
+        <button type="submit" :disabled="saving || !identity.user">
+          {{ saving ? "正在写好…" : "保存这笔署名" }}
+        </button>
+      </form>
+    </section>
+
+    <section class="identity-ticket" aria-labelledby="identity-title">
+      <span class="ticket-notch ticket-notch-left" aria-hidden="true" />
+      <span class="ticket-notch ticket-notch-right" aria-hidden="true" />
+      <div class="ticket-initial">{{ initials.mine }}</div>
+      <div>
+        <small>02 · THIS DEVICE REMEMBERS</small>
+        <h2 id="identity-title">现在是 {{ currentName }} 在用</h2>
+        <p>想换一个人，就重新在首页写一次名字。</p>
+      </div>
+      <button type="button" @click="chooseAnotherPerson">
+        <LogOut class="size-4" />
+        换一个人
+      </button>
+    </section>
+
+    <footer class="settings-footer">
+      <img :src="microLily" alt="" aria-hidden="true" />
+      <p>只有这些，刚刚好。</p>
+      <RouterLink to="/today">把抽屉合上</RouterLink>
+    </footer>
   </main>
 </template>
+
+<style scoped>
+.settings-journal {
+  position: relative;
+  min-height: 100dvh;
+  width: min(100%, 560px);
+  overflow: hidden;
+  margin: 0 auto;
+  background-color: #f5ecd9;
+  background-image:
+    linear-gradient(
+      90deg,
+      transparent 31px,
+      rgb(181 88 79 / 0.14) 32px,
+      transparent 33px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 31px,
+      rgb(95 123 128 / 0.09) 32px
+    );
+  padding: max(20px, env(safe-area-inset-top)) 18px
+    calc(32px + env(safe-area-inset-bottom)) 42px;
+  color: #443229;
+  box-shadow:
+    0 0 70px rgb(70 45 30 / 0.17),
+    inset 18px 0 34px rgb(83 56 38 / 0.05);
+}
+
+.paper-grain {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.18'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  opacity: 0.22;
+}
+
+.book-spine {
+  position: absolute;
+  z-index: 12;
+  top: 24px;
+  bottom: 38px;
+  left: 8px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  pointer-events: none;
+}
+
+.book-spine::before {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 8px;
+  width: 1px;
+  background: rgb(93 65 48 / 0.12);
+  content: "";
+}
+
+.book-spine span {
+  position: relative;
+  width: 19px;
+  height: 7px;
+  border-radius: 999px;
+  background: linear-gradient(#81766b, #d4c9ba 47%, #6f655c);
+  box-shadow: 2px 2px 4px rgb(64 47 36 / 0.2);
+}
+
+.book-spine span::after {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  width: 8px;
+  height: 11px;
+  border-radius: 50%;
+  background: #d9cdbb;
+  content: "";
+}
+
+.settings-header,
+.garden-postcard,
+.section-divider,
+.settings-paper,
+.identity-ticket,
+.settings-footer {
+  position: relative;
+  z-index: 3;
+}
+
+.settings-header {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) 34px;
+  align-items: center;
+  gap: 7px;
+  min-height: 72px;
+}
+
+.settings-header > a {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 3px;
+  color: #7b5d4d;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 11px;
+}
+
+.settings-header > div {
+  text-align: center;
+}
+
+.settings-header p,
+.garden-copy small,
+.settings-paper header small,
+.identity-ticket small {
+  margin: 0;
+  color: #9b5d53;
+  font-family: "Courier New", monospace;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+}
+
+.settings-header h1 {
+  margin: 4px 0 0;
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 25px;
+  letter-spacing: -0.04em;
+}
+
+.settings-header > svg {
+  color: #895f4c;
+}
+
+.garden-postcard {
+  min-height: 188px;
+  overflow: hidden;
+  border: 5px solid #fff9e9;
+  background: #20322f;
+  box-shadow: 6px 7px 0 rgb(78 51 35 / 0.12);
+  transform: rotate(-0.55deg);
+}
+
+.garden-postcard > img {
+  position: absolute;
+  inset: -20% 0 auto;
+  width: 100%;
+  opacity: 0.82;
+}
+
+.garden-postcard::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgb(25 39 36 / 0.84),
+    rgb(25 39 36 / 0.22)
+  );
+  content: "";
+}
+
+.postcard-tape,
+.paper-tape {
+  position: absolute;
+  z-index: 5;
+  top: -7px;
+  left: 50%;
+  width: 78px;
+  height: 19px;
+  background: rgb(218 196 156 / 0.72);
+  transform: translateX(-50%) rotate(1deg);
+}
+
+.garden-copy {
+  position: relative;
+  z-index: 3;
+  width: 64%;
+  padding: 34px 0 26px 20px;
+  color: #fff8e9;
+}
+
+.garden-copy small {
+  color: #e7cabc;
+}
+
+.garden-copy h2 {
+  margin: 9px 0 0;
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 27px;
+  line-height: 1.15;
+}
+
+.garden-copy p {
+  margin: 12px 0 0;
+  color: #e8ddd0;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.postcard-seal {
+  position: absolute;
+  z-index: 4;
+  right: -10px;
+  bottom: -17px;
+  width: 132px;
+  height: 132px;
+}
+
+.postcard-seal > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(2px 5px 4px rgb(0 0 0 / 0.2));
+}
+
+.postcard-seal > span {
+  position: absolute;
+  top: 43px;
+  left: 39px;
+  display: flex;
+  width: 54px;
+  height: 54px;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #65483c;
+  font-family: "Kaiti SC", "STKaiti", serif;
+}
+
+.postcard-seal b {
+  font-size: 14px;
+}
+
+.postcard-seal i {
+  color: #a1514a;
+  font-family: Georgia, serif;
+  font-size: 11px;
+}
+
+.section-divider {
+  display: grid;
+  height: 70px;
+  place-items: center;
+}
+
+.section-divider img {
+  position: absolute;
+  width: 275px;
+  max-width: 92%;
+  opacity: 0.7;
+}
+
+.section-divider span {
+  position: relative;
+  z-index: 1;
+  background: #f5ecd9;
+  padding: 0 8px;
+  color: #9b5d53;
+  font-family: "Courier New", monospace;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+
+.settings-paper {
+  border: 1px solid rgb(106 75 55 / 0.15);
+  background: #fff8e8;
+  padding: 23px 17px 18px;
+  box-shadow: 5px 6px 0 rgb(79 52 36 / 0.08);
+}
+
+.signature-paper {
+  transform: rotate(0.35deg);
+}
+
+.settings-paper header {
+  position: relative;
+  z-index: 2;
+}
+
+.settings-paper h2,
+.identity-ticket h2 {
+  margin: 5px 0 0;
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 21px;
+  letter-spacing: -0.035em;
+}
+
+.settings-paper header p,
+.identity-ticket p {
+  margin: 7px 0 0;
+  color: #7e6657;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.paper-flower {
+  position: absolute;
+  z-index: 1;
+  right: -4px;
+  top: -18px;
+  width: 69px;
+  opacity: 0.72;
+  transform: rotate(8deg);
+}
+
+.signature-paper form {
+  position: relative;
+  z-index: 2;
+  margin-top: 18px;
+}
+
+.signature-input {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  min-height: 72px;
+  border-bottom: 1px solid rgb(106 74 54 / 0.25);
+  padding: 19px 3px 4px;
+}
+
+.signature-input > img {
+  position: absolute;
+  top: -14px;
+  left: 18px;
+  width: 84px;
+  opacity: 0.76;
+}
+
+.signature-input > span {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+  color: #998170;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 9px;
+}
+
+.signature-input input {
+  min-width: 0;
+  height: 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #49362c;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 18px;
+}
+
+.signature-input svg {
+  margin: 0 4px 9px 8px;
+  color: #895b46;
+  transform: rotate(-10deg);
+}
+
+.form-error,
+.saved-message {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  gap: 5px;
+  margin: 8px 0 0;
+  color: #984a44;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 10px;
+}
+
+.saved-message {
+  color: #547263;
+}
+
+.signature-paper form > button {
+  width: 100%;
+  min-height: 47px;
+  margin-top: 10px;
+  border: 1px solid rgb(75 51 37 / 0.22);
+  border-radius: 3px;
+  background: #a6534c;
+  color: #fff8e9;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 3px 4px 0 rgb(76 49 34 / 0.12);
+}
+
+.signature-paper form > button:disabled {
+  opacity: 0.5;
+}
+
+.identity-ticket {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 11px;
+  margin-top: 20px;
+  overflow: hidden;
+  border: 1px solid rgb(99 68 50 / 0.15);
+  background: #ead6ba;
+  padding: 16px 15px 14px;
+  box-shadow: 4px 5px 0 rgb(78 51 35 / 0.08);
+  transform: rotate(0.45deg);
+}
+
+.identity-ticket::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 69px;
+  border-left: 1px dashed rgb(104 72 52 / 0.23);
+  content: "";
+}
+
+.ticket-notch {
+  position: absolute;
+  top: 50%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f5ecd9;
+  transform: translateY(-50%);
+}
+
+.ticket-notch-left {
+  left: -9px;
+}
+
+.ticket-notch-right {
+  right: -9px;
+}
+
+.ticket-initial {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff7e6;
+  color: #854f46;
+  font-family: "Songti SC", "Noto Serif SC", serif;
+  font-size: 20px;
+  box-shadow: inset 0 0 0 1px rgb(113 75 53 / 0.14);
+}
+
+.identity-ticket > div:nth-of-type(2) {
+  padding-left: 7px;
+}
+
+.identity-ticket h2 {
+  font-size: 18px;
+}
+
+.identity-ticket > button {
+  grid-column: 2;
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 6px 0 0 7px;
+  border: 1px solid rgb(80 54 39 / 0.2);
+  border-radius: 3px;
+  background: rgb(255 248 232 / 0.62);
+  color: #7d5143;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.settings-footer {
+  display: grid;
+  place-items: center;
+  padding: 27px 0 8px;
+  text-align: center;
+}
+
+.settings-footer img {
+  width: 55px;
+  opacity: 0.58;
+}
+
+.settings-footer p {
+  margin: -4px 0 0;
+  color: #796051;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 12px;
+}
+
+.settings-footer a {
+  margin-top: 9px;
+  border-bottom: 1px solid #9e5049;
+  color: #9e5049;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (min-width: 640px) {
+  .settings-journal {
+    min-height: calc(100dvh - 32px);
+    margin: 16px auto;
+    border-radius: 6px;
+  }
+}
+</style>

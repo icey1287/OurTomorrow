@@ -182,6 +182,7 @@ export class StatusesService {
           message: dto.message === "" ? null : (dto.message ?? null),
           mood: dto.mood === "" ? null : (dto.mood ?? null),
           scene: dto.scene === "" ? null : (dto.scene ?? null),
+          location: dto.location === "" ? null : (dto.location ?? null),
           needsResponse: dto.needsResponse ?? false,
           startsAt: now,
           expiresAt,
