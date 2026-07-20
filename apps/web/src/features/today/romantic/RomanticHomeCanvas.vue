@@ -26,6 +26,7 @@ import {
 const props = defineProps<{
   myName: string;
   partnerName: string;
+  signature: string | null;
   currentUserId: string;
   myStatus: CurrentStatusSummary | null;
   partnerStatus: CurrentStatusSummary | null;
@@ -40,6 +41,7 @@ defineEmits<{
   openStatus: [];
   openMessage: [];
   openInbox: [filter: "unread" | "all"];
+  openLocation: [];
   retry: [];
 }>();
 
@@ -57,6 +59,13 @@ const latestIsUnread = computed(() =>
 );
 const latestDecoration = computed(
   () => decorationAssetByKey[noteDecoration(props.latestNote?.icon ?? null)],
+);
+const hasPartnerCoordinates = computed(
+  () =>
+    props.partnerStatus?.latitude !== null &&
+    props.partnerStatus?.latitude !== undefined &&
+    props.partnerStatus?.longitude !== null &&
+    props.partnerStatus?.longitude !== undefined,
 );
 const unreadBadgeLabel = computed(() => {
   if (!props.unreadCount) return "便笺匣";
@@ -177,7 +186,7 @@ function latestState() {
 
     <p class="handwritten-line">
       <img :src="romanticArt.microHearts" alt="" aria-hidden="true" />
-      “普通的一天，也值得好好夹进书里。”
+      “{{ signature || "普通的一天，也值得好好夹进书里。" }}”
     </p>
 
     <p v-if="loading" class="loading-slip" role="status">
@@ -228,9 +237,24 @@ function latestState() {
           <h2 id="partner-status-title">
             {{ partnerStatusLook?.label || "还没有贴上状态" }}
           </h2>
-          <p>
+          <button
+            type="button"
+            class="partner-location"
+            :disabled="!hasPartnerCoordinates"
+            :aria-label="
+              hasPartnerCoordinates
+                ? `查看${partnerName}在${partnerStatus?.location}的地图位置`
+                : `${partnerName}还没有发送地图位置`
+            "
+            @click="$emit('openLocation')"
+          >
             <MapPin class="size-3.5" />
-            {{ partnerStatus?.location || "还没有留下位置" }}
+            <span>{{ partnerStatus?.location || "还没有留下位置" }}</span>
+            <small v-if="hasPartnerCoordinates">查看地图</small>
+            <ChevronRight v-if="hasPartnerCoordinates" class="size-3" />
+          </button>
+          <p v-if="partnerStatus?.locationAddress" class="partner-address">
+            {{ partnerStatus.locationAddress }}
           </p>
         </div>
       </div>
@@ -705,6 +729,36 @@ function latestState() {
   line-height: 1.2;
 }
 
+.partner-location {
+  display: grid;
+  max-width: 100%;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  background: transparent;
+  padding: 0;
+  color: #856a59;
+  font-size: 10px;
+  text-align: left;
+}
+
+.partner-location > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.partner-location > small {
+  color: #a6534c;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.partner-location:disabled {
+  cursor: default;
+}
+
 .partner-copy p {
   display: flex;
   align-items: center;
@@ -712,6 +766,14 @@ function latestState() {
   margin: 5px 0 0;
   color: #856a59;
   font-size: 10px;
+}
+
+.partner-copy .partner-address {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
 }
 
 .partner-card blockquote {

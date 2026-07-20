@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import {
+  CurrentStatusState,
   MemoryStatus,
   PlaceFutureState,
   PlaceHistoryState,
@@ -26,6 +27,7 @@ import {
 } from "../memories/memory.presentation";
 import type {
   CreatePlaceDto,
+  NearbyPlacesDto,
   PlaceSearchQueryDto,
   UpdatePlaceDto,
   UpdatePlaceStatusDto,
@@ -33,6 +35,7 @@ import type {
 import {
   AmapPlaceSearchService,
   type PlaceSearchResponse,
+  type StaticMapPreview,
 } from "./amap-place-search.service";
 import {
   completePlaceState,
@@ -165,6 +168,40 @@ export class PlacesService {
       ...(query.region === undefined ? {} : { region: query.region }),
       ...(query.limit === undefined ? {} : { limit: query.limit }),
     });
+  }
+
+  async nearby(
+    role: IdentityRole,
+    dto: NearbyPlacesDto,
+  ): Promise<PlaceSearchResponse> {
+    await this.identities.current(role);
+    return this.placeSearch.nearby(dto.latitude, dto.longitude, {
+      ...(dto.radius === undefined ? {} : { radius: dto.radius }),
+      ...(dto.limit === undefined ? {} : { limit: dto.limit }),
+    });
+  }
+
+  async statusMap(
+    role: IdentityRole,
+    statusId: string,
+  ): Promise<StaticMapPreview> {
+    const actor = await this.identities.current(role);
+    const status = await this.prisma.currentStatus.findFirst({
+      where: {
+        id: statusId,
+        coupleId: actor.couple.id,
+        state: CurrentStatusState.ACTIVE,
+        expiresAt: { gt: this.clock.now() },
+      },
+      select: { latitude: true, longitude: true },
+    });
+    if (status?.latitude === null || status?.longitude === null || !status) {
+      throw resourceNotFound();
+    }
+    return this.placeSearch.staticMap(
+      Number(status.latitude),
+      Number(status.longitude),
+    );
   }
 
   async create(role: IdentityRole, dto: CreatePlaceDto): Promise<PlaceSummary> {

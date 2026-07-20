@@ -110,10 +110,18 @@ export interface PlaceSearchSuggestion {
   district: string | null;
   latitude: number;
   longitude: number;
+  distanceMeters?: number | null;
 }
 
 export interface PlaceSearchResponse {
   items: PlaceSearchSuggestion[];
+}
+
+export interface NearbyPlacesRequest {
+  latitude: number;
+  longitude: number;
+  radius?: number;
+  limit?: number;
 }
 
 export interface MediaAssetSummary {
@@ -311,6 +319,9 @@ export interface CurrentStatusSummary {
   mood: string | null;
   scene: string | null;
   location: string | null;
+  locationAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
   needsResponse: boolean;
   startsAt: string;
   expiresAt: string;
@@ -330,6 +341,9 @@ export interface UpsertCurrentStatusRequest {
   mood?: string | null;
   scene?: string | null;
   location?: string | null;
+  locationAddress?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   needsResponse?: boolean;
   expiresAt: string;
   version?: number;

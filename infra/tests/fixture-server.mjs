@@ -34,7 +34,7 @@ function securityHeaders() {
   return {
     "Content-Security-Policy":
       "default-src 'self'; frame-ancestors 'none'; object-src 'none'",
-    "Permissions-Policy": "camera=(), geolocation=(), microphone=()",
+    "Permissions-Policy": "camera=(), geolocation=(self), microphone=()",
     "Referrer-Policy": "no-referrer",
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",

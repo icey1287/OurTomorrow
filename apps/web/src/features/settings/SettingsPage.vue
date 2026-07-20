@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { ArrowLeft, Check, Feather, Flower2, LogOut } from "lucide-vue-next";
+import {
+  ArrowLeft,
+  CalendarDays,
+  Check,
+  Flower2,
+  LogOut,
+} from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 import { RouterLink, useRouter } from "vue-router";
 
@@ -16,29 +22,23 @@ import { useIdentityStore } from "@/shared/stores/identity";
 
 const router = useRouter();
 const identity = useIdentityStore();
-const nickname = ref("");
+const relationshipStartDate = ref("");
+const relationshipSignature = ref("");
 const saving = ref(false);
 const formError = ref<string | null>(null);
 const savedMessage = ref<string | null>(null);
 
-const currentName = computed(
-  () =>
-    identity.user?.nicknameInRelationship ?? identity.user?.displayName ?? "我",
+const currentName = computed(() =>
+  identity.role === "boy" ? "甲" : identity.role === "girl" ? "乙" : "我",
 );
-const partner = computed(() =>
-  identity.couple?.members.find((member) => member.id !== identity.user?.id),
-);
-const partnerName = computed(
-  () =>
-    partner.value?.nicknameInRelationship ??
-    partner.value?.displayName ??
-    "另一半",
+const partnerName = computed(() =>
+  identity.role === "boy" ? "乙" : identity.role === "girl" ? "甲" : "你",
 );
 const initials = computed(() => ({
   mine: currentName.value.trim().slice(0, 1) || "我",
   partner: partnerName.value.trim().slice(0, 1) || "你",
 }));
-const startDate = computed(() => {
+const formattedStartDate = computed(() => {
   const value = identity.couple?.startDate;
   if (!value) return "还没有写下日期";
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
@@ -54,12 +54,37 @@ const startDate = computed(() => {
   }).format(date);
 });
 
-async function saveNickname() {
-  const user = identity.user;
-  if (!user || saving.value) return;
-  const nextNickname = nickname.value.trim();
-  if (nextNickname.length > 20) {
-    formError.value = "手账里的称呼最多写 20 个字。";
+const todayDate = computed(() => {
+  const timeZone = identity.couple?.timezone ?? "Asia/Shanghai";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone,
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+});
+
+const daysTogether = computed(() => {
+  const start = relationshipStartDate.value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return null;
+  const startTime = Date.parse(`${start}T00:00:00.000Z`);
+  const todayTime = Date.parse(`${todayDate.value}T00:00:00.000Z`);
+  if (!Number.isFinite(startTime) || !Number.isFinite(todayTime)) return null;
+  return Math.max(1, Math.floor((todayTime - startTime) / 86_400_000) + 1);
+});
+
+async function saveRelationship() {
+  const couple = identity.couple;
+  if (!couple || saving.value) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(relationshipStartDate.value)) {
+    formError.value = "请写下一个完整的纪念日日期。";
+    return;
+  }
+  if (relationshipStartDate.value > todayDate.value) {
+    formError.value = "纪念日不能晚于今天。";
     return;
   }
 
@@ -67,18 +92,19 @@ async function saveNickname() {
   formError.value = null;
   savedMessage.value = null;
   try {
-    await identity.updateProfile({
-      version: user.version,
-      nicknameInRelationship: nextNickname || null,
+    await identity.updateCouple({
+      version: couple.version,
+      startDate: relationshipStartDate.value,
+      signature: relationshipSignature.value.trim() || null,
     });
-    savedMessage.value = "新的称呼已经写进手账。";
+    savedMessage.value = "纪念日和扉页句子已经写好了。";
   } catch (error) {
     formError.value =
       error instanceof ApiClientError && error.code === "STATE_CONFLICT"
-        ? "称呼刚刚在另一处更新了，请再写一次。"
+        ? "这一页刚刚在另一处更新了，请再保存一次。"
         : error instanceof Error
           ? error.message
-          : "称呼没有保存成功，请稍后再试。";
+          : "纪念日没有保存成功，请稍后再试。";
   } finally {
     saving.value = false;
   }
@@ -90,10 +116,11 @@ async function chooseAnotherPerson() {
 }
 
 watch(
-  () => identity.user,
-  (user) => {
-    if (!user) return;
-    nickname.value = user.nicknameInRelationship ?? "";
+  () => identity.couple,
+  (couple) => {
+    if (!couple) return;
+    relationshipStartDate.value = couple.startDate;
+    relationshipSignature.value = couple.signature ?? "";
   },
   { immediate: true },
 );
@@ -126,7 +153,8 @@ watch(
         <small>PRIVATE GARDEN · FOR TWO</small>
         <h2>{{ identity.couple?.name || "我们的明天" }}</h2>
         <p>
-          从 {{ startDate }} 开始，只有 {{ currentName }} 和 {{ partnerName }}。
+          从 {{ formattedStartDate }} 开始，只有 {{ currentName }} 和
+          {{ partnerName }}。
         </p>
       </div>
       <div class="postcard-seal" aria-hidden="true">
@@ -140,36 +168,54 @@ watch(
 
     <div class="section-divider" aria-hidden="true">
       <img :src="springDivider" alt="" />
-      <span>MY SIGNATURE</span>
+      <span>OUR STORY</span>
     </div>
 
     <section
-      class="settings-paper signature-paper"
-      aria-labelledby="signature-title"
+      class="settings-paper relationship-paper"
+      aria-labelledby="relationship-title"
     >
       <span class="paper-tape" aria-hidden="true" />
       <img class="paper-flower" :src="microDaisy" alt="" aria-hidden="true" />
       <header>
-        <small>01 · 写在每张便笺上的名字</small>
-        <h2 id="signature-title">我在手账里的称呼</h2>
-        <p>真名用来认出你；这个称呼只负责让页面更像你们。</p>
+        <small>01 · 写在扉页的共同日期</small>
+        <h2 id="relationship-title">我们的纪念日</h2>
+        <p>它决定手账从哪一天开始计算，也会显示我们一起走过多久。</p>
       </header>
 
-      <form @submit.prevent="saveNickname">
-        <label class="signature-input">
-          <img :src="microWashi" alt="" aria-hidden="true" />
-          <span>留空时使用 {{ identity.user?.displayName || "真名" }}</span>
+      <form @submit.prevent="saveRelationship">
+        <label class="date-input">
+          <CalendarDays class="size-5" aria-hidden="true" />
+          <span>在一起的第一天</span>
           <input
-            v-model="nickname"
-            maxlength="20"
-            autocomplete="off"
-            placeholder="例如：甲、乙、小朋友"
+            v-model="relationshipStartDate"
+            type="date"
+            :max="todayDate"
+            aria-label="我们的纪念日"
             @input="
               formError = null;
               savedMessage = null;
             "
           />
-          <Feather class="size-5" aria-hidden="true" />
+        </label>
+
+        <p v-if="daysTogether" class="days-together">
+          今天是我们在一起的第 <strong>{{ daysTogether }}</strong> 天。
+        </p>
+
+        <label class="signature-input">
+          <img :src="microWashi" alt="" aria-hidden="true" />
+          <span>写在首页扉页的一句话 · 可不写</span>
+          <input
+            v-model="relationshipSignature"
+            maxlength="120"
+            autocomplete="off"
+            placeholder="例如：普通的一天，也值得好好夹进书里。"
+            @input="
+              formError = null;
+              savedMessage = null;
+            "
+          />
         </label>
 
         <p v-if="formError" class="form-error" role="alert">{{ formError }}</p>
@@ -177,8 +223,8 @@ watch(
           <Check class="size-3.5" />{{ savedMessage }}
         </p>
 
-        <button type="submit" :disabled="saving || !identity.user">
-          {{ saving ? "正在写好…" : "保存这笔署名" }}
+        <button type="submit" :disabled="saving || !identity.couple">
+          {{ saving ? "正在写好…" : "把这一页保存好" }}
         </button>
       </form>
     </section>
@@ -480,7 +526,7 @@ watch(
   box-shadow: 5px 6px 0 rgb(79 52 36 / 0.08);
 }
 
-.signature-paper {
+.relationship-paper {
   transform: rotate(0.35deg);
 }
 
@@ -516,20 +562,67 @@ watch(
   transform: rotate(8deg);
 }
 
-.signature-paper form {
+.relationship-paper form {
   position: relative;
   z-index: 2;
   margin-top: 18px;
 }
 
+.date-input {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 66px;
+  border: 1px solid rgb(106 74 54 / 0.18);
+  background: rgb(255 251 240 / 0.68);
+  padding: 9px 12px;
+  box-shadow: 2px 3px 0 rgb(78 51 35 / 0.06);
+}
+
+.date-input > svg {
+  grid-row: 1 / span 2;
+  color: #9d554d;
+}
+
+.date-input > span {
+  color: #8c7060;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 10px;
+}
+
+.date-input input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #4b382e;
+  font-family: "Courier New", monospace;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.days-together {
+  margin: 10px 2px 0;
+  color: #775b4b;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 11px;
+  text-align: center;
+}
+
+.days-together strong {
+  color: #a6534c;
+  font-family: Georgia, serif;
+  font-size: 15px;
+}
+
 .signature-input {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  min-height: 72px;
+  display: block;
+  min-height: 78px;
+  margin-top: 18px;
   border-bottom: 1px solid rgb(106 74 54 / 0.25);
-  padding: 19px 3px 4px;
+  padding: 26px 3px 4px;
 }
 
 .signature-input > img {
@@ -542,14 +635,15 @@ watch(
 
 .signature-input > span {
   position: absolute;
-  top: 2px;
-  right: 3px;
+  top: 4px;
+  left: 3px;
   color: #998170;
   font-family: "Kaiti SC", "STKaiti", serif;
   font-size: 9px;
 }
 
 .signature-input input {
+  width: 100%;
   min-width: 0;
   height: 42px;
   border: 0;
@@ -557,13 +651,7 @@ watch(
   background: transparent;
   color: #49362c;
   font-family: "Kaiti SC", "STKaiti", serif;
-  font-size: 18px;
-}
-
-.signature-input svg {
-  margin: 0 4px 9px 8px;
-  color: #895b46;
-  transform: rotate(-10deg);
+  font-size: 14px;
 }
 
 .form-error,
@@ -582,7 +670,7 @@ watch(
   color: #547263;
 }
 
-.signature-paper form > button {
+.relationship-paper form > button {
   width: 100%;
   min-height: 47px;
   margin-top: 10px;
@@ -596,7 +684,7 @@ watch(
   box-shadow: 3px 4px 0 rgb(76 49 34 / 0.12);
 }
 
-.signature-paper form > button:disabled {
+.relationship-paper form > button:disabled {
   opacity: 0.5;
 }
 

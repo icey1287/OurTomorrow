@@ -11,6 +11,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from "@nestjs/common";
 import {
   ApiHeader,
@@ -18,6 +19,7 @@ import {
   ApiOkResponse,
   ApiTags,
 } from "@nestjs/swagger";
+import type { Response } from "express";
 import { createValidationPipe } from "../common/http/validation";
 import {
   CurrentIdentityRole,
@@ -28,6 +30,7 @@ import type { PlaceSummary } from "../memories/memory.presentation";
 import {
   CreatePlaceDto,
   DeletePlaceQueryDto,
+  NearbyPlacesDto,
   PlaceSearchQueryDto,
   UpdatePlaceDto,
   UpdatePlaceStatusDto,
@@ -58,6 +61,31 @@ export class PlacesController {
     query: PlaceSearchQueryDto,
   ): Promise<PlaceSearchResponse> {
     return this.places.search(role, query);
+  }
+
+  @Post("nearby")
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ description: "Nearby Amap POI suggestions" })
+  nearby(
+    @CurrentIdentityRole() role: IdentityRole,
+    @Body(createValidationPipe(NearbyPlacesDto)) dto: NearbyPlacesDto,
+  ): Promise<PlaceSearchResponse> {
+    return this.places.nearby(role, dto);
+  }
+
+  @Get("status/:id/map-preview")
+  @ApiOkResponse({
+    description: "Private Amap static map for a current status",
+  })
+  async statusMap(
+    @CurrentIdentityRole() role: IdentityRole,
+    @Param("id", uuidPipe) statusId: string,
+    @Res() response: Response,
+  ): Promise<void> {
+    const preview = await this.places.statusMap(role, statusId);
+    response.setHeader("Content-Type", preview.contentType);
+    response.setHeader("Cache-Control", "private, max-age=300");
+    response.send(preview.body);
   }
 
   @Get("map")

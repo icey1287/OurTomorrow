@@ -2,8 +2,10 @@ import type {
   CreateNoteRequest,
   CurrentStatusSummary,
   CurrentStatusesResponse,
+  NearbyPlacesRequest,
   NoteListResponse,
   NoteView,
+  PlaceSearchResponse,
   UpsertCurrentStatusRequest,
 } from "@our-tomorrow/contracts";
 
@@ -26,6 +28,14 @@ export const stageThreeApi = {
 
   setStatus(input: UpsertCurrentStatusRequest) {
     return apiClient.put<CurrentStatusSummary>("/statuses/me", input);
+  },
+
+  nearbyPlaces(input: NearbyPlacesRequest) {
+    return apiClient.post<PlaceSearchResponse>("/places/nearby", input);
+  },
+
+  statusMapPreview(statusId: string) {
+    return apiClient.getBlob(`/places/status/${statusId}/map-preview`);
   },
 
   clearStatus(version: number) {

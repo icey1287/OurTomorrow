@@ -100,6 +100,13 @@ export class StatusesService {
     const partner = this.partner(actor);
     const now = this.clock.now();
     const expiresAt = parseExpiry(dto.expiresAt, now);
+    const latitude = dto.latitude ?? null;
+    const longitude = dto.longitude ?? null;
+    if ((latitude === null) !== (longitude === null)) {
+      throw validationFailed(
+        "latitude and longitude must both be provided or both be null",
+      );
+    }
     if (
       dto.kind === CurrentStatusKind.CUSTOM &&
       (!dto.message || dto.message.trim().length === 0)
@@ -183,6 +190,10 @@ export class StatusesService {
           mood: dto.mood === "" ? null : (dto.mood ?? null),
           scene: dto.scene === "" ? null : (dto.scene ?? null),
           location: dto.location === "" ? null : (dto.location ?? null),
+          locationAddress:
+            dto.locationAddress === "" ? null : (dto.locationAddress ?? null),
+          latitude,
+          longitude,
           needsResponse: dto.needsResponse ?? false,
           startsAt: now,
           expiresAt,

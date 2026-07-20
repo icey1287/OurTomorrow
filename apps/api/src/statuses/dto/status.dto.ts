@@ -6,8 +6,10 @@ import {
   IsEnum,
   IsInt,
   IsISO8601,
+  IsNumber,
   IsOptional,
   IsString,
+  Max,
   Matches,
   MaxLength,
   Min,
@@ -63,6 +65,29 @@ export class PutCurrentStatusDto {
   @IsString()
   @MaxLength(160)
   location?: string | null;
+
+  @ApiPropertyOptional({ maxLength: 300, nullable: true })
+  @Transform(({ value }) => nullableTrim(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  locationAddress?: string | null;
+
+  @ApiPropertyOptional({ minimum: -90, maximum: 90, nullable: true })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(-90)
+  @Max(90)
+  latitude?: number | null;
+
+  @ApiPropertyOptional({ minimum: -180, maximum: 180, nullable: true })
+  @Type(() => Number)
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(-180)
+  @Max(180)
+  longitude?: number | null;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

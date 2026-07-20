@@ -35,6 +35,9 @@ type CurrentStatusView = {
   kind: string;
   message: string | null;
   location: string | null;
+  locationAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
 };
 type StatusesResponse = {
   serverNow: string;
@@ -163,7 +166,10 @@ describe.sequential("stage 3 daily presence and private exchange", () => {
       message: "正在收尾今天的事情",
       mood: "专注",
       scene: "办公室",
-      location: "静安寺附近",
+      location: "静安嘉里中心",
+      locationAddress: "示例市示例区示例路2号",
+      latitude: 31.223681,
+      longitude: 121.445239,
       needsResponse: true,
       expiresAt: expiry,
     });
@@ -176,7 +182,10 @@ describe.sequential("stage 3 daily presence and private exchange", () => {
         id: status.body!.id,
         kind: "BUSY",
         message: "正在收尾今天的事情",
-        location: "静安寺附近",
+        location: "静安嘉里中心",
+        locationAddress: "示例市示例区示例路2号",
+        latitude: 31.223681,
+        longitude: 121.445239,
       },
     });
     expect(

@@ -2,9 +2,19 @@
 import type {
   CurrentStatusKind,
   CurrentStatusSummary,
+  PlaceSearchSuggestion,
 } from "@our-tomorrow/contracts";
-import { MapPin, Trash2, X } from "lucide-vue-next";
+import {
+  Check,
+  LoaderCircle,
+  LocateFixed,
+  MapPin,
+  Trash2,
+  X,
+} from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
+
+import { stageThreeApi } from "@/shared/api/stage-three";
 
 import {
   romanticArt,
@@ -24,15 +34,29 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  save: [input: { kind: CurrentStatusKind; location: string; message: string }];
+  save: [
+    input: {
+      kind: CurrentStatusKind;
+      location: string;
+      locationAddress: string | null;
+      latitude: number | null;
+      longitude: number | null;
+      message: string;
+    },
+  ];
   clear: [];
 }>();
 
 const selectedKey = ref<RomanticStatusKey>("sunny");
 const location = ref("");
+const locationAddress = ref("");
+const latitude = ref<number | null>(null);
+const longitude = ref<number | null>(null);
+const nearbyPlaces = ref<PlaceSearchSuggestion[]>([]);
+const locating = ref(false);
+const locationError = ref<string | null>(null);
 const message = ref("");
 const localError = ref<string | null>(null);
-const quickLocations = ["在家", "公司", "学校", "路上", "外面"];
 const isOpen = computed(() => props.open);
 
 useSheetBodyLock(isOpen);
@@ -45,6 +69,12 @@ watch(
       ? statusPresentation(props.current.kind).key
       : "sunny";
     location.value = props.current?.location ?? "";
+    locationAddress.value = props.current?.locationAddress ?? "";
+    latitude.value = props.current?.latitude ?? null;
+    longitude.value = props.current?.longitude ?? null;
+    nearbyPlaces.value = [];
+    locating.value = false;
+    locationError.value = null;
     message.value = props.current?.message ?? "";
     localError.value = null;
   },
@@ -56,6 +86,87 @@ const selectedOption = computed(
     statusOptions[0]!,
 );
 
+const hasPreciseLocation = computed(
+  () => latitude.value !== null && longitude.value !== null,
+);
+
+function currentPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 12_000,
+      maximumAge: 60_000,
+    });
+  });
+}
+
+function locationFailure(error: unknown): string {
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const geolocationError = error as GeolocationPositionError;
+    if (geolocationError.code === 1) {
+      return "没有获得定位权限，可以在浏览器设置里允许后再试。";
+    }
+    if (geolocationError.code === 3) {
+      return "定位花了太久，请再试一次。";
+    }
+  }
+  return error instanceof Error ? error.message : "暂时没有找到你附近的位置。";
+}
+
+async function locateNow() {
+  if (locating.value) return;
+  if (!("geolocation" in navigator)) {
+    locationError.value = "这台设备暂时不支持网页定位。";
+    return;
+  }
+  locating.value = true;
+  locationError.value = null;
+  localError.value = null;
+  nearbyPlaces.value = [];
+  try {
+    const position = await currentPosition();
+    const response = await stageThreeApi.nearbyPlaces({
+      latitude: position.coords.latitude,
+      longitude: position.coords.longitude,
+      radius: 1_000,
+      limit: 6,
+    });
+    nearbyPlaces.value = response.items;
+    if (!response.items.length) {
+      locationError.value = "附近暂时没有合适的建筑，可以继续手动填写。";
+    }
+  } catch (error) {
+    locationError.value = locationFailure(error);
+  } finally {
+    locating.value = false;
+  }
+}
+
+function selectPlace(place: PlaceSearchSuggestion) {
+  location.value = place.name;
+  locationAddress.value = place.address ?? place.district ?? "";
+  latitude.value = place.latitude;
+  longitude.value = place.longitude;
+  locationError.value = null;
+  localError.value = null;
+}
+
+function clearPreciseLocation() {
+  locationAddress.value = "";
+  latitude.value = null;
+  longitude.value = null;
+  nearbyPlaces.value = [];
+  locationError.value = null;
+  localError.value = null;
+}
+
+function distanceLabel(value: number | null | undefined) {
+  if (value === null || value === undefined) return "";
+  return value < 1_000
+    ? `${Math.max(1, value)}m`
+    : `${(value / 1_000).toFixed(1)}km`;
+}
+
 function submit() {
   const nextLocation = location.value.trim();
   if (!nextLocation) {
@@ -66,6 +177,9 @@ function submit() {
   emit("save", {
     kind: selectedOption.value.kind,
     location: nextLocation,
+    locationAddress: locationAddress.value.trim() || null,
+    latitude: latitude.value,
+    longitude: longitude.value,
     message: message.value.trim(),
   });
 }
@@ -124,7 +238,7 @@ function submit() {
 
             <fieldset>
               <legend>你在哪里？</legend>
-              <label class="location-card">
+              <div class="location-card">
                 <img
                   class="location-sticker"
                   :src="romanticArt.statusLocation"
@@ -137,20 +251,75 @@ function submit() {
                   autocomplete="off"
                   placeholder="写一个大概位置就好"
                   aria-label="当前位置"
+                  @input="clearPreciseLocation"
                 />
-                <MapPin class="size-4" aria-hidden="true" />
-              </label>
-              <div class="location-row" aria-label="常用位置">
                 <button
-                  v-for="item in quickLocations"
-                  :key="item"
                   type="button"
-                  :class="{ selected: location === item }"
-                  @click="location = item"
+                  class="locate-action"
+                  :disabled="locating"
+                  aria-label="定位现在的位置"
+                  @click="locateNow"
                 >
-                  {{ item }}
+                  <LoaderCircle
+                    v-if="locating"
+                    class="size-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                  <LocateFixed v-else class="size-4" aria-hidden="true" />
                 </button>
               </div>
+
+              <p class="location-privacy">
+                <MapPin
+                  class="size-3"
+                />只在你点击定位时读取一次，不会持续追踪。
+              </p>
+
+              <div
+                v-if="nearbyPlaces.length"
+                class="nearby-places"
+                role="listbox"
+                aria-label="选择附近建筑"
+              >
+                <button
+                  v-for="place in nearbyPlaces"
+                  :key="place.id"
+                  type="button"
+                  role="option"
+                  :aria-selected="
+                    latitude === place.latitude && longitude === place.longitude
+                  "
+                  :class="{
+                    selected:
+                      latitude === place.latitude &&
+                      longitude === place.longitude,
+                  }"
+                  @click="selectPlace(place)"
+                >
+                  <span>
+                    <strong>{{ place.name }}</strong>
+                    <small>{{ place.address || place.district }}</small>
+                  </span>
+                  <em v-if="distanceLabel(place.distanceMeters)">
+                    {{ distanceLabel(place.distanceMeters) }}
+                  </em>
+                  <Check
+                    v-if="
+                      latitude === place.latitude &&
+                      longitude === place.longitude
+                    "
+                    class="size-4"
+                  />
+                </button>
+              </div>
+
+              <p v-if="locationError" class="location-error" role="alert">
+                {{ locationError }}
+              </p>
+
+              <p v-if="hasPreciseLocation" class="precise-location">
+                已选中 {{ location }}，对方可以点开地图查看。
+              </p>
             </fieldset>
 
             <label class="note-field">
@@ -403,28 +572,102 @@ legend,
   font-size: 13px;
 }
 
-.location-row {
+.locate-action {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgb(108 74 52 / 0.16);
+  border-radius: 50%;
+  background: #ead8ba;
+  color: #98534b;
+}
+
+.locate-action:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.location-privacy,
+.location-error,
+.precise-location {
   display: flex;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 8px 2px 0;
+  color: #8a7060;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 10px;
+}
+
+.nearby-places {
+  display: grid;
   gap: 7px;
-  margin-top: 10px;
+  margin-top: 11px;
 }
 
-.location-row button {
-  min-height: 34px;
-  border: 1px dashed rgb(117 82 58 / 0.2);
-  border-radius: 999px;
-  background: rgb(255 250 239 / 0.52);
-  padding: 0 12px;
-  color: #705344;
-  font-size: 11px;
-  font-weight: 700;
+.nearby-places button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 55px;
+  border: 1px dashed rgb(111 77 55 / 0.19);
+  background: rgb(255 250 239 / 0.54);
+  padding: 8px 11px;
+  color: #5c4437;
+  text-align: left;
 }
 
-.location-row button.selected {
+.nearby-places button.selected {
   border-style: solid;
-  border-color: #a95850;
-  background: #eddbbf;
+  border-color: #a6534c;
+  background: #fff5e6;
+  box-shadow: 2px 3px 0 rgb(77 50 35 / 0.07);
+}
+
+.nearby-places button > span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.nearby-places strong {
+  overflow: hidden;
+  font-family: "Kaiti SC", "STKaiti", serif;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nearby-places small {
+  overflow: hidden;
+  color: #897163;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nearby-places em {
+  color: #9c6b59;
+  font-family: "Courier New", monospace;
+  font-size: 9px;
+  font-style: normal;
+}
+
+.nearby-places svg {
+  color: #a6534c;
+}
+
+.location-error {
+  border-left: 2px solid #a6534c;
+  color: #914840;
+  line-height: 1.45;
+  padding-left: 7px;
+}
+
+.precise-location {
+  color: #55715f;
 }
 
 .note-field small {

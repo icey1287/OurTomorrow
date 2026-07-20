@@ -5,6 +5,7 @@ import { computed, nextTick, ref, watch } from "vue";
 
 import NoteBox from "@/features/today/romantic/NoteBox.vue";
 import NoteComposer from "@/features/today/romantic/NoteComposer.vue";
+import LocationMapSheet from "@/features/today/romantic/LocationMapSheet.vue";
 import RomanticHomeCanvas from "@/features/today/romantic/RomanticHomeCanvas.vue";
 import StatusComposer from "@/features/today/romantic/StatusComposer.vue";
 import {
@@ -21,6 +22,7 @@ const queryClient = useQueryClient();
 const statusComposerOpen = ref(false);
 const noteComposerOpen = ref(false);
 const noteBoxOpen = ref(false);
+const locationMapOpen = ref(false);
 const noteBoxFilter = ref<"unread" | "all">("all");
 const statusActionError = ref<string | null>(null);
 const noteSendError = ref<string | null>(null);
@@ -42,18 +44,11 @@ const notesQuery = useQuery({
 });
 
 const currentUserId = computed(() => identity.user?.id ?? "");
-const partner = computed(() =>
-  identity.couple?.members.find((member) => member.id !== currentUserId.value),
+const myName = computed(() =>
+  identity.role === "boy" ? "甲" : identity.role === "girl" ? "乙" : "我",
 );
-const myName = computed(
-  () =>
-    identity.user?.nicknameInRelationship ?? identity.user?.displayName ?? "我",
-);
-const partnerName = computed(
-  () =>
-    partner.value?.nicknameInRelationship ??
-    partner.value?.displayName ??
-    "另一半",
+const partnerName = computed(() =>
+  identity.role === "boy" ? "乙" : identity.role === "girl" ? "甲" : "另一半",
 );
 const timezone = computed(() => identity.couple?.timezone ?? "Asia/Shanghai");
 const myStatus = computed(() => statusesQuery.data.value?.mine ?? null);
@@ -113,11 +108,17 @@ const saveStatusMutation = useMutation({
   mutationFn: (input: {
     kind: Parameters<typeof stageThreeApi.setStatus>[0]["kind"];
     location: string;
+    locationAddress: string | null;
+    latitude: number | null;
+    longitude: number | null;
     message: string;
   }) =>
     stageThreeApi.setStatus({
       kind: input.kind,
       location: input.location,
+      locationAddress: input.locationAddress,
+      latitude: input.latitude,
+      longitude: input.longitude,
       message: input.message || null,
       mood: null,
       scene: null,
@@ -158,6 +159,14 @@ function openNoteBox(filter: "unread" | "all") {
   noteBoxOpen.value = true;
 }
 
+function openPartnerLocation() {
+  const status = partnerStatus.value;
+  if (!status || status.latitude === null || status.longitude === null) {
+    return;
+  }
+  locationMapOpen.value = true;
+}
+
 async function composeFromNoteBox() {
   noteBoxOpen.value = false;
   await nextTick();
@@ -167,6 +176,9 @@ async function composeFromNoteBox() {
 async function saveStatus(input: {
   kind: Parameters<typeof stageThreeApi.setStatus>[0]["kind"];
   location: string;
+  locationAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
   message: string;
 }) {
   if (saveStatusMutation.isPending.value) return;
@@ -254,6 +266,7 @@ watch(
     statusComposerOpen.value = false;
     noteComposerOpen.value = false;
     noteBoxOpen.value = false;
+    locationMapOpen.value = false;
   },
 );
 </script>
@@ -262,6 +275,7 @@ watch(
   <RomanticHomeCanvas
     :my-name="myName"
     :partner-name="partnerName"
+    :signature="identity.couple?.signature || null"
     :current-user-id="currentUserId"
     :my-status="myStatus"
     :partner-status="partnerStatus"
@@ -273,6 +287,7 @@ watch(
     @open-status="openStatusComposer"
     @open-message="openNoteComposer"
     @open-inbox="openNoteBox"
+    @open-location="openPartnerLocation"
     @retry="refreshHome"
   />
 
@@ -309,5 +324,13 @@ watch(
     @compose="composeFromNoteBox"
     @mark-read="markRead"
     @mark-all-read="markAllRead"
+  />
+
+  <LocationMapSheet
+    :open="locationMapOpen"
+    :status="partnerStatus"
+    :partner-name="partnerName"
+    :timezone="timezone"
+    @close="locationMapOpen = false"
   />
 </template>

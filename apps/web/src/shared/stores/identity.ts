@@ -2,7 +2,7 @@ import type {
   CoupleSummary,
   IdentityRole,
   IdentitySession,
-  UpdateProfileRequest,
+  UpdateCoupleRequest,
 } from "@our-tomorrow/contracts";
 import { defineStore } from "pinia";
 import { computed, ref } from "vue";
@@ -159,32 +159,16 @@ export const useIdentityStore = defineStore("identity", () => {
     };
   }
 
-  function replaceUser(nextUser: IdentitySession["user"]) {
-    if (!identity.value) return;
-    identity.value = {
-      ...identity.value,
-      user: nextUser,
-      couple: {
-        ...identity.value.couple,
-        members: identity.value.couple.members.map((member) =>
-          member.id === nextUser.id ? { ...member, ...nextUser } : member,
-        ),
-      },
-    };
-  }
-
   async function refreshIdentity() {
     const nextIdentity = await stageOneApi.identity();
     setIdentity(nextIdentity);
     return nextIdentity;
   }
 
-  async function updateProfile(input: UpdateProfileRequest) {
-    const nextUser = await stageOneApi.updateProfile(input);
-    replaceUser(nextUser);
-    const nextCouple = await stageOneApi.currentCouple();
+  async function updateCouple(input: UpdateCoupleRequest) {
+    const nextCouple = await stageOneApi.updateCouple(input);
     replaceCouple(nextCouple);
-    return nextUser;
+    return nextCouple;
   }
 
   return {
@@ -199,6 +183,6 @@ export const useIdentityStore = defineStore("identity", () => {
     selectRole,
     clearIdentity,
     refreshIdentity,
-    updateProfile,
+    updateCouple,
   };
 });

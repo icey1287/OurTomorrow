@@ -113,7 +113,7 @@ PostgreSQL / media adapter / outbox
 
 - TouchEvent 命令只接受固定 `kind`，不接受 `message`。发送者维度的 Serializable 事务同时检查 30 秒冷却与滚动一小时 12 次上限；Outbox 只携带固定事件类型，离线 Notification payload 只增加同一个固定 `kind`。
 - MemoryResurface 以 `(coupleId, localDate)` 唯一约束保证两种角色共享每日同一盲盒。创建、打开与忽略都由服务端状态控制；未打开或已忽略的响应不映射关联 Memory。
-- Place 将历史轴 `historyState` 与未来轴 `futureState` 分开保存，旧 `status` 只是兼容投影。愿望/计划完成与地点迁移处于同一事务；地图只投影显式经纬度和等价列表，不连接定位服务或第三方瓦片。地点搜索由 API 代理高德 Web 服务，浏览器不持有 Key。
+- Place 将历史轴 `historyState` 与未来轴 `futureState` 分开保存，旧 `status` 只是兼容投影。愿望/计划完成与地点迁移处于同一事务。此刻位置在用户点击后由浏览器读取一次 GPS，API 负责转换为高德坐标、逆地理编码并返回附近 POI；状态保存位置名称、地址和坐标。地图图片与地点搜索都由 API 代理，浏览器不持有高德 Key。
 - CalmLetter 的元数据与正文分开查询。到期只把状态推进为 AVAILABLE，收件人显式 open 成功后才允许正文查询；解锁、通知和审计都不复制正文。
 - AnnualReview 的统计只读取共同公开来源。READY 可以重新进入 GENERATING 并重算，同时保留双方 contribution；PUBLISHED 后不再重算或编辑。年度选图查询和写入都限制为对应年份 PUBLISHED Memory 的 READY 图片。
 - 阶段 6 数据加入既有导出聚合，但沿用内容可见性：Touch 只有 kind，CalmLetter 收件正文要求 OPENED，未打开盲盒隐藏 memoryId，年度媒体仍经过统一可读性查询。
@@ -232,7 +232,7 @@ Web 采用 Vue 3、Vue Router、Pinia、TanStack Vue Query 和 Tailwind CSS：
 - `router/`：只组织 `/login`、`/today`、`/settings` 与身份守卫；旧页面路径统一重定向，不再加载兼容页面；
 - `features/identity/`：写名字、固定角色匹配和进入手账的叙事动画；
 - `features/today/`：状态、位置、最新便笺、便笺编辑与便笺匣；
-- `features/settings/`：称呼和当前使用者切换；
+- `features/settings/`：共同纪念日、首页扉页句子和当前使用者切换；
 - `shared/assets/romantic/`：统一管理原创植物绘本与手账贴纸素材；
 - `shared/api/`、`shared/stores/`：最小接口封装、角色 header、服务器数据缓存和本地 UI 状态。
 
@@ -270,15 +270,15 @@ Service Worker 只缓存导航 shell、manifest、图标和构建后的静态资
 
 ## 15. 阶段演进与架构门槛
 
-| 阶段 | 架构增量                                                                    | 不允许留下的临时方案                             |
-| ---- | --------------------------------------------------------------------------- | ------------------------------------------------ |
-| 0    | monorepo、设计系统、Prisma 基线、OpenAPI 骨架、Compose、worker/backup 骨架  | 内存数据库、内存计时器、公开媒体目录             |
-| 1    | 固定 boy/girl、幂等共同空间初始化、显式角色上下文、路由守卫                 | 把 role 伪装成认证、在 localStorage 保存私人实体 |
-| 2    | Remember/Media、游标分页、并发版本、内容修订                                | 仅扩展名文件校验、按资源 ID 裸查询               |
-| 3    | Daily、ScheduledEvent 处理器、Outbox、通知/实时                             | 前端定时解锁、提交后返回对方日记正文             |
-| 4    | Tomorrow、纪念日时区规则、幂等转换                                          | 任意 PATCH 状态、浏览器时间决定胶囊状态          |
-| 5    | 回收站、导出、生产安全、恢复证据、迁移演练                                  | 只验证“备份命令成功”、不可读的专有导出           |
-| 6    | Couple 每日盲盒、地点双状态、固定 Touch、冷静信、年度书、私密 PWA、扩展导出 | 持续定位、第三方地图、自由文本 Touch、缓存正文   |
+| 阶段 | 架构增量                                                                    | 不允许留下的临时方案                                       |
+| ---- | --------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| 0    | monorepo、设计系统、Prisma 基线、OpenAPI 骨架、Compose、worker/backup 骨架  | 内存数据库、内存计时器、公开媒体目录                       |
+| 1    | 固定 boy/girl、幂等共同空间初始化、显式角色上下文、路由守卫                 | 把 role 伪装成认证、在 localStorage 保存私人实体           |
+| 2    | Remember/Media、游标分页、并发版本、内容修订                                | 仅扩展名文件校验、按资源 ID 裸查询                         |
+| 3    | Daily、ScheduledEvent 处理器、Outbox、通知/实时                             | 前端定时解锁、提交后返回对方日记正文                       |
+| 4    | Tomorrow、纪念日时区规则、幂等转换                                          | 任意 PATCH 状态、浏览器时间决定胶囊状态                    |
+| 5    | 回收站、导出、生产安全、恢复证据、迁移演练                                  | 只验证“备份命令成功”、不可读的专有导出                     |
+| 6    | Couple 每日盲盒、地点双状态、固定 Touch、冷静信、年度书、私密 PWA、扩展导出 | 持续定位、位置轨迹、前端地图 Key、自由文本 Touch、缓存正文 |
 
 ## 16. 架构决策摘要
 

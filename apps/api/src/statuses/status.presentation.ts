@@ -13,6 +13,9 @@ export const currentStatusSelect =
     mood: true,
     scene: true,
     location: true,
+    locationAddress: true,
+    latitude: true,
+    longitude: true,
     needsResponse: true,
     startsAt: true,
     expiresAt: true,
@@ -34,6 +37,9 @@ export type CurrentStatusView = {
   mood: string | null;
   scene: string | null;
   location: string | null;
+  locationAddress: string | null;
+  latitude: number | null;
+  longitude: number | null;
   needsResponse: boolean;
   startsAt: string;
   expiresAt: string;
@@ -66,6 +72,9 @@ export function toCurrentStatusView(
     mood: status.mood,
     scene: status.scene,
     location: status.location,
+    locationAddress: status.locationAddress,
+    latitude: status.latitude === null ? null : Number(status.latitude),
+    longitude: status.longitude === null ? null : Number(status.longitude),
     needsResponse: status.needsResponse,
     startsAt: status.startsAt.toISOString(),
     expiresAt: status.expiresAt.toISOString(),

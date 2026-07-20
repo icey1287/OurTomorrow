@@ -154,6 +154,47 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
   return payload;
 }
 
+async function requestBlob(
+  path: string,
+  init: ApiRequestInit = {},
+): Promise<Blob> {
+  const { includeIdentity = true, ...fetchInit } = init;
+  const requestIdentityEpoch = identityEpoch;
+  const headers = new Headers(fetchInit.headers);
+  headers.set("Accept", "image/*");
+  if (includeIdentity && identityRole) {
+    headers.set(IDENTITY_HEADER, identityRole);
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...fetchInit,
+      headers,
+      credentials: "omit",
+    });
+  } catch {
+    throw new ApiClientError("暂时无法连接明天，请检查网络后再试。", {
+      status: 0,
+      code: "NETWORK_ERROR",
+    });
+  }
+
+  await assertIdentityUnchanged(
+    includeIdentity,
+    requestIdentityEpoch,
+    response,
+  );
+  if (!response.ok) {
+    const error = await parseError(response);
+    await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
+    throw error;
+  }
+  const payload = await response.blob();
+  await assertIdentityUnchanged(includeIdentity, requestIdentityEpoch);
+  return payload;
+}
+
 function jsonBody(payload: unknown): string {
   return JSON.stringify(payload);
 }
@@ -161,6 +202,9 @@ function jsonBody(payload: unknown): string {
 export const apiClient = {
   get<T>(path: string, init?: ApiRequestInit) {
     return request<T>(path, { ...init, method: "GET" });
+  },
+  getBlob(path: string, init?: ApiRequestInit) {
+    return requestBlob(path, { ...init, method: "GET" });
   },
   post<T>(path: string, payload?: unknown, init?: ApiRequestInit) {
     return request<T>(path, {

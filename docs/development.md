@@ -85,23 +85,23 @@ Compose 会先运行 `migrate`，再启动 `api`/`worker`，Web 由 Nginx 提供
 
 `apps/api/.env` 用于本地 API、Worker 与 Prisma CLI，`infra/.env` 用于 Compose。真实文件不提交 Git。
 
-| 变量                       | 作用                        | 本地提示                | 生产要求                          |
-| -------------------------- | --------------------------- | ----------------------- | --------------------------------- |
-| `NODE_ENV`                 | development/test/production | `development`           | `production`                      |
-| `AMAP_WEB_SERVICE_KEY`     | 高德地点搜索与地址转坐标    | 仅写入 `apps/api/.env`  | 只注入 API，不进入 Web 包         |
-| `API_PORT`                 | Nest 端口                   | `3001`                  | 容器内仍由 Compose 显式使用 3000  |
-| `DATABASE_URL`             | Prisma PostgreSQL URL       | localhost Compose DB    | URL encode 密码；不公开数据库端口 |
-| `WEB_ORIGIN`               | 唯一允许的 Web Origin       | `http://localhost:5173` | 与实际 HTTPS 同源一致             |
-| `PUBLIC_APP_URL`           | Web/API 绝对 URL 基址       | Web 地址                | HTTPS 正式域名                    |
-| `MEDIA_STORAGE_PATH`       | 私有媒体根目录              | `./storage`             | 独立持久卷，不能由 Web 静态暴露   |
-| `MEDIA_MAX_BYTES`          | 单文件上限                  | 默认 15 MiB             | 同时限制像素/解码资源             |
-| `MEDIA_MAX_PIXELS`         | 图片解码像素上限            | 默认 4000 万            | 防止像素炸弹与异常内存占用        |
-| `MEDIA_UPLOAD_TTL_SECONDS` | 上传意图有效期              | 默认 900 秒             | 过期隔离文件不可完成或读取        |
-| `WORKER_POLL_INTERVAL_MS`  | Worker 轮询间隔             | 默认 2000               | 结合任务延迟监控                  |
-| `WORKER_BATCH_SIZE`        | 每次认领量                  | 默认 20                 | 不超过 100                        |
-| `TRUST_PROXY`              | 信任反代头                  | 直连 API 时 false       | 仅在已知 Caddy 拓扑下 true        |
-| `APP_VERSION`              | 健康/日志版本               | `0.1.0`                 | 设置为镜像或发布版本              |
-| `TZ`                       | 进程/备份默认时区           | `Asia/Shanghai`         | 业务日历仍以 Couple.timezone 为准 |
+| 变量                       | 作用                                         | 本地提示                | 生产要求                          |
+| -------------------------- | -------------------------------------------- | ----------------------- | --------------------------------- |
+| `NODE_ENV`                 | development/test/production                  | `development`           | `production`                      |
+| `AMAP_WEB_SERVICE_KEY`     | 高德地点搜索、坐标转换、逆地理编码与静态地图 | 仅写入 `apps/api/.env`  | 只注入 API，不进入 Web 包         |
+| `API_PORT`                 | Nest 端口                                    | `3001`                  | 容器内仍由 Compose 显式使用 3000  |
+| `DATABASE_URL`             | Prisma PostgreSQL URL                        | localhost Compose DB    | URL encode 密码；不公开数据库端口 |
+| `WEB_ORIGIN`               | 唯一允许的 Web Origin                        | `http://localhost:5173` | 与实际 HTTPS 同源一致             |
+| `PUBLIC_APP_URL`           | Web/API 绝对 URL 基址                        | Web 地址                | HTTPS 正式域名                    |
+| `MEDIA_STORAGE_PATH`       | 私有媒体根目录                               | `./storage`             | 独立持久卷，不能由 Web 静态暴露   |
+| `MEDIA_MAX_BYTES`          | 单文件上限                                   | 默认 15 MiB             | 同时限制像素/解码资源             |
+| `MEDIA_MAX_PIXELS`         | 图片解码像素上限                             | 默认 4000 万            | 防止像素炸弹与异常内存占用        |
+| `MEDIA_UPLOAD_TTL_SECONDS` | 上传意图有效期                               | 默认 900 秒             | 过期隔离文件不可完成或读取        |
+| `WORKER_POLL_INTERVAL_MS`  | Worker 轮询间隔                              | 默认 2000               | 结合任务延迟监控                  |
+| `WORKER_BATCH_SIZE`        | 每次认领量                                   | 默认 20                 | 不超过 100                        |
+| `TRUST_PROXY`              | 信任反代头                                   | 直连 API 时 false       | 仅在已知 Caddy 拓扑下 true        |
+| `APP_VERSION`              | 健康/日志版本                                | `0.1.0`                 | 设置为镜像或发布版本              |
+| `TZ`                       | 进程/备份默认时区                            | `Asia/Shanghai`         | 业务日历仍以 Couple.timezone 为准 |
 
 Compose 额外需要 PostgreSQL、Restic/S3、端口和镜像 tag 变量，见 `infra/.env.example`。Web 的 `VITE_*` 会进入浏览器包，绝不放秘密。
 备份容器使用不含 Prisma 专用 `?schema=` 参数的 `BACKUP_DATABASE_URL`；它与应用的 `DATABASE_URL` 指向同一数据库，但必须保持为 libpq/`pg_dump` 可识别的连接串。
@@ -254,7 +254,7 @@ docker compose -f infra/compose.yaml build api web backup
 - Touch 请求不含自由文本；服务端以 Serializable 事务执行发送者 30 秒冷却和滚动一小时 12 次上限。在线事件和离线通知只传固定 kind。
 - CalmLetter 到期只进入 AVAILABLE；收件人显式 open 前，列表、详情、通知、实时事件和导出都不能出现正文。
 - MemoryResurface 依赖 `(coupleId, localDate)` 唯一约束；boy/girl 必须读取同一盲盒，open/dismiss 并发仍只有一个最终状态。`/memories/first-times` 只返回 PUBLISHED、非未来、未删除回忆。
-- Place 同时维护历史/未来状态；地图没有定位权限、第三方 SDK 或瓦片网络请求，并提供键盘可用的等价列表。用户主动输入地点时，API 使用高德 Web 服务返回候选地址与经纬度，Key 只保存在服务端。完成愿望/计划时地点迁移和业务状态处于同一事务。
+- Place 同时维护历史/未来状态。此刻贴纸只在用户点击按钮后读取一次浏览器 GPS，由 API 转换坐标并通过高德逆地理编码返回附近建筑；静态地图也由 API 代理，Key 只保存在服务端。应用不持续定位、不保存轨迹。完成愿望/计划时地点迁移和业务状态处于同一事务。
 - AnnualReview 的 READY 状态允许再次 request 并重算统计，PUBLISHED 后冻结；`media-options` 和更新校验只接受对应年份 PUBLISHED 回忆中的 READY 图片。
 - PWA 只缓存 shell/manifest/icon/hashed assets。切换角色或应用进入后台时清理私密内存状态；前台恢复要重新读取当前角色后才移除隐私幕。抱抱到达浮层可在设置中关闭。
 - 导出新增地点双状态、TouchEvent、CalmLetter、MemoryResurface 和 AnnualReview，并继续按当前角色可见性裁剪正文、memoryId 与媒体 ID。

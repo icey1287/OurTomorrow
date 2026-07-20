@@ -198,7 +198,7 @@ Vue 模板默认转义文本；禁止用 `v-html` 渲染用户内容，除非经
 - `frame-ancestors 'none'` / `X-Frame-Options: DENY`；
 - `Referrer-Policy: no-referrer`；
 - `X-Content-Type-Options: nosniff`；
-- `Permissions-Policy` 默认关闭摄像头、麦克风、持续定位等未使用能力；
+- `Permissions-Policy` 关闭摄像头和麦克风；定位只允许本站在用户明确点击定位按钮后调用，不允许第三方 frame 使用；
 - HTTPS 生产开启 HSTS。
 
 当前样式构建若需要 `'unsafe-inline'`，仅限 style；脚本不得开放 `'unsafe-inline'`/`'unsafe-eval'`。PWA service worker 与 manifest 纳入 CSP。
@@ -287,7 +287,7 @@ Vue 模板默认转义文本；禁止用 `v-html` 渲染用户内容，除非经
 3. 默认关闭并获得双方明确同意；
 4. 安全评审后再部署。
 
-高德地点搜索不属于遥测：只有用户在地点输入框主动键入的搜索词会由 API 转发给高德 Web 服务，用于返回候选地址和经纬度。不得发送关系 ID、身份、回忆正文、照片或已有足迹列表；请求日志不得记录搜索词。高德 Key 只存在于 API 环境，不能进入 Worker、`VITE_*`、前端包、响应或导出。
+高德地点搜索不属于遥测：只有用户主动搜索地点或点击“定位现在的位置”时，API 才会把搜索词或单次 GPS 坐标转发给高德 Web 服务，用于坐标转换、逆地理编码、附近 POI 与静态地图。不得发送关系 ID、身份、回忆正文、照片或已有足迹列表；请求日志不得记录搜索词或经纬度。高德 Key 只存在于 API 环境，不能进入 Worker、`VITE_*`、前端包、响应或导出。应用不后台定位、不轮询位置、不保存轨迹。
 
 ## 11. 秘密与配置管理
 
@@ -384,7 +384,7 @@ Vue 模板默认转义文本；禁止用 `v-html` 渲染用户内容，除非经
 - Touch 固定 kind、30 秒/12 每小时并发限流、离线通知 payload 无自由文本；
 - CalmLetter 到期前后与显式 open 的正文查询边界，scheduler/open 并发幂等；
 - 两角色每日盲盒唯一、open/dismiss 竞争、底层回忆撤回后不揭示；
-- 地图无定位权限或第三方瓦片请求，地点和关联资源保持 Couple 隔离；
+- 定位只在点击后调用一次，静态地图由服务端代理且状态 ID 必须属于当前 Couple；不存在后台定位、位置轨迹或前端高德 Key；
 - AnnualReview READY 重算、PUBLISHED 冻结、年度图片白名单与胶囊媒体洗白拒绝；
 - Service Worker 缓存清单、后台隐私幕、前台角色恢复、角色切换清理和抱抱浮层关闭；
 - 阶段 6 导出保持正文、memoryId 和媒体 ID 的可见性裁剪。

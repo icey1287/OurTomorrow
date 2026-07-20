@@ -908,25 +908,28 @@ model AnnualReviewContribution {
 }
 
 model CurrentStatus {
-  id            String             @id @default(uuid()) @db.Uuid
-  coupleId      String             @map("couple_id") @db.Uuid
-  authorId      String             @map("author_id") @db.Uuid
-  kind          CurrentStatusKind  @default(CUSTOM)
-  state         CurrentStatusState @default(ACTIVE)
-  version       Int                @default(1)
-  message       String?            @db.VarChar(280)
-  mood          String?            @db.VarChar(80)
-  scene         String?            @db.VarChar(120)
-  location      String?            @db.VarChar(160)
-  needsResponse Boolean            @default(false) @map("needs_response")
-  startsAt      DateTime           @default(now()) @map("starts_at") @db.Timestamptz(3)
-  expiresAt     DateTime           @map("expires_at") @db.Timestamptz(3)
-  archivedAt    DateTime?          @map("archived_at") @db.Timestamptz(3)
-  createdAt     DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt     DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
-  couple        Couple             @relation(fields: [coupleId], references: [id], onDelete: Cascade)
-  author        User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  convertedNote Note?              @relation("StatusConvertedNote")
+  id              String             @id @default(uuid()) @db.Uuid
+  coupleId        String             @map("couple_id") @db.Uuid
+  authorId        String             @map("author_id") @db.Uuid
+  kind            CurrentStatusKind  @default(CUSTOM)
+  state           CurrentStatusState @default(ACTIVE)
+  version         Int                @default(1)
+  message         String?            @db.VarChar(280)
+  mood            String?            @db.VarChar(80)
+  scene           String?            @db.VarChar(120)
+  location        String?            @db.VarChar(160)
+  locationAddress String?            @map("location_address") @db.VarChar(300)
+  latitude        Decimal?           @db.Decimal(9, 6)
+  longitude       Decimal?           @db.Decimal(9, 6)
+  needsResponse   Boolean            @default(false) @map("needs_response")
+  startsAt        DateTime           @default(now()) @map("starts_at") @db.Timestamptz(3)
+  expiresAt       DateTime           @map("expires_at") @db.Timestamptz(3)
+  archivedAt      DateTime?          @map("archived_at") @db.Timestamptz(3)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(3)
+  couple          Couple             @relation(fields: [coupleId], references: [id], onDelete: Cascade)
+  author          User               @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  convertedNote   Note?              @relation("StatusConvertedNote")
 
   @@index([coupleId, state, expiresAt])
   @@index([authorId, state, startsAt(sort: Desc)])
