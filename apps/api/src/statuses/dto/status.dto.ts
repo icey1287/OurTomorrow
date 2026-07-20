@@ -1,19 +1,29 @@
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { CurrentStatusKind } from "@prisma/client";
 import { Transform, Type } from "class-transformer";
 import {
-  IsBoolean,
-  IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
   IsOptional,
   IsString,
-  Max,
   Matches,
+  Max,
   MaxLength,
   Min,
+  MinLength,
 } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+
+export const CURRENT_STATUS_KINDS = [
+  "HAPPY",
+  "BUSY",
+  "COMMUTING",
+  "HOME",
+  "RESTING",
+  "MISS_YOU",
+] as const;
+
+export type CurrentStatusKind = (typeof CURRENT_STATUS_KINDS)[number];
 
 function trim(value: unknown): unknown {
   return typeof value === "string" ? value.trim() : value;
@@ -24,18 +34,8 @@ function nullableTrim(value: unknown): unknown {
 }
 
 export class PutCurrentStatusDto {
-  @ApiPropertyOptional({
-    minimum: 1,
-    description: "Version of the current status being replaced",
-  })
-  @Type(() => Number)
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  version?: number;
-
-  @ApiProperty({ enum: CurrentStatusKind })
-  @IsEnum(CurrentStatusKind)
+  @ApiProperty({ enum: CURRENT_STATUS_KINDS })
+  @IsIn(CURRENT_STATUS_KINDS)
   kind!: CurrentStatusKind;
 
   @ApiPropertyOptional({ maxLength: 280, nullable: true })
@@ -45,26 +45,12 @@ export class PutCurrentStatusDto {
   @MaxLength(280)
   message?: string | null;
 
-  @ApiPropertyOptional({ maxLength: 80, nullable: true })
-  @Transform(({ value }) => nullableTrim(value))
-  @IsOptional()
+  @ApiProperty({ minLength: 1, maxLength: 160 })
+  @Transform(({ value }) => trim(value))
   @IsString()
-  @MaxLength(80)
-  mood?: string | null;
-
-  @ApiPropertyOptional({ maxLength: 120, nullable: true })
-  @Transform(({ value }) => nullableTrim(value))
-  @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  scene?: string | null;
-
-  @ApiPropertyOptional({ maxLength: 160, nullable: true })
-  @Transform(({ value }) => nullableTrim(value))
-  @IsOptional()
-  @IsString()
+  @MinLength(1)
   @MaxLength(160)
-  location?: string | null;
+  location!: string;
 
   @ApiPropertyOptional({ maxLength: 300, nullable: true })
   @Transform(({ value }) => nullableTrim(value))
@@ -89,20 +75,19 @@ export class PutCurrentStatusDto {
   @Max(180)
   longitude?: number | null;
 
-  @ApiPropertyOptional({ default: false })
-  @IsOptional()
-  @IsBoolean()
-  needsResponse?: boolean;
-
-  @ApiProperty({
-    format: "date-time",
-    description: "Absolute expiry instant including a UTC offset",
-  })
+  @ApiProperty({ format: "date-time" })
   @IsISO8601({ strict: true })
   @Matches(/(?:Z|[+-]\d{2}:\d{2})$/i, {
     message: "expiresAt must include Z or an explicit UTC offset",
   })
   expiresAt!: string;
+
+  @ApiPropertyOptional({ minimum: 1 })
+  @Type(() => Number)
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  version?: number;
 }
 
 export class DeleteCurrentStatusQueryDto {

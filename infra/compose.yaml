@@ -4,26 +4,15 @@ x-default-logging: &default-logging
   driver: json-file
   options:
     max-size: "10m"
-    max-file: "5"
+    max-file: "3"
 
 x-api-environment: &api-environment
   NODE_ENV: ${NODE_ENV:-development}
-  PORT: 3000
   API_PORT: 3000
   DATABASE_URL: ${DATABASE_URL:-postgresql://our_tomorrow:our_tomorrow@postgres:5432/our_tomorrow?schema=public}
-  PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost}
   WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost}
-  MEDIA_STORAGE_PATH: /data/media
-  MEDIA_MAX_BYTES: ${MEDIA_MAX_BYTES:-15728640}
-  MEDIA_MAX_PIXELS: ${MEDIA_MAX_PIXELS:-40000000}
-  MEDIA_UPLOAD_TTL_SECONDS: ${MEDIA_UPLOAD_TTL_SECONDS:-900}
-  BACKUP_STATUS_PATH: /var/lib/backup-status/last-success
-  BACKUP_MAX_AGE_SECONDS: ${BACKUP_MAX_AGE_SECONDS:-129600}
-  WORKER_HEARTBEAT_PATH: /data/media/.ops/worker-heartbeat.json
-  WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-5000}
-  WORKER_HEARTBEAT_MAX_AGE_SECONDS: ${WORKER_HEARTBEAT_MAX_AGE_SECONDS:-60}
   TRUST_PROXY: "1"
-  TZ: UTC
+  TZ: Asia/Shanghai
 
 services:
   postgres:
@@ -33,24 +22,18 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-our_tomorrow}
       POSTGRES_USER: ${POSTGRES_USER:-our_tomorrow}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-our_tomorrow}
-      POSTGRES_INITDB_ARGS: --data-checksums
-      TZ: UTC
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - 127.0.0.1:${POSTGRES_PORT:-5433}:5432
     networks:
       - data
-      - postgres_host
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
     logging: *default-logging
-    security_opt:
-      - no-new-privileges:true
 
   migrate:
     image: our-tomorrow-api:${IMAGE_TAG:-local}
@@ -73,12 +56,7 @@ services:
     networks:
       - data
     restart: "no"
-    read_only: true
-    tmpfs:
-      - /tmp
     logging: *default-logging
-    security_opt:
-      - no-new-privileges:true
 
   api:
     image: our-tomorrow-api:${IMAGE_TAG:-local}
@@ -89,9 +67,6 @@ services:
     environment:
       <<: *api-environment
       AMAP_WEB_SERVICE_KEY: ${AMAP_WEB_SERVICE_KEY:-}
-    volumes:
-      - media_data:/data/media
-      - backup_state:/var/lib/backup-status:ro
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -107,39 +82,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 30s
-    read_only: true
-    tmpfs:
-      - /tmp
     logging: *default-logging
-    security_opt:
-      - no-new-privileges:true
-
-  worker:
-    image: our-tomorrow-api:${IMAGE_TAG:-local}
-    build:
-      context: ..
-      dockerfile: infra/docker/api.Dockerfile
-    command: ["node", "dist/worker.js"]
-    restart: unless-stopped
-    environment:
-      <<: *api-environment
-      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-5000}
-      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-20}
-    volumes:
-      - media_data:/data/media
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
-    networks:
-      - app
-      - data
-    read_only: true
-    tmpfs:
-      - /tmp
-    logging: *default-logging
-    security_opt:
-      - no-new-privileges:true
 
   web:
     image: our-tomorrow-web:${IMAGE_TAG:-local}
@@ -156,15 +99,7 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
-      start_period: 10s
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/cache/nginx
-      - /var/run
     logging: *default-logging
-    security_opt:
-      - no-new-privileges:true
 
   caddy:
     image: caddy:2-alpine
@@ -185,70 +120,14 @@ services:
         condition: service_healthy
     networks:
       - app
-    tmpfs:
-      - /tmp
     logging: *default-logging
-    security_opt:
-      - no-new-privileges:true
-
-  backup:
-    image: our-tomorrow-backup:${IMAGE_TAG:-local}
-    build:
-      context: ..
-      dockerfile: infra/backup/Dockerfile
-    restart: unless-stopped
-    environment:
-      BACKUP_DATABASE_URL: ${BACKUP_DATABASE_URL:-postgresql://our_tomorrow:our_tomorrow@postgres:5432/our_tomorrow}
-      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/backups/restic}
-      RESTIC_PASSWORD: ${BACKUP_ENCRYPTION_KEY:-development-only-change-me}
-      RESTIC_CACHE_DIR: /var/lib/backup/cache
-      RESTIC_KEEP_DAILY: ${RESTIC_KEEP_DAILY:-14}
-      RESTIC_KEEP_WEEKLY: ${RESTIC_KEEP_WEEKLY:-8}
-      RESTIC_KEEP_MONTHLY: ${RESTIC_KEEP_MONTHLY:-12}
-      BACKUP_MAX_AGE_SECONDS: ${BACKUP_MAX_AGE_SECONDS:-129600}
-      RESTIC_CHECK_REPOSITORY: ${RESTIC_CHECK_REPOSITORY:-true}
-      RESTIC_CHECK_READ_DATA_SUBSET: ${RESTIC_CHECK_READ_DATA_SUBSET:-}
-      BACKUP_HOST_LABEL: ${BACKUP_HOST_LABEL:-our-tomorrow}
-      IMAGE_TAG: ${IMAGE_TAG:-local}
-      GIT_COMMIT: ${GIT_COMMIT:-unknown}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-}
-      TZ: ${TZ:-Asia/Shanghai}
-    volumes:
-      - ${BACKUP_REPOSITORY_SOURCE:-backup_data}:/backups
-      - backup_state:/var/lib/backup
-      - media_data:/media:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - app
-      - data
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/backup-healthcheck.sh"]
-      interval: 5m
-      timeout: 10s
-      retries: 3
-      start_period: 10m
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /var/run
-    logging: *default-logging
-    security_opt:
-      - no-new-privileges:true
 
 networks:
   app:
   data:
     internal: true
-  postgres_host:
 
 volumes:
   postgres_data:
-  media_data:
-  backup_data:
-  backup_state:
   caddy_data:
   caddy_config:

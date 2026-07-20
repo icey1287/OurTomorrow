@@ -10,8 +10,7 @@ import { computed, ref } from "vue";
 import { ApiClientError, setApiIdentityRole } from "@/shared/api/client";
 import { stageOneApi } from "@/shared/api/stage-one";
 
-export const IDENTITY_STORAGE_KEY = "our-tomorrow-role-v2";
-const LEGACY_IDENTITY_STORAGE_KEY = "our-tomorrow-role";
+export const IDENTITY_STORAGE_KEY = "our-tomorrow-role";
 export type IdentityState = "unknown" | "unselected" | "selected";
 
 function readCachedRole(): IdentityRole | null {
@@ -27,7 +26,6 @@ function cacheRole(role: IdentityRole | null) {
   try {
     if (role) localStorage.setItem(IDENTITY_STORAGE_KEY, role);
     else localStorage.removeItem(IDENTITY_STORAGE_KEY);
-    localStorage.removeItem(LEGACY_IDENTITY_STORAGE_KEY);
   } catch {
     // Identity remains usable for this tab when storage is unavailable.
   }
@@ -140,29 +138,12 @@ export const useIdentityStore = defineStore("identity", () => {
     const currentCouple = identity.value.couple;
 
     if (nextCouple.version < currentCouple.version) return;
-    if (nextCouple.version === currentCouple.version) {
-      const wouldLoseNewerMember = currentCouple.members.some(
-        (currentMember) => {
-          const nextMember = nextCouple.members.find(
-            (member) => member.id === currentMember.id,
-          );
-          return !nextMember || nextMember.version < currentMember.version;
-        },
-      );
-      if (wouldLoseNewerMember) return;
-    }
 
     identity.value = {
       ...identity.value,
       user: userForCouple(identity.value.user, nextCouple),
       couple: nextCouple,
     };
-  }
-
-  async function refreshIdentity() {
-    const nextIdentity = await stageOneApi.identity();
-    setIdentity(nextIdentity);
-    return nextIdentity;
   }
 
   async function updateCouple(input: UpdateCoupleRequest) {
@@ -182,7 +163,6 @@ export const useIdentityStore = defineStore("identity", () => {
     bootstrap,
     selectRole,
     clearIdentity,
-    refreshIdentity,
     updateCouple,
   };
 });

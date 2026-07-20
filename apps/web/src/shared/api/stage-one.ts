@@ -13,12 +13,6 @@ export const stageOneApi = {
       includeIdentity: false,
     });
   },
-  identity() {
-    return apiClient.get<IdentitySession>("/identity/me");
-  },
-  currentCouple() {
-    return apiClient.get<CoupleSummary>("/couples/current");
-  },
   updateCouple(input: UpdateCoupleRequest) {
     return apiClient.patch<CoupleSummary>("/couples/current", input);
   },

@@ -1,8 +1,4 @@
-import type {
-  CurrentStatusKind,
-  NoteView,
-  VisibleNoteView,
-} from "@our-tomorrow/contracts";
+import type { CurrentStatusKind, NoteView } from "@our-tomorrow/contracts";
 
 import {
   butterflyOpen,
@@ -58,13 +54,9 @@ const fallbackStatus: Record<
   BUSY: { key: "work", label: "专心忙碌" },
   COMMUTING: { key: "transit", label: "正在路上" },
   RESTING: { key: "rest", label: "准备休息" },
-  TIRED: { key: "rest", label: "有一点累" },
   HAPPY: { key: "sunny", label: "心情晴朗" },
-  NEED_HUG: { key: "letter", label: "需要抱抱" },
-  TALK_LATER: { key: "work", label: "晚点聊聊" },
   HOME: { key: "home", label: "已经到家" },
   MISS_YOU: { key: "letter", label: "正在想你" },
-  CUSTOM: { key: "sunny", label: "此刻" },
 };
 
 export const statusAssetByKey = Object.fromEntries(
@@ -96,22 +88,19 @@ export function noteDecoration(icon: string | null): NoteDecorationKey {
     : "peony";
 }
 
-export function visibleNotes(items: NoteView[]): VisibleNoteView[] {
-  return items
-    .filter((note): note is VisibleNoteView => !note.isPlaceholder)
-    .sort((left, right) => {
-      const time =
-        new Date(right.createdAt).getTime() -
-        new Date(left.createdAt).getTime();
-      return time || right.id.localeCompare(left.id);
-    });
+export function visibleNotes(items: NoteView[]): NoteView[] {
+  return [...items].sort((left, right) => {
+    const time =
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    return time || right.id.localeCompare(left.id);
+  });
 }
 
-export function isIncoming(note: VisibleNoteView, currentUserId: string) {
+export function isIncoming(note: NoteView, currentUserId: string) {
   return note.recipient.id === currentUserId;
 }
 
-export function isUnread(note: VisibleNoteView, currentUserId: string) {
+export function isUnread(note: NoteView, currentUserId: string) {
   return isIncoming(note, currentUserId) && note.status === "VISIBLE";
 }
 

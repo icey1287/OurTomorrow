@@ -8,6 +8,5 @@ import { StatusesService } from "./statuses.service";
   imports: [ClockModule, IdentityModule],
   controllers: [StatusesController],
   providers: [StatusesService],
-  exports: [StatusesService],
 })
 export class StatusesModule {}

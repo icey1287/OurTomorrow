@@ -1,4 +1,0 @@
-*.json
-*.tmp.*
-!.gitignore
-!our-tomorrow-offline-*.json

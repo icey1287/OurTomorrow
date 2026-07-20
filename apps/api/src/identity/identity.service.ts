@@ -1,10 +1,5 @@
 import { Inject, Injectable } from "@nestjs/common";
-import {
-  CoupleMemberStatus,
-  CoupleStatus,
-  Prisma,
-  UserStatus,
-} from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { resourceNotFound, stateConflict } from "../common/http/api-exception";
 import {
   coupleSummarySelect,
@@ -40,12 +35,8 @@ export class IdentityService {
   }
 
   async current(role: IdentityRole): Promise<IdentityResponse> {
-    const couple = await this.prisma.couple.findFirst({
-      where: {
-        id: FIXED_COUPLE_ID,
-        status: CoupleStatus.ACTIVE,
-        deletedAt: null,
-      },
+    const couple = await this.prisma.couple.findUnique({
+      where: { id: FIXED_COUPLE_ID },
       select: coupleSummarySelect,
     });
     if (!couple) throw resourceNotFound();
@@ -61,12 +52,11 @@ export class IdentityService {
     if (!user || !containsBothFixedMembers || summary.members.length !== 2) {
       throw resourceNotFound();
     }
-
     return { role, user, couple: summary };
   }
 
   private async ensureFixedSpace(): Promise<void> {
-    for (let attempt = 1; attempt <= 5; attempt += 1) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
         await this.prisma.$transaction(
           async (transaction) => {
@@ -77,9 +67,11 @@ export class IdentityService {
                   id: identity.userId,
                   username: identity.username,
                   displayName: identity.displayName,
-                  status: UserStatus.ACTIVE,
                 },
-                update: {},
+                update: {
+                  username: identity.username,
+                  displayName: identity.displayName,
+                },
                 select: { id: true },
               });
             }
@@ -94,8 +86,6 @@ export class IdentityService {
                 ),
                 timezone: DEFAULT_COUPLE.timezone,
                 signature: DEFAULT_COUPLE.signature,
-                theme: DEFAULT_COUPLE.theme,
-                status: CoupleStatus.ACTIVE,
               },
               update: {},
               select: { id: true },
@@ -124,14 +114,8 @@ export class IdentityService {
                   coupleId: FIXED_COUPLE_ID,
                   userId: identity.userId,
                   slot: identity.slot,
-                  nicknameInRelationship: identity.nicknameInRelationship,
-                  status: CoupleMemberStatus.ACTIVE,
                 },
-                update: {
-                  slot: identity.slot,
-                  status: CoupleMemberStatus.ACTIVE,
-                  leftAt: null,
-                },
+                update: { slot: identity.slot },
                 select: { id: true },
               });
             }
@@ -142,15 +126,9 @@ export class IdentityService {
       } catch (error) {
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&
-          (error.code === "P2002" || error.code === "P2034") &&
-          attempt < 5
-        ) {
-          continue;
-        }
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
           (error.code === "P2002" || error.code === "P2034")
         ) {
+          if (attempt < 3) continue;
           throw stateConflict();
         }
         throw error;

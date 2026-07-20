@@ -32,7 +32,6 @@ export const environmentSchema = z
       .enum(["development", "test", "production"])
       .default("development"),
     AMAP_WEB_SERVICE_KEY: z.string().trim().default(""),
-    // Local development uses 3001; Compose explicitly keeps the container on 3000.
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
     DATABASE_URL: z
       .string()
@@ -40,57 +39,9 @@ export const environmentSchema = z
       .refine(
         (value) =>
           value.startsWith("postgresql://") || value.startsWith("postgres://"),
-        {
-          message: "DATABASE_URL must use PostgreSQL",
-        },
+        { message: "DATABASE_URL must use PostgreSQL" },
       ),
     WEB_ORIGIN: z.string().url(),
-    PUBLIC_APP_URL: z.string().url(),
-    MEDIA_STORAGE_PATH: z.string().min(1).default("./storage"),
-    MEDIA_MAX_BYTES: z.coerce
-      .number()
-      .int()
-      .min(1_024)
-      .default(15 * 1024 * 1024),
-    MEDIA_MAX_PIXELS: z.coerce
-      .number()
-      .int()
-      .min(1_000_000)
-      .max(100_000_000)
-      .default(40_000_000),
-    MEDIA_UPLOAD_TTL_SECONDS: z.coerce
-      .number()
-      .int()
-      .min(60)
-      .max(3_600)
-      .default(900),
-    BACKUP_STATUS_PATH: z.string().default(""),
-    BACKUP_MAX_AGE_SECONDS: z.coerce
-      .number()
-      .int()
-      .min(300)
-      .max(31 * 24 * 60 * 60)
-      .default(36 * 60 * 60),
-    WORKER_HEARTBEAT_PATH: z.string().default(""),
-    WORKER_HEARTBEAT_INTERVAL_MS: z.coerce
-      .number()
-      .int()
-      .min(1_000)
-      .max(60_000)
-      .default(5_000),
-    WORKER_HEARTBEAT_MAX_AGE_SECONDS: z.coerce
-      .number()
-      .int()
-      .min(10)
-      .max(3_600)
-      .default(60),
-    WORKER_POLL_INTERVAL_MS: z.coerce
-      .number()
-      .int()
-      .min(250)
-      .max(60_000)
-      .default(2_000),
-    WORKER_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(20),
     TRUST_PROXY: booleanFromEnv,
     TZ: z.string().min(1).default("Asia/Shanghai"),
     APP_VERSION: z.string().min(1).default("0.1.0"),
@@ -103,17 +54,15 @@ export const environmentSchema = z
         message: "TZ must be a valid IANA time zone",
       });
     }
-
-    if (value.NODE_ENV === "production") {
-      for (const key of ["WEB_ORIGIN", "PUBLIC_APP_URL"] as const) {
-        if (!isSecureApplicationUrl(value[key])) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: `${key} must use HTTPS in production`,
-          });
-        }
-      }
+    if (
+      value.NODE_ENV === "production" &&
+      !isSecureApplicationUrl(value.WEB_ORIGIN)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["WEB_ORIGIN"],
+        message: "WEB_ORIGIN must use HTTPS in production",
+      });
     }
   });
 

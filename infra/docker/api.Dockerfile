@@ -23,7 +23,6 @@ RUN pnpm --filter @our-tomorrow/api prisma:generate \
 
 FROM base AS runtime
 ENV NODE_ENV=production
-RUN mkdir -p /data/media && chown node:node /data/media
 COPY --from=build --chown=node:node /workspace/node_modules /workspace/node_modules
 COPY --from=build --chown=node:node /workspace/apps/api /workspace/apps/api
 COPY --from=build --chown=node:node /workspace/packages /workspace/packages

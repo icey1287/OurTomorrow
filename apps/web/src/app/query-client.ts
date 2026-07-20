@@ -13,7 +13,7 @@ export const queryClient = new QueryClient({
 
         return status >= 400 && status < 500 ? false : failureCount < 2;
       },
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true,
     },
     mutations: {
       retry: false,

@@ -9,11 +9,8 @@ const localServerEnvironment = {
     ? { DATABASE_URL: process.env.E2E_DATABASE_URL }
     : {}),
   API_PORT: localApiPort,
-  PUBLIC_APP_URL: "http://localhost:5173",
   VITE_DEV_API_TARGET: `http://127.0.0.1:${localApiPort}`,
   WEB_ORIGIN: "http://localhost:5173",
-  WORKER_BATCH_SIZE: "100",
-  WORKER_POLL_INTERVAL_MS: "250",
 };
 
 export default defineConfig({
@@ -47,14 +44,6 @@ export default defineConfig({
           name: "Web",
           url: "http://localhost:5173",
           reuseExistingServer: reuseExistingLocalServer,
-          timeout: 120_000,
-        },
-        {
-          command: "pnpm --filter @our-tomorrow/api dev:worker",
-          env: localServerEnvironment,
-          name: "Persistent worker",
-          stdout: "pipe",
-          wait: { stdout: /Scheduler worker started/ },
           timeout: 120_000,
         },
       ],

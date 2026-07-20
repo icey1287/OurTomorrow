@@ -7,9 +7,8 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "dev": "pnpm --parallel --filter our-tomorrow run \"/^dev:(api|worker|web)$/\"",
+    "dev": "pnpm --parallel --filter our-tomorrow run \"/^dev:(api|web)$/\"",
     "dev:api": "pnpm --filter @our-tomorrow/api dev",
-    "dev:worker": "pnpm --filter @our-tomorrow/api dev:worker",
     "dev:web": "pnpm --filter @our-tomorrow/web dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
@@ -35,8 +34,7 @@
       "@prisma/client",
       "@prisma/engines",
       "esbuild",
-      "prisma",
-      "sharp"
+      "prisma"
     ]
   }
 }

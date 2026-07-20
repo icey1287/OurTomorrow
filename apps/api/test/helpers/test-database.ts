@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-const SAFE_DATABASE_NAME = /(test|integration|stage\d+)/i;
+const SAFE_DATABASE_NAME = /(test|integration)/i;
 
 export function integrationDatabaseUrl(): string {
   const value = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -18,7 +18,7 @@ export function integrationDatabaseUrl(): string {
   const databaseName = decodeURIComponent(url.pathname.replace(/^\//, ""));
   if (!SAFE_DATABASE_NAME.test(databaseName)) {
     throw new Error(
-      `Refusing to reset database '${databaseName}'; its name must contain test, integration, or stage1`,
+      `Refusing to reset database '${databaseName}'; its name must contain test or integration`,
     );
   }
 

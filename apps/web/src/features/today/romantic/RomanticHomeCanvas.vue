@@ -1,8 +1,5 @@
 <script setup lang="ts">
-import type {
-  CurrentStatusSummary,
-  VisibleNoteView,
-} from "@our-tomorrow/contracts";
+import type { CurrentStatusSummary, NoteView } from "@our-tomorrow/contracts";
 import {
   ChevronRight,
   MapPin,
@@ -30,7 +27,7 @@ const props = defineProps<{
   currentUserId: string;
   myStatus: CurrentStatusSummary | null;
   partnerStatus: CurrentStatusSummary | null;
-  latestNote: VisibleNoteView | null;
+  latestNote: NoteView | null;
   unreadCount: number;
   timezone: string;
   loading: boolean;

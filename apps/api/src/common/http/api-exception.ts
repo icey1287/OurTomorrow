@@ -64,11 +64,3 @@ export function stateConflict(details?: ApiErrorDetails): ApiException {
     details,
   );
 }
-
-export function idempotencyConflict(): ApiException {
-  return new ApiException(
-    HttpStatus.CONFLICT,
-    "IDEMPOTENCY_CONFLICT",
-    "The idempotency key was already used with a different request",
-  );
-}

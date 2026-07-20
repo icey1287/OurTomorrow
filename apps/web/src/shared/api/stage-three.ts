@@ -42,8 +42,8 @@ export const stageThreeApi = {
     return apiClient.delete<void>(`/statuses/me${queryString({ version })}`);
   },
 
-  notes(scope: "all" | "sent" | "received" = "all") {
-    return apiClient.get<NoteListResponse>(`/notes${queryString({ scope })}`);
+  notes() {
+    return apiClient.get<NoteListResponse>("/notes");
   },
 
   createNote(input: CreateNoteRequest) {

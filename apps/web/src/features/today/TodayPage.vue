@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { VisibleNoteView } from "@our-tomorrow/contracts";
+import type { NoteView } from "@our-tomorrow/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/vue-query";
 import { computed, nextTick, ref, watch } from "vue";
 
@@ -34,13 +34,14 @@ const statusesQuery = useQuery({
   queryKey: computed(() => ["statuses", identity.role]),
   queryFn: stageThreeApi.statuses,
   enabled: computed(() => Boolean(identity.role)),
-  refetchInterval: 60_000,
+  refetchInterval: 10_000,
 });
 
 const notesQuery = useQuery({
   queryKey: computed(() => ["notes", identity.role, "romantic-home"]),
-  queryFn: () => stageThreeApi.notes("all"),
+  queryFn: stageThreeApi.notes,
   enabled: computed(() => Boolean(identity.role)),
+  refetchInterval: 10_000,
 });
 
 const currentUserId = computed(() => identity.user?.id ?? "");
@@ -89,19 +90,11 @@ async function refreshHome() {
 }
 
 async function invalidateStatus() {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["statuses"] }),
-    queryClient.invalidateQueries({ queryKey: ["today"] }),
-    queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-  ]);
+  await queryClient.invalidateQueries({ queryKey: ["statuses"] });
 }
 
 async function invalidateNotes() {
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["notes"] }),
-    queryClient.invalidateQueries({ queryKey: ["today"] }),
-    queryClient.invalidateQueries({ queryKey: ["notifications"] }),
-  ]);
+  await queryClient.invalidateQueries({ queryKey: ["notes"] });
 }
 
 const saveStatusMutation = useMutation({
@@ -120,9 +113,6 @@ const saveStatusMutation = useMutation({
       latitude: input.latitude,
       longitude: input.longitude,
       message: input.message || null,
-      mood: null,
-      scene: null,
-      needsResponse: false,
       expiresAt: new Date(Date.now() + 6 * 60 * 60_000).toISOString(),
       ...(myStatus.value ? { version: myStatus.value.version } : {}),
     }),
@@ -135,11 +125,8 @@ const clearStatusMutation = useMutation({
 const sendNoteMutation = useMutation({
   mutationFn: (input: { content: string; decoration: NoteDecorationKey }) =>
     stageThreeApi.createNote({
-      type: "LOVE",
       content: input.content,
       icon: input.decoration,
-      keepAfterViewed: true,
-      publish: true,
     }),
 });
 
@@ -223,7 +210,7 @@ async function sendNote(input: {
   }
 }
 
-async function markRead(note: VisibleNoteView) {
+async function markRead(note: NoteView) {
   if (markingIds.value.includes(note.id)) return;
   noteBoxError.value = null;
   markingIds.value = [...markingIds.value, note.id];

@@ -15,7 +15,6 @@ export const DEFAULT_COUPLE = {
   startDate: "2024-01-01",
   timezone: "Asia/Shanghai",
   signature: "今天也一起认真生活。",
-  theme: "system",
 } as const;
 
 export const FIXED_IDENTITIES = {
@@ -26,7 +25,6 @@ export const FIXED_IDENTITIES = {
     memberId: FIXED_BOY_MEMBER_ID,
     username: "boy",
     displayName: "甲",
-    nicknameInRelationship: "甲",
   },
   girl: {
     role: "girl",
@@ -35,7 +33,6 @@ export const FIXED_IDENTITIES = {
     memberId: FIXED_GIRL_MEMBER_ID,
     username: "girl",
     displayName: "乙",
-    nicknameInRelationship: "乙",
   },
 } as const satisfies Record<
   IdentityRole,
@@ -46,7 +43,6 @@ export const FIXED_IDENTITIES = {
     memberId: string;
     username: string;
     displayName: string;
-    nicknameInRelationship: string;
   }
 >;
 

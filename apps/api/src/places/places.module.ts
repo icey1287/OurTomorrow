@@ -8,6 +8,5 @@ import { PlacesService } from "./places.service";
   imports: [IdentityModule],
   controllers: [PlacesController],
   providers: [AmapPlaceSearchService, PlacesService],
-  exports: [PlacesService],
 })
 export class PlacesModule {}

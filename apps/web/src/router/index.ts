@@ -1,7 +1,8 @@
 import { createRouter, createWebHistory } from "vue-router";
 
-import AppLayout from "@/layouts/AppLayout.vue";
-import PublicLayout from "@/layouts/PublicLayout.vue";
+import IdentityPage from "@/features/identity/IdentityPage.vue";
+import SettingsPage from "@/features/settings/SettingsPage.vue";
+import TodayPage from "@/features/today/TodayPage.vue";
 import { resolveIdentityNavigation } from "@/router/identity-guard";
 import { useIdentityStore } from "@/shared/stores/identity";
 
@@ -15,45 +16,36 @@ export const router = createRouter({
     return { top: 0 };
   },
   routes: [
+    { path: "/", redirect: "/today" },
     {
-      path: "/",
-      component: PublicLayout,
-      children: [
-        { path: "", redirect: "/login" },
-        {
-          path: "login",
-          name: "login",
-          component: () => import("@/features/identity/IdentityPage.vue"),
-          meta: {
-            title: "写下名字",
-            identityOnly: true,
-            transitionName: "journal-route",
-          },
-        },
-        { path: "identity", redirect: "/login" },
-        { path: "join", redirect: "/login" },
-        { path: "onboarding", redirect: "/login" },
-      ],
+      path: "/login",
+      name: "login",
+      component: IdentityPage,
+      meta: {
+        title: "写下名字",
+        identityOnly: true,
+        transitionName: "journal-route",
+      },
     },
     {
-      path: "/",
-      component: AppLayout,
-      meta: { requiresIdentity: true },
-      children: [
-        { path: "", redirect: "/today" },
-        {
-          path: "today",
-          name: "today",
-          component: () => import("@/features/today/TodayPage.vue"),
-          meta: { title: "今天", transitionName: "journal-route" },
-        },
-        {
-          path: "settings",
-          name: "settings",
-          component: () => import("@/features/settings/SettingsPage.vue"),
-          meta: { title: "手账的小抽屉", transitionName: "journal-route" },
-        },
-      ],
+      path: "/today",
+      name: "today",
+      component: TodayPage,
+      meta: {
+        title: "今天",
+        requiresIdentity: true,
+        transitionName: "journal-route",
+      },
+    },
+    {
+      path: "/settings",
+      name: "settings",
+      component: SettingsPage,
+      meta: {
+        title: "手账的小抽屉",
+        requiresIdentity: true,
+        transitionName: "journal-route",
+      },
     },
     { path: "/:pathMatch(.*)*", redirect: "/today" },
   ],
@@ -61,11 +53,7 @@ export const router = createRouter({
 
 router.beforeEach(async (to) => {
   const identity = useIdentityStore();
-
-  if (identity.state === "unknown") {
-    await identity.bootstrap();
-  }
-
+  if (identity.state === "unknown") await identity.bootstrap();
   return resolveIdentityNavigation(to, {
     state: identity.state,
     hasIdentity: identity.hasIdentity,

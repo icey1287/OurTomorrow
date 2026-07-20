@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { VisibleNoteView } from "@our-tomorrow/contracts";
+import type { NoteView } from "@our-tomorrow/contracts";
 import { Check, CheckCheck, PenLine, X } from "lucide-vue-next";
 import { computed, ref, watch } from "vue";
 
@@ -15,7 +15,7 @@ import { useSheetBodyLock } from "./use-sheet-body-lock";
 const props = defineProps<{
   open: boolean;
   initialFilter: "unread" | "all";
-  messages: VisibleNoteView[];
+  messages: NoteView[];
   currentUserId: string;
   timezone: string;
   markingIds: string[];
@@ -26,7 +26,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: [];
   compose: [];
-  markRead: [note: VisibleNoteView];
+  markRead: [note: NoteView];
   markAllRead: [];
 }>();
 
@@ -43,7 +43,7 @@ const filteredMessages = computed(() =>
 );
 
 const groupedMessages = computed(() => {
-  const groups: Array<{ label: string; messages: VisibleNoteView[] }> = [];
+  const groups: Array<{ label: string; messages: NoteView[] }> = [];
   for (const note of filteredMessages.value) {
     const label = formatDate(note.createdAt);
     const lastGroup = groups[groups.length - 1];
@@ -109,7 +109,7 @@ function formatTime(value: string) {
   }).format(new Date(value));
 }
 
-function noteState(note: VisibleNoteView) {
+function noteState(note: NoteView) {
   if (isIncoming(note, props.currentUserId)) {
     return isUnread(note, props.currentUserId) ? "未读" : "已读";
   }
@@ -221,8 +221,8 @@ function noteState(note: VisibleNoteView) {
                     <span>
                       {{
                         isIncoming(note, currentUserId)
-                          ? `${note.author.nicknameInRelationship || note.author.displayName}写给我`
-                          : `我写给${note.recipient.nicknameInRelationship || note.recipient.displayName}`
+                          ? `${note.author.displayName}写给我`
+                          : `我写给${note.recipient.displayName}`
                       }}
                     </span>
                     <time :datetime="note.createdAt">{{
