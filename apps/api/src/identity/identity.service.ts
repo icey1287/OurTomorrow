@@ -1,6 +1,11 @@
 import { Inject, Injectable } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Prisma } from "@prisma/client";
-import { resourceNotFound, stateConflict } from "../common/http/api-exception";
+import {
+  identityNameMismatch,
+  resourceNotFound,
+  stateConflict,
+} from "../common/http/api-exception";
 import {
   coupleSummarySelect,
   toCoupleSummary,
@@ -8,11 +13,15 @@ import {
   type UserSummary,
 } from "../common/presentation/relationship";
 import { PrismaService } from "../database/prisma.service";
+import type { Environment } from "../config/env.schema";
 import {
-  DEFAULT_COUPLE,
   FIXED_COUPLE_ID,
-  FIXED_IDENTITIES,
+  FIXED_BOY_MEMBER_ID,
+  FIXED_BOY_USER_ID,
+  FIXED_GIRL_MEMBER_ID,
+  FIXED_GIRL_USER_ID,
   FIXED_USER_IDS,
+  IDENTITY_ROLES,
   type IdentityRole,
 } from "./identity.constants";
 
@@ -22,12 +31,77 @@ export type IdentityResponse = {
   couple: CoupleSummary;
 };
 
+type FixedIdentity = {
+  role: IdentityRole;
+  slot: 1 | 2;
+  userId: string;
+  memberId: string;
+  username: string;
+  displayName: string;
+};
+
+function normalizeIdentityName(value: string): string {
+  return value.trim().normalize("NFKC");
+}
+
 @Injectable()
 export class IdentityService {
+  private readonly realNames: Record<IdentityRole, string>;
+  private readonly identities: Record<IdentityRole, FixedIdentity>;
+  private readonly defaultCouple: {
+    name: string;
+    startDate: string;
+    timezone: string;
+    signature: string | null;
+  };
+
   constructor(
     @Inject(PrismaService)
     private readonly prisma: PrismaService,
-  ) {}
+    @Inject(ConfigService)
+    config: ConfigService<Environment, true>,
+  ) {
+    this.realNames = {
+      boy: normalizeIdentityName(config.get("BOY_REAL_NAME", { infer: true })),
+      girl: normalizeIdentityName(
+        config.get("GIRL_REAL_NAME", { infer: true }),
+      ),
+    };
+    this.identities = {
+      boy: {
+        role: "boy",
+        slot: 1,
+        userId: FIXED_BOY_USER_ID,
+        memberId: FIXED_BOY_MEMBER_ID,
+        username: "boy",
+        displayName: config.get("BOY_DISPLAY_NAME", { infer: true }),
+      },
+      girl: {
+        role: "girl",
+        slot: 2,
+        userId: FIXED_GIRL_USER_ID,
+        memberId: FIXED_GIRL_MEMBER_ID,
+        username: "girl",
+        displayName: config.get("GIRL_DISPLAY_NAME", { infer: true }),
+      },
+    };
+    const signature = config.get("COUPLE_SIGNATURE", { infer: true });
+    this.defaultCouple = {
+      name: config.get("COUPLE_NAME", { infer: true }),
+      startDate: config.get("COUPLE_START_DATE", { infer: true }),
+      timezone: config.get("COUPLE_TIMEZONE", { infer: true }),
+      signature: signature || null,
+    };
+  }
+
+  async selectByName(name: string): Promise<IdentityResponse> {
+    const normalizedName = normalizeIdentityName(name);
+    const role = IDENTITY_ROLES.find(
+      (candidate) => this.realNames[candidate] === normalizedName,
+    );
+    if (!role) throw identityNameMismatch();
+    return this.select(role);
+  }
 
   async select(role: IdentityRole): Promise<IdentityResponse> {
     await this.ensureFixedSpace();
@@ -42,7 +116,7 @@ export class IdentityService {
     if (!couple) throw resourceNotFound();
 
     const summary = toCoupleSummary(couple);
-    const expectedUserId = FIXED_IDENTITIES[role].userId;
+    const expectedUserId = this.identities[role].userId;
     const user = summary.members.find(
       (member) => member.id === expectedUserId && member.role === role,
     );
@@ -60,7 +134,7 @@ export class IdentityService {
       try {
         await this.prisma.$transaction(
           async (transaction) => {
-            for (const identity of Object.values(FIXED_IDENTITIES)) {
+            for (const identity of Object.values(this.identities)) {
               await transaction.user.upsert({
                 where: { id: identity.userId },
                 create: {
@@ -80,12 +154,12 @@ export class IdentityService {
               where: { id: FIXED_COUPLE_ID },
               create: {
                 id: FIXED_COUPLE_ID,
-                name: DEFAULT_COUPLE.name,
+                name: this.defaultCouple.name,
                 startDate: new Date(
-                  `${DEFAULT_COUPLE.startDate}T00:00:00.000Z`,
+                  `${this.defaultCouple.startDate}T00:00:00.000Z`,
                 ),
-                timezone: DEFAULT_COUPLE.timezone,
-                signature: DEFAULT_COUPLE.signature,
+                timezone: this.defaultCouple.timezone,
+                signature: this.defaultCouple.signature,
               },
               update: {},
               select: { id: true },
@@ -106,7 +180,7 @@ export class IdentityService {
               },
             });
 
-            for (const identity of Object.values(FIXED_IDENTITIES)) {
+            for (const identity of Object.values(this.identities)) {
               await transaction.coupleMember.upsert({
                 where: { id: identity.memberId },
                 create: {

@@ -1,10 +1,27 @@
 import { defineConfig, devices } from "@playwright/test";
+import { existsSync } from "node:fs";
+import { loadEnvFile } from "node:process";
+
+const privateEnvironmentPath = "apps/api/.env";
+if (existsSync(privateEnvironmentPath)) loadEnvFile(privateEnvironmentPath);
+
+const identityEnvironment = {
+  BOY_REAL_NAME: process.env.BOY_REAL_NAME ?? "示例用户甲",
+  GIRL_REAL_NAME: process.env.GIRL_REAL_NAME ?? "示例用户乙",
+  BOY_DISPLAY_NAME: process.env.BOY_DISPLAY_NAME ?? "甲",
+  GIRL_DISPLAY_NAME: process.env.GIRL_DISPLAY_NAME ?? "乙",
+  COUPLE_NAME: process.env.COUPLE_NAME ?? "我们的明天",
+  COUPLE_START_DATE: process.env.COUPLE_START_DATE ?? "2024-01-01",
+  COUPLE_TIMEZONE: process.env.COUPLE_TIMEZONE ?? "Asia/Shanghai",
+  COUPLE_SIGNATURE: process.env.COUPLE_SIGNATURE ?? "一起记录普通的日子。",
+};
 
 const localApiPort = process.env.E2E_API_PORT ?? "3103";
 const reuseExistingLocalServer = process.env.E2E_DATABASE_URL
   ? false
   : !process.env.CI;
 const localServerEnvironment = {
+  ...identityEnvironment,
   ...(process.env.E2E_DATABASE_URL
     ? { DATABASE_URL: process.env.E2E_DATABASE_URL }
     : {}),

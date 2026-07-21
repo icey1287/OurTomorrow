@@ -120,6 +120,24 @@ export const useIdentityStore = defineStore("identity", () => {
     }
   }
 
+  async function selectName(name: string) {
+    errorMessage.value = null;
+    try {
+      const nextIdentity = await stageOneApi.resolveIdentity({ name });
+      setIdentity(nextIdentity);
+      return nextIdentity;
+    } catch (error) {
+      if (
+        !(error instanceof ApiClientError) ||
+        error.code !== "IDENTITY_NAME_MISMATCH"
+      ) {
+        errorMessage.value =
+          error instanceof Error ? error.message : "身份选择没有成功。";
+      }
+      throw error;
+    }
+  }
+
   function replaceCouple(nextCouple: CoupleSummary) {
     if (!identity.value) {
       const selectedRole = role.value;
@@ -162,6 +180,7 @@ export const useIdentityStore = defineStore("identity", () => {
     couple,
     bootstrap,
     selectRole,
+    selectName,
     clearIdentity,
     updateCouple,
   };

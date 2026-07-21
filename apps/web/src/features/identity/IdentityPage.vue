@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import type { IdentityRole } from "@our-tomorrow/contracts";
 import { ArrowRight, Feather } from "lucide-vue-next";
-import { computed, nextTick, ref } from "vue";
+import { nextTick, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
-import { resolveIdentityRoleFromName } from "@/features/identity/identity-name";
 import {
   butterflyDown,
   butterflyOpenFrame,
@@ -17,6 +15,7 @@ import {
   pinkPetal,
   springFloralCorner,
 } from "@/shared/assets/romantic";
+import { ApiClientError } from "@/shared/api/client";
 import { useIdentityStore } from "@/shared/stores/identity";
 
 type IdentityPhase = "entry" | "revealing" | "opening";
@@ -27,16 +26,11 @@ const identity = useIdentityStore();
 const nameInput = ref("");
 const inputElement = ref<HTMLInputElement | null>(null);
 const phase = ref<IdentityPhase>("entry");
-const matchedRole = ref<IdentityRole | null>(null);
+const matchedName = ref("");
+const matchedShortName = ref("");
+const matchedPartnerShortName = ref("");
 const formError = ref<string | null>(null);
 const invalidAnimation = ref(false);
-
-const matchedName = computed(() =>
-  matchedRole.value === "girl" ? "示例用户乙" : "示例用户甲",
-);
-const matchedShortName = computed(() =>
-  matchedRole.value === "girl" ? "乙" : "甲",
-);
 
 const petals = [
   { left: "9%", delay: "-2s", duration: "12s", size: "15px" },
@@ -72,24 +66,31 @@ async function showInvalidName() {
 async function submitName() {
   if (phase.value !== "entry") return;
 
-  const role = resolveIdentityRoleFromName(nameInput.value);
-  if (!role) {
-    await showInvalidName();
-    return;
-  }
-
   formError.value = null;
-  matchedRole.value = role;
-  phase.value = "revealing";
 
   try {
-    await Promise.all([identity.selectRole(role), wait(1_850)]);
+    const selected = await identity.selectName(nameInput.value);
+    matchedName.value = nameInput.value.trim().normalize("NFKC");
+    matchedShortName.value = selected.user.displayName;
+    matchedPartnerShortName.value =
+      selected.couple.members.find((member) => member.id !== selected.user.id)
+        ?.displayName ?? "你";
+    phase.value = "revealing";
+    await wait(1_850);
     phase.value = "opening";
     await wait(720);
     await router.replace(safeRedirect());
-  } catch {
+  } catch (error) {
     phase.value = "entry";
-    matchedRole.value = null;
+    matchedName.value = "";
+    matchedShortName.value = "";
+    matchedPartnerShortName.value = "";
+    if (
+      error instanceof ApiClientError &&
+      error.code === "IDENTITY_NAME_MISMATCH"
+    ) {
+      await showInvalidName();
+    }
   }
 }
 </script>
@@ -142,7 +143,7 @@ async function submitName() {
       >
         <div class="welcome-seal" aria-hidden="true">
           <img :src="coupleEmblem" alt="" />
-          <span><b>甲</b><i>&amp;</i><b>乙</b></span>
+          <span><b>我</b><i>&amp;</i><b>你</b></span>
         </div>
 
         <div class="welcome-copy">
@@ -164,7 +165,7 @@ async function submitName() {
             name="name"
             type="text"
             autocomplete="name"
-            maxlength="10"
+            maxlength="80"
             placeholder="在这里落笔"
             :aria-invalid="formError ? 'true' : undefined"
             :aria-describedby="formError ? 'identity-name-error' : undefined"
@@ -183,7 +184,11 @@ async function submitName() {
           {{ formError }}
         </p>
 
-        <p v-if="identity.errorMessage" class="request-error" role="alert">
+        <p
+          v-if="identity.errorMessage && !formError"
+          class="request-error"
+          role="alert"
+        >
           {{ identity.errorMessage }}
         </p>
 
@@ -211,7 +216,7 @@ async function submitName() {
           <img :src="coupleEmblem" alt="" />
           <span class="emblem-names">
             <b>{{ matchedShortName }}</b
-            ><i>&amp;</i><b>{{ matchedRole === "girl" ? "甲" : "乙" }}</b>
+            ><i>&amp;</i><b>{{ matchedPartnerShortName }}</b>
           </span>
         </div>
 

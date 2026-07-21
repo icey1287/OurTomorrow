@@ -1,4 +1,4 @@
-# 我们的明天 · OurTomorrow
+# OurTomorrow
 
 一个只给两个人使用的手机端情侣手账。
 
@@ -23,6 +23,7 @@
 corepack enable
 pnpm install
 cp .env.example apps/api/.env
+# 编辑 apps/api/.env，填入仅供本机使用的双人配置
 docker compose -f infra/compose.yaml up -d postgres
 pnpm db:generate
 pnpm db:migrate
@@ -33,7 +34,26 @@ pnpm dev
 - API：<http://localhost:3001/api/v1>
 - OpenAPI：<http://localhost:3001/api/v1/docs>
 
-首次进入在 `/login` 输入真名：`示例用户甲` 对应 `boy`，`示例用户乙` 对应 `girl`。浏览器只保存当前角色；它不是登录认证，因此线上入口必须放在只有两个人能访问的私有网络或访问代理后面。
+## 隐私配置
+
+真实姓名、页面称呼、情侣空间名称和关系开始日期都从 API 的 `.env` 读取，不应写进源码或提交到 Git。仓库只提交使用中性示例值的 `.env.example`；本地开发请编辑 `apps/api/.env`，Docker 部署请编辑 `infra/.env`。
+
+```dotenv
+BOY_REAL_NAME=示例用户甲
+GIRL_REAL_NAME=示例用户乙
+BOY_DISPLAY_NAME=甲
+GIRL_DISPLAY_NAME=乙
+COUPLE_NAME=我们的明天
+COUPLE_START_DATE=2024-01-01
+COUPLE_TIMEZONE=Asia/Shanghai
+COUPLE_SIGNATURE=一起记录普通的日子。
+```
+
+- `BOY_REAL_NAME`、`GIRL_REAL_NAME`：`/login` 接受的两个完整姓名。匹配在 API 服务端完成，不会被编译进 Web 静态资源。
+- `BOY_DISPLAY_NAME`、`GIRL_DISPLAY_NAME`：进入手账后显示的简称或昵称。
+- `COUPLE_NAME`、`COUPLE_START_DATE`、`COUPLE_TIMEZONE`、`COUPLE_SIGNATURE`：首次创建双人空间时采用的默认资料。
+
+浏览器只保存匹配后的 `boy` 或 `girl` 角色。姓名匹配不是登录认证，因此线上入口仍必须放在只有两个人能访问的私有网络、VPN 或访问代理后面。
 
 ## 常用命令
 

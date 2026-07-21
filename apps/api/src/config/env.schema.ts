@@ -17,6 +17,19 @@ function isValidTimeZone(timeZone: string): boolean {
   }
 }
 
+function isValidLocalDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const date = new Date(
+    Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])),
+  );
+  return date.toISOString().slice(0, 10) === value;
+}
+
+function normalizeIdentityName(value: string): string {
+  return value.normalize("NFKC");
+}
+
 function isSecureApplicationUrl(value: string): boolean {
   const url = new URL(value);
   return (
@@ -33,6 +46,17 @@ export const environmentSchema = z
       .default("development"),
     AMAP_WEB_SERVICE_KEY: z.string().trim().default(""),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
+    BOY_REAL_NAME: z.string().trim().min(1).max(80),
+    GIRL_REAL_NAME: z.string().trim().min(1).max(80),
+    BOY_DISPLAY_NAME: z.string().trim().min(1).max(40),
+    GIRL_DISPLAY_NAME: z.string().trim().min(1).max(40),
+    COUPLE_NAME: z.string().trim().min(1).max(80),
+    COUPLE_START_DATE: z
+      .string()
+      .trim()
+      .refine(isValidLocalDate, "COUPLE_START_DATE must be YYYY-MM-DD"),
+    COUPLE_TIMEZONE: z.string().trim().min(1),
+    COUPLE_SIGNATURE: z.string().trim().max(120).default(""),
     DATABASE_URL: z
       .string()
       .url()
@@ -52,6 +76,23 @@ export const environmentSchema = z
         code: z.ZodIssueCode.custom,
         path: ["TZ"],
         message: "TZ must be a valid IANA time zone",
+      });
+    }
+    if (!isValidTimeZone(value.COUPLE_TIMEZONE)) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["COUPLE_TIMEZONE"],
+        message: "COUPLE_TIMEZONE must be a valid IANA time zone",
+      });
+    }
+    if (
+      normalizeIdentityName(value.BOY_REAL_NAME) ===
+      normalizeIdentityName(value.GIRL_REAL_NAME)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["GIRL_REAL_NAME"],
+        message: "the two configured real names must be different",
       });
     }
     if (

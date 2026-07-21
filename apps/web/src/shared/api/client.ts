@@ -12,6 +12,7 @@ let identityEpoch = 0;
 const ERROR_MESSAGES: Record<string, string> = {
   VALIDATION_FAILED: "请检查填写的内容后再试。",
   IDENTITY_REQUIRED: "请先选择你的身份。",
+  IDENTITY_NAME_MISMATCH: "姓名没有匹配到任何身份。",
   ACTION_FORBIDDEN: "当前身份不能执行这个操作。",
   RESOURCE_NOT_FOUND: "请求的内容不存在或已不可用。",
   STATE_CONFLICT: "内容已在另一处更新，请刷新后重试。",
@@ -119,7 +120,7 @@ async function request<T>(path: string, init: ApiRequestInit = {}): Promise<T> {
       credentials: "omit",
     });
   } catch {
-    throw new ApiClientError("暂时无法连接明天，请检查网络后再试。", {
+    throw new ApiClientError("暂时无法连接 OurTomorrow，请检查网络后再试。", {
       status: 0,
       code: "NETWORK_ERROR",
     });
@@ -173,7 +174,7 @@ async function requestBlob(
       credentials: "omit",
     });
   } catch {
-    throw new ApiClientError("暂时无法连接明天，请检查网络后再试。", {
+    throw new ApiClientError("暂时无法连接 OurTomorrow，请检查网络后再试。", {
       status: 0,
       code: "NETWORK_ERROR",
     });

@@ -11,14 +11,21 @@ infra           PostgreSQL、API、Web、Caddy
 
 ## 环境变量
 
-| 变量                   | 用途                               |
-| ---------------------- | ---------------------------------- |
-| `DATABASE_URL`         | PostgreSQL 连接                    |
-| `WEB_ORIGIN`           | 唯一允许的 Web Origin              |
-| `AMAP_WEB_SERVICE_KEY` | 高德坐标转换、逆地理编码和静态地图 |
-| `API_PORT`             | API 端口，默认 `3001`              |
-| `TRUST_PROXY`          | 是否信任已知反向代理               |
-| `TZ`                   | 进程默认时区                       |
+| 变量                                     | 用途                                  |
+| ---------------------------------------- | ------------------------------------- |
+| `BOY_REAL_NAME` / `GIRL_REAL_NAME`       | 登录页在 API 服务端匹配的两个完整姓名 |
+| `BOY_DISPLAY_NAME` / `GIRL_DISPLAY_NAME` | 页面和 API 显示的简称                 |
+| `COUPLE_NAME`                            | 首次创建情侣空间时采用的名称          |
+| `COUPLE_START_DATE`                      | 首次创建时采用的关系开始日期          |
+| `COUPLE_TIMEZONE` / `COUPLE_SIGNATURE`   | 情侣空间时区与首页句子                |
+| `DATABASE_URL`                           | PostgreSQL 连接                       |
+| `WEB_ORIGIN`                             | 唯一允许的 Web Origin                 |
+| `AMAP_WEB_SERVICE_KEY`                   | 高德坐标转换、逆地理编码和静态地图    |
+| `API_PORT`                               | API 端口，默认 `3001`                 |
+| `TRUST_PROXY`                            | 是否信任已知反向代理                  |
+| `TZ`                                     | 进程默认时区                          |
+
+私人值只写入被 Git 忽略的 `apps/api/.env` 或 `infra/.env`。`.env.example` 必须始终保留中性示例值。
 
 ## 数据模型
 

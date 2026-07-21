@@ -59,6 +59,7 @@ type NoteView = {
 describe.sequential("the minimal two-person journal", () => {
   let prisma: PrismaClient;
   let application: RunningTestApplication;
+  let anonymous: ApiHttpClient;
   let boy: ApiHttpClient;
   let girl: ApiHttpClient;
 
@@ -67,6 +68,7 @@ describe.sequential("the minimal two-person journal", () => {
     prisma = createTestPrisma(databaseUrl);
     await prisma.$connect();
     application = await startTestApplication(databaseUrl);
+    anonymous = new ApiHttpClient(application.baseUrl);
     boy = new ApiHttpClient(application.baseUrl, "boy");
     girl = new ApiHttpClient(application.baseUrl, "girl");
   });
@@ -81,9 +83,10 @@ describe.sequential("the minimal two-person journal", () => {
   });
 
   async function selectPair() {
-    const boyIdentity = await boy.post<IdentityResponse>("/identity/select", {
-      role: "boy",
-    });
+    const boyIdentity = await anonymous.post<IdentityResponse>(
+      "/identity/resolve",
+      { name: "  示例用户甲  " },
+    );
     const girlIdentity = await girl.post<IdentityResponse>("/identity/select", {
       role: "girl",
     });
@@ -96,6 +99,13 @@ describe.sequential("the minimal two-person journal", () => {
   }
 
   test("keeps only the fixed pair and shared anniversary settings", async () => {
+    const rejected = await anonymous.post<{ code: string }>(
+      "/identity/resolve",
+      { name: "未配置的姓名" },
+    );
+    expect(rejected.status).toBe(400);
+    expect(rejected.body?.code).toBe("IDENTITY_NAME_MISMATCH");
+
     const identities = await selectPair();
     expect(identities.boy.couple.id).toBe(identities.girl.couple.id);
     expect(

@@ -12,6 +12,7 @@ X-Our-Tomorrow-Role: boy | girl
 
 | 方法   | 路径                             | 说明                                          |
 | ------ | -------------------------------- | --------------------------------------------- |
+| POST   | `/identity/resolve`              | 用服务端 `.env` 中的姓名匹配并初始化固定身份  |
 | POST   | `/identity/select`               | 初始化并选择固定身份                          |
 | PATCH  | `/couples/current`               | 按 `version` 更新纪念日或扉页句子             |
 | GET    | `/statuses/current`              | 获取双方仍有效的当前状态                      |

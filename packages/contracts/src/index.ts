@@ -39,6 +39,10 @@ export interface SelectIdentityRequest {
   role: IdentityRole;
 }
 
+export interface ResolveIdentityRequest {
+  name: string;
+}
+
 export interface UpdateCoupleRequest {
   version: number;
   startDate?: string;

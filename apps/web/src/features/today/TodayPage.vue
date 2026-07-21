@@ -45,11 +45,11 @@ const notesQuery = useQuery({
 });
 
 const currentUserId = computed(() => identity.user?.id ?? "");
-const myName = computed(() =>
-  identity.role === "boy" ? "甲" : identity.role === "girl" ? "乙" : "我",
-);
-const partnerName = computed(() =>
-  identity.role === "boy" ? "乙" : identity.role === "girl" ? "甲" : "另一半",
+const myName = computed(() => identity.user?.displayName ?? "我");
+const partnerName = computed(
+  () =>
+    identity.couple?.members.find((member) => member.id !== identity.user?.id)
+      ?.displayName ?? "另一半",
 );
 const timezone = computed(() => identity.couple?.timezone ?? "Asia/Shanghai");
 const myStatus = computed(() => statusesQuery.data.value?.mine ?? null);

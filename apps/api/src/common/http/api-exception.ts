@@ -28,6 +28,14 @@ export function identityRequired(): ApiException {
   );
 }
 
+export function identityNameMismatch(): ApiException {
+  return new ApiException(
+    HttpStatus.BAD_REQUEST,
+    "IDENTITY_NAME_MISMATCH",
+    "The supplied name does not match a configured identity",
+  );
+}
+
 export function resourceNotFound(): ApiException {
   return new ApiException(
     HttpStatus.NOT_FOUND,

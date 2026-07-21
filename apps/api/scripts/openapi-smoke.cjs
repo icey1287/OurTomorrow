@@ -5,6 +5,7 @@ const { createServer } = require("node:net");
 const { join } = require("node:path");
 
 const REQUIRED_OPERATIONS = {
+  "/api/v1/identity/resolve": ["post"],
   "/api/v1/identity/select": ["post"],
   "/api/v1/couples/current": ["patch"],
   "/api/v1/statuses/current": ["get"],
@@ -80,6 +81,14 @@ async function main() {
       ...process.env,
       NODE_ENV: "test",
       API_PORT: String(port),
+      BOY_REAL_NAME: "示例用户甲",
+      GIRL_REAL_NAME: "示例用户乙",
+      BOY_DISPLAY_NAME: "甲",
+      GIRL_DISPLAY_NAME: "乙",
+      COUPLE_NAME: "我们的明天",
+      COUPLE_START_DATE: "2024-01-01",
+      COUPLE_TIMEZONE: "Asia/Shanghai",
+      COUPLE_SIGNATURE: "一起记录普通的日子。",
       DATABASE_URL:
         "postgresql://openapi_smoke:openapi_smoke@127.0.0.1:1/openapi_smoke?schema=public&connect_timeout=1&pool_timeout=1",
       WEB_ORIGIN: "http://127.0.0.1:5173",

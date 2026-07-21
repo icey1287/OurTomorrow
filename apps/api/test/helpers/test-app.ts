@@ -18,6 +18,14 @@ export async function startTestApplication(
 ): Promise<RunningTestApplication> {
   Object.assign(process.env, {
     NODE_ENV: "test",
+    BOY_REAL_NAME: "示例用户甲",
+    GIRL_REAL_NAME: "示例用户乙",
+    BOY_DISPLAY_NAME: "甲",
+    GIRL_DISPLAY_NAME: "乙",
+    COUPLE_NAME: "我们的明天",
+    COUPLE_START_DATE: "2024-01-01",
+    COUPLE_TIMEZONE: "UTC",
+    COUPLE_SIGNATURE: "一起记录普通的日子。",
     DATABASE_URL: databaseUrl,
     WEB_ORIGIN: TEST_WEB_ORIGIN,
     TRUST_PROXY: "false",

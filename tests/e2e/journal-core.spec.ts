@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const APP_URL = process.env.E2E_BASE_URL ?? "http://localhost:5173";
+const BOY_REAL_NAME = process.env.BOY_REAL_NAME ?? "示例用户甲";
 const PORTRAIT_NOTE_PNG = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAIAAAAECAYAAACk7+45AAAAEklEQVR4nGP4v2XffxBmwM0AAO8LG4H86nsEAAAAAElFTkSuQmCC",
   "base64",
@@ -9,7 +10,7 @@ const PORTRAIT_NOTE_PNG = Buffer.from(
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.clear());
   await page.goto(`${APP_URL}/login`);
-  await page.getByLabel("你的真名").fill("示例用户甲");
+  await page.getByLabel("你的真名").fill(BOY_REAL_NAME);
   await page.getByRole("button", { name: /翻开我们的手账/ }).click();
   await expect(page).toHaveURL(/\/today$/);
 });
@@ -28,7 +29,7 @@ test("the journal exposes only status, place and notes", async ({ page }) => {
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭状态编辑" }).click();
 
-  await page.getByRole("button", { name: /写给乙/ }).click();
+  await page.getByRole("button", { name: /写给/ }).click();
   await page.getByLabel("从相册选择一张照片").setInputFiles({
     name: "spring-note.png",
     mimeType: "image/png",

@@ -6,7 +6,7 @@ import TodayPage from "@/features/today/TodayPage.vue";
 import { resolveIdentityNavigation } from "@/router/identity-guard";
 import { useIdentityStore } from "@/shared/stores/identity";
 
-const BRAND_SUFFIX = "我们的明天";
+const BRAND_SUFFIX = "OurTomorrow";
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

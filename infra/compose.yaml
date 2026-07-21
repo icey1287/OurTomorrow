@@ -9,6 +9,14 @@ x-default-logging: &default-logging
 x-api-environment: &api-environment
   NODE_ENV: ${NODE_ENV:-development}
   API_PORT: 3000
+  BOY_REAL_NAME: ${BOY_REAL_NAME:-示例用户甲}
+  GIRL_REAL_NAME: ${GIRL_REAL_NAME:-示例用户乙}
+  BOY_DISPLAY_NAME: ${BOY_DISPLAY_NAME:-甲}
+  GIRL_DISPLAY_NAME: ${GIRL_DISPLAY_NAME:-乙}
+  COUPLE_NAME: ${COUPLE_NAME:-我们的明天}
+  COUPLE_START_DATE: ${COUPLE_START_DATE:-2024-01-01}
+  COUPLE_TIMEZONE: ${COUPLE_TIMEZONE:-Asia/Shanghai}
+  COUPLE_SIGNATURE: ${COUPLE_SIGNATURE:-今天也一起认真生活。}
   DATABASE_URL: ${DATABASE_URL:-postgresql://our_tomorrow:our_tomorrow@postgres:5432/our_tomorrow?schema=public}
   WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost}
   TRUST_PROXY: "1"

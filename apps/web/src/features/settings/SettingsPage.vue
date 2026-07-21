@@ -28,11 +28,11 @@ const saving = ref(false);
 const formError = ref<string | null>(null);
 const savedMessage = ref<string | null>(null);
 
-const currentName = computed(() =>
-  identity.role === "boy" ? "甲" : identity.role === "girl" ? "乙" : "我",
-);
-const partnerName = computed(() =>
-  identity.role === "boy" ? "乙" : identity.role === "girl" ? "甲" : "你",
+const currentName = computed(() => identity.user?.displayName ?? "我");
+const partnerName = computed(
+  () =>
+    identity.couple?.members.find((member) => member.id !== identity.user?.id)
+      ?.displayName ?? "你",
 );
 const initials = computed(() => ({
   mine: currentName.value.trim().slice(0, 1) || "我",
@@ -151,7 +151,7 @@ watch(
       <img :src="nightGarden" alt="" aria-hidden="true" />
       <div class="garden-copy">
         <small>PRIVATE GARDEN · FOR TWO</small>
-        <h2>{{ identity.couple?.name || "我们的明天" }}</h2>
+        <h2>{{ identity.couple?.name || "OurTomorrow" }}</h2>
         <p>
           从 {{ formattedStartDate }} 开始，只有 {{ currentName }} 和
           {{ partnerName }}。
