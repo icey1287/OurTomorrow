@@ -135,7 +135,9 @@ jobs:
           --env APP_SITE_ADDRESS=http://localhost
           --volume "$PWD/infra/Caddyfile:/etc/caddy/Caddyfile:ro"
           caddy:2-alpine
-          validate --config /etc/caddy/Caddyfile
+          caddy validate
+          --config /etc/caddy/Caddyfile
+          --adapter caddyfile
 
       - name: Build runtime images
-        run: docker compose -f infra/compose.yaml build api web backup
+        run: docker compose -f infra/compose.yaml build api web
