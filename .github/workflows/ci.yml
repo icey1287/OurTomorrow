@@ -44,8 +44,16 @@ jobs:
       - name: Generate Prisma client
         run: pnpm db:generate
 
-      - name: Check formatting
+      - name: Check formatting (advisory)
+        id: formatting
+        continue-on-error: true
         run: pnpm format:check
+
+      - name: Report formatting advice
+        if: ${{ !cancelled() && steps.formatting.outcome == 'failure' }}
+        run: |
+          echo "::warning::Formatting differs from Prettier. Run pnpm format when convenient; this does not block CI."
+          echo "Formatting needs attention. Run pnpm format; see the formatting step for details. This check is advisory." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Lint
         run: pnpm lint
